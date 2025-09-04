@@ -5,9 +5,10 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import toast from "react-hot-toast";
+import { User } from "@supabase/supabase-js";
 
 export default function Dashboard() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -112,8 +113,8 @@ export default function Dashboard() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Account</h3>
               <div className="space-y-2 text-sm text-gray-600">
                 <p><strong>Email:</strong> {user?.email}</p>
-                <p><strong>Name:</strong> {user?.user_metadata?.name || 'Not provided'}</p>
-                <p><strong>Member since:</strong> {new Date(user?.created_at).toLocaleDateString()}</p>
+                <p><strong>Name:</strong> {user?.user_metadata?.name || "Not provided"}</p>
+                <p><strong>Member since:</strong> {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}</p>
               </div>
             </div>
           </div>

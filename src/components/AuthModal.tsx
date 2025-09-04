@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
+import Image from "next/image";
 
 type AuthMode = "login" | "register";
 
@@ -101,9 +102,10 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
           }, 1000);
         }
       }
-    } catch (error: any) {
-      setError(error.message);
-      toast.error(error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -115,7 +117,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
   const primaryCta = mode === "login" ? "Continue" : "Create account";
   const swapPrompt = mode === "login" ? (
     <span>
-      Don't have an account?{" "}
+      Don&apos;t have an account?{" "}
       <span 
         className="text-[#ff5a58] cursor-pointer hover:underline"
         onClick={() => onModeChange("register")}
@@ -177,7 +179,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
             {/* Left visual panel */}
             <div className="relative hidden md:block">
               <div className="absolute inset-0">
-                <img src="/assets/modalbg.png" alt="decorative" className="h-full w-full object-cover" />
+                <Image src="/assets/modalbg.png" alt="decorative" className="h-full w-full object-cover" fill />
               </div>
             </div>
 
@@ -185,7 +187,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
             <div className="px-8 py-10">
               <div className="mx-auto max-w-md">
                 <div className="flex flex-col items-center mb-6">
-                  <img src="/assets/ryokosquare.png" alt="Ryoko logo" className="h-40 w-40" />
+                  <Image src="/assets/ryokosquare.png" alt="Ryoko logo" className="h-40 w-40" width={160} height={160} />
                 </div>
 
                 <h2 className="text-2xl font-extrabold text-center mb-6">{title}</h2>

@@ -545,7 +545,7 @@ export default function Home() {
                   { title: "Explore Ancient Temples and Modern Charm1", tag: "Kyoto, Japan" },
                   { title: "Wine Tasting and Rolling Hills Adventure2", tag: "Tuscany, Italy" },
                   { title: "City Lights and Cultural Highlights3", tag: "New York City, USA" },
-                ].map((card, index) => (
+                ].map((card) => (
                   <motion.article
                     key={card.title}
                     className="rounded-xl border border-[#eee] overflow-hidden bg-white"
