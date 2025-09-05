@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.15.2",
+    "@mapbox/mapbox-sdk": "^0.16.1",
     "@supabase/supabase-js": "^2.57.0",
+    "@vercel/analytics": "^1.5.0",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.542.0",
     "next": "15.5.2",

@@ -4,9 +4,11 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import AuthModal from "@/components/AuthModal";
 import PublicRoute from "@/components/PublicRoute";
-import { ArrowRight, MapPin } from "lucide-react";
+import { ArrowRight, MapPin, Home as HomeIcon, Users, Bookmark } from "lucide-react";
 import Loading from "@/components/Loading";
 import toast from "react-hot-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 function CountUp({ end, duration = 1200, suffix = "" }: { end: number; duration?: number; suffix?: string }) {
   const [value, setValue] = useState(0);
   const [started, setStarted] = useState(false);
@@ -105,6 +107,8 @@ export default function Home() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const router = useRouter();
   
   const handleAuthModeChange = (mode: "login" | "register") => {
     setAuthMode(mode);
@@ -190,36 +194,69 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.6 }}
                 >
-                  <motion.a
-                    className="text-[#555] hover:text-[#1a1a1a] cursor-pointer"
-                    onClick={() => {
-                      document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    Features
-                  </motion.a>
-                  <motion.a
-                    className="text-[#555] hover:text-[#1a1a1a] cursor-pointer"
-                    onClick={() => {
-                      document.getElementById('guides')?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    Guides
-                  </motion.a>
-                  <motion.a
-                    className="text-[#555] hover:text-[#1a1a1a] cursor-pointer"
-                    onClick={() => {
-                      document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    About
-                  </motion.a>
+                  {user ? (
+                    // Navigation icons for logged-in users
+                    <>
+                      <button 
+                        onClick={() => router.push('/dashboard')}
+                        className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        <HomeIcon className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => router.push('/trips')}
+                        className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        <MapPin className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => router.push('/social')}
+                        className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        <Users className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => router.push('/bookmark')}
+                        className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        <Bookmark className="w-5 h-5" />
+                      </button>
+                    </>
+                  ) : (
+                    // Regular navigation for non-logged-in users
+                    <>
+                      <motion.a
+                        className="text-[#555] hover:text-[#1a1a1a] cursor-pointer"
+                        onClick={() => {
+                          document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        Features
+                      </motion.a>
+                      <motion.a
+                        className="text-[#555] hover:text-[#1a1a1a] cursor-pointer"
+                        onClick={() => {
+                          document.getElementById('guides')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        Guides
+                      </motion.a>
+                      <motion.a
+                        className="text-[#555] hover:text-[#1a1a1a] cursor-pointer"
+                        onClick={() => {
+                          document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        About
+                      </motion.a>
+                    </>
+                  )}
                 </motion.nav>
                 <motion.div
                   className="flex items-center gap-3"

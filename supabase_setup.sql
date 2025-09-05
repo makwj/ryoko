@@ -36,3 +36,33 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create trips table
+CREATE TABLE trips (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  owner_id UUID REFERENCES auth.users(id) NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  destination TEXT,
+  start_date DATE,
+  end_date DATE,
+  interests TEXT[], -- Array of interest categories
+  collaborators TEXT[], -- Array of email addresses
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS for trips table
+ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for trips table
+CREATE POLICY "Users can view own trips" ON trips
+  FOR SELECT USING (auth.uid() = owner_id);
+
+CREATE POLICY "Users can insert own trips" ON trips
+  FOR INSERT WITH CHECK (auth.uid() = owner_id);
+
+CREATE POLICY "Users can update own trips" ON trips
+  FOR UPDATE USING (auth.uid() = owner_id);
+
+CREATE POLICY "Users can delete own trips" ON trips
+  FOR DELETE USING (auth.uid() = owner_id);
