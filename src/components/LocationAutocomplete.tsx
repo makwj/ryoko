@@ -149,7 +149,7 @@ export default function LocationAutocomplete({
               setIsOpen(true);
             }
           }}
-          className={`w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent text-gray-900 ${className}`}
+          className={`w-full h-12 pl-10 pr-4 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent text-dark ${className}`}
           placeholder={placeholder}
           autoComplete="off"
         />
@@ -174,7 +174,7 @@ export default function LocationAutocomplete({
             >
               <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-900 truncate">
+                <div className="text-sm font-medium text-dark truncate">
                   {formatLocationName(suggestion)}
                 </div>
                 <div className="text-xs text-gray-500 truncate">

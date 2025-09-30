@@ -6,15 +6,129 @@ import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import toast from "react-hot-toast";
 import { User } from "@supabase/supabase-js";
-import { Home, MapPin, Users, Bookmark } from "lucide-react";
+import { Home, MapPin, Users, Bookmark, Mail, Clock, CheckCircle, XCircle } from "lucide-react";
 import CreateTripModal from "@/components/CreateTripModal";
+import DestinationImage from "@/components/DestinationImage";
 import Image from "next/image";
 import { motion } from "framer-motion";
 
+interface Trip {
+  id: string;
+  title: string;
+  description: string;
+  destination: string;
+  start_date: string;
+  end_date: string;
+  interests: string[];
+  collaborators: string[];
+  created_at: string;
+}
+
+interface Invitation {
+  id: string;
+  trip_id: string;
+  inviter_id: string;
+  invitee_email: string;
+  invitee_name?: string;
+  status: string;
+  invited_at: string;
+  expires_at: string;
+  trips: {
+    id: string;
+    title: string;
+    destination: string;
+    start_date: string;
+    end_date: string;
+    description: string;
+    profiles: {
+      name: string;
+      email: string;
+    };
+  };
+}
+
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [showCreateTripModal, setShowCreateTripModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [invitationsLoading, setInvitationsLoading] = useState(true);
   const router = useRouter();
+
+  const fetchInvitations = async (user: User) => {
+    try {
+      setInvitationsLoading(true);
+      
+      // Get user's email from profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', user.id)
+        .single();
+
+      console.log('Profile fetch result:', { profile, profileError });
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        setInvitationsLoading(false);
+        return;
+      }
+
+      if (!profile?.email) {
+        console.log('No email found for user:', user.id);
+        setInvitationsLoading(false);
+        return;
+      }
+
+      // Fetch pending invitations for this user's email (simplified query)
+      const { data: invitationsData, error } = await supabase
+        .from('invitations')
+        .select('*')
+        .eq('invitee_email', profile.email)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .order('invited_at', { ascending: false });
+
+      console.log('Invitations fetch result:', { invitationsData, error });
+
+      if (error) {
+        console.error('Error fetching invitations:', error);
+        console.error('Error details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        setInvitationsLoading(false);
+        return;
+      }
+
+      // Now fetch trip details for each invitation
+      const invitationsWithTrips = [];
+      for (const invitation of invitationsData || []) {
+        const { data: trip, error: tripError } = await supabase
+          .from('trips')
+          .select('id, title, destination, start_date, end_date, description, owner_id')
+          .eq('id', invitation.trip_id)
+          .single();
+
+        if (!tripError && trip) {
+          invitationsWithTrips.push({
+            ...invitation,
+            trips: trip
+          });
+        }
+      }
+
+      console.log('Successfully fetched invitations:', invitationsWithTrips.length);
+      setInvitations(invitationsWithTrips);
+    } catch (error) {
+      console.error('Error fetching invitations:', error);
+    } finally {
+      setInvitationsLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Check current user session
@@ -25,9 +139,33 @@ export default function Dashboard() {
         return;
       }
       setUser(user);
+      return user;
     };
 
-    getUser();
+    const fetchData = async () => {
+      const user = await getUser();
+      if (user) {
+        // Fetch user's trips (both owned and collaborated)
+        const { data: tripsData, error } = await supabase
+          .from('trips')
+          .select('*')
+          .or(`owner_id.eq.${user.id},collaborators.cs.{${user.id}}`)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching trips:', error);
+          toast.error('Failed to load trips');
+        } else {
+          setTrips(tripsData || []);
+        }
+
+        // Fetch user's invitations
+        await fetchInvitations(user);
+      }
+      setLoading(false);
+    };
+
+    fetchData();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -36,6 +174,19 @@ export default function Dashboard() {
           router.push('/');
         } else if (session?.user) {
           setUser(session.user);
+          // Refetch trips when user changes
+          const { data: tripsData, error } = await supabase
+            .from('trips')
+            .select('*')
+            .eq('owner_id', session.user.id)
+            .order('created_at', { ascending: false });
+
+          if (!error) {
+            setTrips(tripsData || []);
+          }
+          
+          // Refetch invitations
+          await fetchInvitations(session.user);
         }
       }
     );
@@ -68,9 +219,112 @@ export default function Dashboard() {
     await supabase.auth.signOut();
   };
 
-  const handleTripCreated = () => {
-    // Refresh trips data or show success message
-    // Toast message is handled in CreateTripModal component
+  const handleTripCreated = async () => {
+    // Refresh trips data
+    if (user) {
+      const { data: tripsData, error } = await supabase
+        .from('trips')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!error) {
+        setTrips(tripsData || []);
+      }
+    }
+  };
+
+  const handleInvitationResponse = async (invitationId: string, action: 'accept' | 'decline') => {
+    if (!user) return;
+
+    console.log('Handling invitation response:', { invitationId, action, user: user.id });
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      console.log('Session token available:', !!token);
+      console.log('Token length:', token?.length);
+      console.log('Request body:', JSON.stringify({ invitationId, action }));
+
+      const response = await fetch('/api/invitation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          invitationId,
+          action
+        })
+      });
+
+      console.log('API response status:', response.status);
+      console.log('API response headers:', Object.fromEntries(response.headers.entries()));
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to respond to invitation');
+      }
+
+      toast.success(data.message);
+      
+      // Refresh invitations
+      await fetchInvitations(user);
+      
+      // If accepted, also refresh trips (both owned and collaborated)
+      if (action === 'accept') {
+        const { data: tripsData, error } = await supabase
+          .from('trips')
+          .select('*')
+          .or(`owner_id.eq.${user.id},collaborators.cs.{${user.id}}`)
+          .order('created_at', { ascending: false });
+
+        if (!error) {
+          setTrips(tripsData || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error responding to invitation:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to respond to invitation');
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
+
+  const getGradientClass = (index: number) => {
+    const gradients = [
+      'from-green-400 to-green-600',
+      'from-blue-400 to-purple-600',
+      'from-red-400 to-orange-600',
+      'from-purple-400 to-indigo-600',
+      'from-yellow-400 to-red-600',
+      'from-pink-400 to-rose-600'
+    ];
+    return gradients[index % gradients.length];
+  };
+
+  const formatTimeRemaining = (expiresAt: string) => {
+    const now = new Date();
+    const expires = new Date(expiresAt);
+    const diffMs = expires.getTime() - now.getTime();
+    
+    if (diffMs <= 0) return 'Expired';
+    
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) return `${days} day${days !== 1 ? 's' : ''} remaining`;
+    if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''} remaining`;
+    return 'Less than an hour remaining';
   };
 
   return (
@@ -141,7 +395,7 @@ export default function Dashboard() {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors"
+                  className="text-gray-600 hover:text-dark-medium text-sm font-medium transition-colors"
                 >
                   Logout
                 </button>
@@ -151,11 +405,11 @@ export default function Dashboard() {
         </motion.header>
 
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-20">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
           {/* Active Trips Section */}
           <section className="mb-12">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Active Trips</h2>
+              <h2 className="text-2xl font-bold text-dark">Active Trips</h2>
               <button 
                 onClick={() => setShowCreateTripModal(true)}
                 className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -164,114 +418,183 @@ export default function Dashboard() {
               </button>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* Trip Card 1 */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="h-48 bg-gradient-to-br from-green-400 to-green-600"></div>
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="w-4 h-4 text-[#ff5a58]" />
-                    <span className="text-sm text-gray-600">Tuscany, Italy</span>
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Journey Through Italy</h3>
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>3 Participants</span>
-                    <span>Jul 10 - Jul 14, 2025</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Trip Card 2 */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="h-48 bg-gradient-to-br from-blue-400 to-purple-600"></div>
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="w-4 h-4 text-[#ff5a58]" />
-                    <span className="text-sm text-gray-600">New York City, USA</span>
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">City Lights and Night Life</h3>
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>4 Participants</span>
-                    <span>Dec 10 - Jul 24, 2025</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Trip Card 3 */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="h-48 bg-gradient-to-br from-red-400 to-orange-600"></div>
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="w-4 h-4 text-[#ff5a58]" />
-                    <span className="text-sm text-gray-600">Kyoto, Japan</span>
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Ancient Temples and</h3>
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>6 Participants</span>
-                    <span>Jul 10 - Jul 14, 2025</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* City Guides Section */}
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">City Guides</h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* City Guide Cards */}
-              {[
-                { name: "TOKYO", gradient: "from-blue-400 to-purple-600" },
-                { name: "JAKARTA", gradient: "from-green-400 to-blue-600" },
-                { name: "NEW YORK CITY", gradient: "from-yellow-400 to-red-600" },
-                { name: "BANGKOK", gradient: "from-orange-400 to-pink-600" },
-                { name: "KUALA LUMPUR", gradient: "from-purple-400 to-indigo-600" },
-                { name: "TUSCANY", gradient: "from-green-400 to-yellow-600" }
-              ].map((city, index) => (
-                <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className={`h-32 bg-gradient-to-br ${city.gradient}`}></div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 text-center">{city.name}</h3>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Your Invitations Section */}
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Invitations</h2>
-            <div className="max-w-md">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="h-32 bg-gradient-to-br from-purple-400 to-indigo-600"></div>
-                <div className="p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                      <span className="text-xs text-white font-medium">E</span>
+            {loading ? (
+              <div className="grid md:grid-cols-3 gap-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse">
+                    <div className="h-48 bg-gray-300"></div>
+                    <div className="p-4">
+                      <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                      <div className="h-6 bg-gray-300 rounded mb-2"></div>
+                      <div className="flex justify-between">
+                        <div className="h-4 bg-gray-300 rounded w-20"></div>
+                        <div className="h-4 bg-gray-300 rounded w-24"></div>
+                      </div>
                     </div>
-                    <span className="text-sm text-gray-600">Emily invited you to join</span>
                   </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="w-4 h-4 text-[#ff5a58]" />
-                    <span className="text-sm text-gray-600">Kuala Lumpur, Malaysia</span>
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Cuti-Cuti Malaysia</h3>
-                  <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                    <span>3 Participants</span>
-                    <span>Jul 20 - Jul 26, 2025</span>
-                  </div>
-                  <div className="flex gap-3">
-                    <button className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                      Decline
-                    </button>
-                    <button className="flex-1 bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                      Accept
-                    </button>
-                  </div>
-                </div>
+                ))}
               </div>
-            </div>
+            ) : trips.length > 0 ? (
+              <div className="grid md:grid-cols-3 gap-6">
+                {trips.map((trip, index) => (
+                  <motion.div
+                    key={trip.id}
+                    className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => router.push(`/trip/${trip.id}`)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.1 }}
+                  >
+                    <DestinationImage 
+                      destination={trip.destination || ''}
+                      className="h-48"
+                      fallbackClassName={`bg-gradient-to-br ${getGradientClass(index)}`}
+                    />
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <MapPin className="w-4 h-4 text-[#ff5a58]" />
+                        <span className="text-sm text-gray-600">{trip.destination || 'No destination'}</span>
+                      </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-dark">{trip.title}</h3>
+                        {trip.owner_id === user?.id ? (
+                          <span className="px-2 py-1 bg-[#ff5a58] text-white text-xs rounded-full">Owner</span>
+                        ) : (
+                          <span className="px-2 py-1 bg-gray-500 text-white text-xs rounded-full">Collaborator</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <span>{trip.collaborators ? trip.collaborators.length + 1 : 1} Participants</span>
+                        <span>
+                          {trip.start_date && trip.end_date 
+                            ? `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`
+                            : 'No dates set'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <MapPin className="w-12 h-12 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-dark mb-2">No trips yet</h3>
+                <p className="text-form mb-6">Create your first trip to get started with planning your adventure!</p>
+                <button 
+                  onClick={() => setShowCreateTripModal(true)}
+                  className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                >
+                  Create Your First Trip
+                </button>
+              </div>
+            )}
           </section>
+
+
+          {/* Your Invitations Section - Only show if there are invitations or loading */}
+          {(invitationsLoading || invitations.length > 0) && (
+            <section className="mb-12">
+              <h2 className="text-2xl font-bold text-dark mb-6">Your Invitations</h2>
+              
+              {invitationsLoading ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse">
+                      <div className="h-32 bg-gray-300"></div>
+                      <div className="p-4">
+                        <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                        <div className="h-6 bg-gray-300 rounded mb-2"></div>
+                        <div className="flex justify-between">
+                          <div className="h-4 bg-gray-300 rounded w-20"></div>
+                          <div className="h-4 bg-gray-300 rounded w-24"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : invitations.length > 0 ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {invitations.map((invitation, index) => (
+                    <motion.div
+                      key={invitation.id}
+                      className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.1 }}
+                    >
+                      <DestinationImage 
+                        destination={invitation.trips.destination || ''}
+                        className="h-32"
+                        fallbackClassName={`bg-gradient-to-br ${getGradientClass(index)}`}
+                      />
+                      <div className="p-4">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-6 h-6 bg-[#ff5a58] rounded-full flex items-center justify-center">
+                            <span className="text-xs text-white font-medium">
+                              {invitation.invitee_name?.charAt(0) || invitation.invitee_email?.charAt(0) || 'U'}
+                            </span>
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            You were invited to join
+                          </span>
+                        </div>
+                        
+                        {invitation.trips.destination && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <MapPin className="w-4 h-4 text-[#ff5a58]" />
+                            <span className="text-sm text-gray-600">{invitation.trips.destination}</span>
+                          </div>
+                        )}
+                        
+                        <h3 className="font-semibold text-dark mb-2">{invitation.trips.title}</h3>
+                        
+                        <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
+                          <span>
+                            {invitation.trips.start_date && invitation.trips.end_date 
+                              ? `${formatDate(invitation.trips.start_date)} - ${formatDate(invitation.trips.end_date)}`
+                              : 'No dates set'
+                            }
+                          </span>
+                          <div className="flex items-center gap-1 text-orange-600">
+                            <Clock className="w-3 h-3" />
+                            <span className="text-xs">{formatTimeRemaining(invitation.expires_at)}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={() => {
+                              console.log('Decline button clicked, invitation:', invitation);
+                              handleInvitationResponse(invitation.id, 'decline');
+                            }}
+                            className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Decline
+                          </button>
+                          <button 
+                            onClick={() => {
+                              console.log('Accept button clicked, invitation:', invitation);
+                              handleInvitationResponse(invitation.id, 'accept');
+                            }}
+                            className="flex-1 bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Accept
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          )}
         </main>
 
         {/* Create Trip Modal */}

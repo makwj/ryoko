@@ -5,6 +5,10 @@ import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type AuthMode = "login" | "register";
 
@@ -51,6 +55,23 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
           return;
         }
 
+        // Check if user already exists by looking in profiles table
+        const { data: existingProfile, error: profileCheckError } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('email', formData.email)
+          .single();
+
+        if (existingProfile && !profileCheckError) {
+          setError("An account with this email already exists. Please sign in instead.");
+          // Automatically switch to login mode after a short delay
+          setTimeout(() => {
+            onModeChange("login");
+            setError(null);
+          }, 2000);
+          return;
+        }
+
         // Register user
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
@@ -62,7 +83,21 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
           },
         });
 
-        if (error) throw error;
+        if (error) {
+          // Handle specific Supabase errors
+          if (error.message.includes("User already registered") || 
+              error.message.includes("already been registered") ||
+              error.message.includes("already exists")) {
+            setError("An account with this email already exists. Please sign in instead.");
+            // Automatically switch to login mode after a short delay
+            setTimeout(() => {
+              onModeChange("login");
+              setError(null);
+            }, 2000);
+            return;
+          }
+          throw error;
+        }
 
         if (data.user) {
           // Create profile entry
@@ -111,8 +146,6 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
     }
   };
 
-  if (!open) return null;
-
   const title = mode === "login" ? "Login" : "Create account";
   const primaryCta = mode === "login" ? "Continue" : "Create account";
   const swapPrompt = mode === "login" ? (
@@ -138,59 +171,24 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
   );
 
   return (
-    <div className="fixed inset-0 z-50">
-      <motion.div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
-      />
-      <motion.div 
-        className="absolute inset-0 flex items-center justify-center p-4"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <motion.div 
-          className="w-full max-w-3xl bg-white rounded-[28px] shadow-2xl overflow-hidden relative"
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          transition={{ 
-            duration: 0.4,
-            ease: "easeOut"
-          }}
-        >
-          <motion.button
-            aria-label="Close"
-            className="cursor-pointer absolute right-4 top-4 h-9 w-9 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f3f3f3]"
-            onClick={onClose}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            transition={{ duration: 0.2 }}
-          >
-            ×
-          </motion.button>
-          <div className="grid md:grid-cols-[1fr_1.3fr]">
-            {/* Left visual panel */}
-            <div className="relative hidden md:block">
-              <div className="absolute inset-0">
-                <Image src="/assets/modalbg.png" alt="decorative" className="h-full w-full object-cover" fill />
-              </div>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="w-full max-w-3xl overflow-hidden p-0">
+        <div className="grid md:grid-cols-[1fr_1.3fr]">
+          {/* Left visual panel */}
+          <div className="relative hidden md:block">
+            <div className="absolute inset-0">
+              <Image src="/assets/modalbg.png" alt="decorative" className="h-full w-full object-cover" fill />
             </div>
+          </div>
 
-            {/* Right form panel */}
-            <div className="px-8 py-10">
-              <div className="mx-auto max-w-md">
-                <div className="flex flex-col items-center mb-6">
-                  <Image src="/assets/ryokosquare.png" alt="Ryoko logo" className="h-40 w-40" width={160} height={160} />
-                </div>
+          {/* Right form panel */}
+          <div className="px-8 py-10">
+            <div className="mx-auto max-w-md">
+              <div className="flex flex-col items-center mb-6">
+                <Image src="/assets/ryokosquare.png" alt="Ryoko logo" className="h-40 w-40" width={160} height={160} />
+              </div>
 
-                <h2 className="text-2xl font-extrabold text-center mb-6">{title}</h2>
+              <h2 className="text-2xl font-extrabold text-center mb-6">{title}</h2>
 
                 {error && (
                   <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
@@ -201,49 +199,47 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {mode === "register" && (
                     <div>
-                      <label className="text-xs font-medium text-[#666]">NAME</label>
-                      <input
+                      <Label className="text-xs font-medium text-[#666]">NAME</Label>
+                      <Input
                         type="text"
                         value={formData.name}
                         onChange={(e) => handleInputChange("name", e.target.value)}
-                        className="mt-1 w-full h-11 rounded-xl border border-[#e5e5e5] px-3 outline-none focus:ring-2 focus:ring-[#ffd8d7]"
+                        className="mt-1 w-full h-11"
                         placeholder="John Doe"
                         required
                       />
                     </div>
                   )}
                   <div>
-                    <label className="text-xs font-medium text-[#666]">EMAIL</label>
-                    <input
+                    <Label className="text-xs font-medium text-[#666]">EMAIL</Label>
+                    <Input
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange("email", e.target.value)}
-                      className="mt-1 w-full h-11 rounded-xl border border-[#e5e5e5] px-3 outline-none focus:ring-2 focus:ring-[#ffd8d7]"
+                      className="mt-1 w-full h-11"
                       placeholder="johndoe@email.com"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[#666]">PASSWORD</label>
-                    <div className="relative">
-                      <input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => handleInputChange("password", e.target.value)}
-                        className="mt-1 w-full h-11 rounded-xl border border-[#e5e5e5] px-3 pr-10 outline-none focus:ring-2 focus:ring-[#ffd8d7]"
-                        placeholder="••••••••"
-                        required
-                      />
-                    </div>
+                    <Label className="text-xs font-medium text-[#666]">PASSWORD</Label>
+                    <Input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange("password", e.target.value)}
+                      className="mt-1 w-full h-11"
+                      placeholder="••••••••"
+                      required
+                    />
                   </div>
                   {mode === "register" && (
                     <div>
-                      <label className="text-xs font-medium text-[#666]">CONFIRM PASSWORD</label>
-                      <input
+                      <Label className="text-xs font-medium text-[#666]">CONFIRM PASSWORD</Label>
+                      <Input
                         type="password"
                         value={formData.confirmPassword}
                         onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                        className="mt-1 w-full h-11 rounded-xl border border-[#e5e5e5] px-3 outline-none focus:ring-2 focus:ring-[#ffd8d7]"
+                        className="mt-1 w-full h-11"
                         placeholder="••••••••"
                         required
                       />
@@ -252,29 +248,28 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
 
                   {mode === "login" && (
                     <div className="flex justify-end -mt-1">
-                      <button className="text-xs text-[#777] hover:text-[#1a1a1a] cursor-pointer" type="button">
+                      <Button variant="ghost" className="text-xs text-[#777] hover:text-[#1a1a1a] p-0 h-auto" type="button">
                         Forgot Password?
-                      </button>
+                      </Button>
                     </div>
                   )}
 
-                  <button
+                  <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full h-11 rounded-xl bg-[#ff5a58] hover:bg-[#ff4a47] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-white font-semibold flex items-center justify-center gap-2"
+                    className="w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold"
                   >
                     {loading ? "Loading..." : primaryCta}
-                    <span>›</span>
-                  </button>
+                    <span className="ml-2">›</span>
+                  </Button>
 
                   <div className="text-center text-xs text-[#666] mt-2">{swapPrompt}</div>
                 </form>
               </div>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

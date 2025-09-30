@@ -330,7 +330,7 @@ export default function Home() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.8, delay: 0.6 }}
                     >
-                      <span className="text-gray-900">Plan Together</span>
+                      <span className="text-dark">Plan Together</span>
                       <br />
                       <span className="bg-gradient-to-r from-[#ff5a58] to-[#ff9558] bg-clip-text text-transparent">
                         Travel Better

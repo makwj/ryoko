@@ -100,7 +100,7 @@ export default function TripsPage() {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors"
+                  className="text-gray-600 hover:text-dark-medium text-sm font-medium transition-colors"
                 >
                   Logout
                 </button>
@@ -113,7 +113,7 @@ export default function TripsPage() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-20">
           <div className="text-center py-20">
             <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Trips</h1>
+            <h1 className="text-3xl font-bold text-dark mb-4">Trips</h1>
             <p className="text-gray-600 mb-8">Manage and view all your trips here.</p>
             <button 
               onClick={() => setShowCreateTripModal(true)}
