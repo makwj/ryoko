@@ -166,7 +166,7 @@ export default function InviteCollaboratorsModal({
             </div>
             <div className="text-2xl font-extrabold text-center mb-2">Invite Collaborators</div>
             <p className="text-gray-600 text-center text-sm">
-              Invite friends to collaborate on <span className="font-semibold">"{tripTitle}"</span>
+              Invite friends to collaborate on <span className="font-semibold">&ldquo;{tripTitle}&rdquo;</span>
             </p>
           </DialogTitle>
         </DialogHeader>

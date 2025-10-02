@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import toast from "react-hot-toast";
 import { User } from "@supabase/supabase-js";
-import { Home, MapPin, Users, Bookmark, Mail, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Home, MapPin, Users, Bookmark, Clock, CheckCircle, XCircle } from "lucide-react";
 import CreateTripModal from "@/components/CreateTripModal";
 import DestinationImage from "@/components/DestinationImage";
 import Image from "next/image";
@@ -21,6 +21,7 @@ interface Trip {
   end_date: string;
   interests: string[];
   collaborators: string[];
+  owner_id?: string;
   created_at: string;
 }
 

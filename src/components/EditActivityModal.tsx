@@ -245,7 +245,7 @@ export default function EditActivityModal({
           activity_time: formData.activity_time || null,
           location: formData.location.trim() || null,
           activity_type: formData.activity_type,
-          note: formData.note.trim() || null,
+          note: formData.note?.trim() || null,
           attachments: allAttachments.length > 0 ? allAttachments : null,
         })
         .eq('id', activity.id);

@@ -62,7 +62,7 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
   const [uploading, setUploading] = useState(false);
   const [newComment, setNewComment] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Set<string>>(new Set());
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Fetch images for the trip
   const fetchImages = async () => {
@@ -377,7 +377,7 @@ function UploadModal({
   onUpload: (file: File, caption: string) => void;
   uploading: boolean;
   selectedDay: number;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caption, setCaption] = useState('');

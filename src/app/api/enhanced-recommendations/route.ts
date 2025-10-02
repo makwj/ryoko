@@ -1,6 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Types for Google Places API responses
+interface GooglePlaceResponse {
+  results: GooglePlaceResult[];
+}
+
+interface GooglePlaceResult {
+  place_id: string;
+  name: string;
+  formatted_address?: string;
+  rating?: number;
+  user_ratings_total?: number;
+  types?: string[];
+  photos?: Array<{ photo_reference: string }>;
+}
+
+interface GooglePlaceDetails {
+  result: {
+    name: string;
+    formatted_address: string;
+    rating: number;
+    user_ratings_total: number;
+    opening_hours?: {
+      weekday_text: string[];
+    };
+    photos?: Array<{ photo_reference: string }>;
+    website?: string;
+    formatted_phone_number?: string;
+    types: string[];
+    reviews?: Array<{
+      text: string;
+      rating: number;
+    }>;
+    price_level?: number;
+    place_id: string;
+  };
+}
+
+interface CuratedPlace {
+  name: string;
+  category: string;
+  activity_type: string;
+  recommendation_reason: string;
+  best_for?: string;
+  practical_tips?: string;
+  timing_advice?: string;
+  group_suitability?: string;
+}
+
+interface TripData {
+  trip_id: string;
+  destination: string;
+  interests: string[];
+  numberOfDays: number;
+  numberOfParticipants: number;
+  startDate: string;
+  endDate: string;
+  additionalInfo?: string;
+}
+
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 // Interest to Google Places Type Mapping
@@ -36,7 +95,7 @@ function getPlacesTypesFromInterests(interests: string[]): string[] {
 }
 
 // Helper function to get comprehensive Google Places data
-async function getPlacesDetails(placeId: string): Promise<any> {
+async function getPlacesDetails(placeId: string): Promise<GooglePlaceDetails | null> {
   try {
     const fields = 'name,formatted_address,rating,user_ratings_total,opening_hours,photos,website,formatted_phone_number,types,reviews,price_level,place_id';
     const response = await fetch(
@@ -54,14 +113,14 @@ async function getPlacesDetails(placeId: string): Promise<any> {
 }
 
 // Helper function to fetch places from Google Places API
-async function fetchPlaces(query: string, limit: number = 20): Promise<any[]> {
+async function fetchPlaces(query: string): Promise<GooglePlaceResult[]> {
   try {
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${process.env.GOOGLE_PLACES_API_KEY}`
     );
 
     if (response.ok) {
-      const data = await response.json();
+      const data: GooglePlaceResponse = await response.json();
       return data.results || [];
     }
   } catch (error) {
@@ -71,16 +130,16 @@ async function fetchPlaces(query: string, limit: number = 20): Promise<any[]> {
 }
 
 // Helper function to filter by rating and reviews
-function filterHighQualityPlaces(places: any[], minRating: number = 4.0, minReviews: number = 50): any[] {
+function filterHighQualityPlaces(places: GooglePlaceResult[], minRating: number = 4.0, minReviews: number = 50): GooglePlaceResult[] {
   return places.filter(place => 
-    place.rating >= minRating && 
-    place.user_ratings_total >= minReviews
+    (place.rating || 0) >= minRating && 
+    (place.user_ratings_total || 0) >= minReviews
   );
 }
 
 // Helper function to determine trip season and timing context
-function getTripContext(tripData: any): string {
-  const { startDate, endDate, numberOfDays, numberOfParticipants } = tripData;
+function getTripContext(tripData: TripData): string {
+  const { numberOfDays, numberOfParticipants, startDate } = tripData;
   
   // Calculate trip duration
   const duration = numberOfDays <= 3 ? "short" : numberOfDays <= 7 ? "medium" : "long";
@@ -101,12 +160,12 @@ function getTripContext(tripData: any): string {
 }
 
 // Fallback function to extract places from unstructured text
-function extractPlacesFromText(text: string, availablePlaces: any[]): any[] {
-  const extractedPlaces: any[] = [];
+function extractPlacesFromText(text: string, availablePlaces: GooglePlaceDetails[]): CuratedPlace[] {
+  const extractedPlaces: CuratedPlace[] = [];
   
   // Try to find place names mentioned in the text
   availablePlaces.forEach(place => {
-    const placeName = place.name.toLowerCase();
+    const placeName = place.result.name.toLowerCase();
     const textMatch = text.toLowerCase().includes(placeName);
     
     if (textMatch) {
@@ -124,20 +183,20 @@ function extractPlacesFromText(text: string, availablePlaces: any[]): any[] {
       }
       
       // Determine activity type from Google Places types
-      if (place.types?.includes('restaurant') || place.types?.includes('food')) {
+      if (place.result.types?.includes('restaurant') || place.result.types?.includes('food')) {
         activityType = 'Food';
-      } else if (place.types?.includes('museum') || place.types?.includes('art_gallery')) {
+      } else if (place.result.types?.includes('museum') || place.result.types?.includes('art_gallery')) {
         activityType = 'Culture';
-      } else if (place.types?.includes('park') || place.types?.includes('natural_feature')) {
+      } else if (place.result.types?.includes('park') || place.result.types?.includes('natural_feature')) {
         activityType = 'Nature';
-      } else if (place.types?.includes('shopping_mall') || place.types?.includes('store')) {
+      } else if (place.result.types?.includes('shopping_mall') || place.result.types?.includes('store')) {
         activityType = 'Shopping';
-      } else if (place.types?.includes('tourist_attraction')) {
+      } else if (place.result.types?.includes('tourist_attraction')) {
         activityType = 'Activity';
       }
       
       extractedPlaces.push({
-        name: place.name,
+        name: place.result.name,
         category: category,
         activity_type: activityType,
         recommendation_reason: "This place was mentioned in our analysis and meets the quality criteria.",
@@ -155,7 +214,7 @@ function extractPlacesFromText(text: string, availablePlaces: any[]): any[] {
 
 export async function POST(request: NextRequest) {
   try {
-    const { tripData } = await request.json();
+    const { tripData }: { tripData: TripData } = await request.json();
     
     if (!tripData) {
       return NextResponse.json({ error: 'Trip data is required' }, { status: 400 });
@@ -167,7 +226,6 @@ export async function POST(request: NextRequest) {
       numberOfDays, 
       numberOfParticipants, 
       startDate, 
-      endDate,
       additionalInfo 
     } = tripData;
 
@@ -298,7 +356,7 @@ Return only the JSON object, no additional text.
     
     // Fetch places with all queries
     const allPlaces = await Promise.all(
-      placesQueries.map(query => fetchPlaces(query, 5))
+      placesQueries.map(query => fetchPlaces(query))
     );
     
     // Flatten and deduplicate by place_id
@@ -332,15 +390,15 @@ Return only the JSON object, no additional text.
     const tripContext = getTripContext(tripData);
     
     const placesForGemini = validPlaces.map(place => ({
-      name: place.name,
-      address: place.formatted_address,
-      rating: place.rating,
-      review_count: place.user_ratings_total,
-      types: place.types || [],
-      price_level: place.price_level || null,
-      opening_hours: place.opening_hours?.weekday_text || null,
-      reviews: (place.reviews || []).slice(0, 3).map((r: any) => r.text).join(' | '),
-      website: place.website || null
+      name: place.result.name,
+      address: place.result.formatted_address,
+      rating: place.result.rating,
+      review_count: place.result.user_ratings_total,
+      types: place.result.types || [],
+      price_level: place.result.price_level || null,
+      opening_hours: place.result.opening_hours?.weekday_text || null,
+      reviews: (place.result.reviews || []).slice(0, 3).map((r: { text: string }) => r.text).join(' | '),
+      website: place.result.website || null
     }));
 
     // Step 6: Use Gemini AI for intelligent curation and personalization
@@ -352,7 +410,7 @@ TRIP DETAILS:
 - Duration: ${numberOfDays} days
 - Group Size: ${numberOfParticipants} people
 - Interests: ${interests.join(', ')}
-- Trip Dates: ${startDate} to ${endDate}
+- Trip Dates: ${startDate} for ${numberOfDays} days
 ${additionalInfo ? `- Additional Requirements: ${additionalInfo}` : ''}
 
 AVAILABLE PLACES:
@@ -485,26 +543,26 @@ CATEGORIZE BY:
 
     // Step 7: Match curated places with Google Places data and enhance
     const enhancedRecommendations = await Promise.all(
-      curatedPlaces.map(async (curated: any, index: number) => {
+      curatedPlaces.map(async (curated: CuratedPlace, index: number) => {
         // Find the matching Google Places data
         const matchingPlace = validPlaces.find(place => 
-          place.name.toLowerCase().includes(curated.name.toLowerCase()) ||
-          curated.name.toLowerCase().includes(place.name.toLowerCase())
+          place.result.name.toLowerCase().includes(curated.name.toLowerCase()) ||
+          curated.name.toLowerCase().includes(place.result.name.toLowerCase())
         );
 
         if (matchingPlace) {
           // Generate photo URL if available
                 let photoUrl = null;
-          if (matchingPlace.photos && matchingPlace.photos.length > 0) {
-            const photoReference = matchingPlace.photos[0].photo_reference;
+          if (matchingPlace.result.photos && matchingPlace.result.photos.length > 0) {
+            const photoReference = matchingPlace.result.photos[0].photo_reference;
                   photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
                 }
 
                 return {
                   id: `rec_${Date.now()}_${index}`,
-            title: matchingPlace.name,
+            title: matchingPlace.result.name,
             description: curated.recommendation_reason,
-            location: matchingPlace.formatted_address,
+            location: matchingPlace.result.formatted_address,
             activity_type: curated.activity_type,
             category: curated.category,
             best_for: curated.best_for,
@@ -514,15 +572,15 @@ CATEGORIZE BY:
             estimated_time: curated.timing_advice?.includes('Half day') ? 'Half day' : 
                           curated.timing_advice?.includes('Full day') ? 'Full day' : '2-3 hours',
             // Enhanced Google Places data
-            rating: matchingPlace.rating || null,
-            user_ratings_total: matchingPlace.user_ratings_total || null,
-            opening_hours: matchingPlace.opening_hours?.weekday_text || null,
-            website: matchingPlace.website || null,
-            phone_number: matchingPlace.formatted_phone_number || null,
-            price_level: matchingPlace.price_level || null,
+            rating: matchingPlace.result.rating || null,
+            user_ratings_total: matchingPlace.result.user_ratings_total || null,
+            opening_hours: matchingPlace.result.opening_hours?.weekday_text || null,
+            website: matchingPlace.result.website || null,
+            phone_number: matchingPlace.result.formatted_phone_number || null,
+            price_level: matchingPlace.result.price_level || null,
                   image_url: photoUrl,
-            place_id: matchingPlace.place_id,
-            relevant_link: matchingPlace.website || `https://www.google.com/search?q=${encodeURIComponent(matchingPlace.name)}`,
+            place_id: matchingPlace.result.place_id,
+            relevant_link: matchingPlace.result.website || `https://www.google.com/search?q=${encodeURIComponent(matchingPlace.result.name)}`,
                   generated_at: new Date().toISOString()
                 };
         }

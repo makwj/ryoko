@@ -25,7 +25,6 @@ import {
   ThumbsDown,
   MessageCircle,
   ExternalLink,
-  Tag,
   Archive,
   CheckCircle,
   AlertTriangle,
@@ -57,7 +56,7 @@ interface Trip {
   end_date: string;
   interests: string[];
   collaborators: string[] | null;
-  owner_id: string;
+  owner_id?: string;
   archived?: boolean;
   completed?: boolean;
   created_at: string;
@@ -97,6 +96,11 @@ interface Expense {
 interface Participant {
   id: string;
   name: string;
+}
+
+interface User {
+  id: string;
+  email?: string;
 }
 
 interface ExpenseSummary {
@@ -213,7 +217,7 @@ export default function TripPage() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [recommendations, setRecommendations] = useState<TripRecommendation[]>([]);
   const [generatingRecommendations, setGeneratingRecommendations] = useState(false);
@@ -1763,7 +1767,7 @@ export default function TripPage() {
                                       fileName = (parsedAttachment.customName && parsedAttachment.customName.trim()) 
                                         ? parsedAttachment.customName 
                                         : parsedAttachment.url.split('/').pop() || `attachment-${index + 1}`;
-                                    } catch (e) {
+                                    } catch {
                                       // If parsing fails, treat as regular URL
                                       url = attachment;
                                       fileName = attachment.split('/').pop() || `attachment-${index + 1}`;
@@ -2165,8 +2169,8 @@ export default function TripPage() {
                       <div className="mb-4">
                         <h3 className="text-lg font-semibold text-dark mb-2">Additional Preferences (Optional)</h3>
                         <p className="text-sm text-gray-600 mb-4">
-                          Tell us more about what you're looking for to get more personalized recommendations. 
-                          For example: "I prefer budget-friendly options", "I love street food", "I want to avoid crowded places", etc.
+                          Tell us more about what you&apos;re looking for to get more personalized recommendations. 
+                          For example: &ldquo;I prefer budget-friendly options&rdquo;, &ldquo;I love street food&rdquo;, &ldquo;I want to avoid crowded places&rdquo;, etc.
                         </p>
                       </div>
                       <div className="flex gap-4">
@@ -2445,7 +2449,7 @@ export default function TripPage() {
                       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-medium text-gray-600">You've Paid</p>
+                            <p className="text-sm font-medium text-gray-600">You&apos;ve Paid</p>
                             <p className="text-2xl font-bold text-dark">${expenseSummary.userPaid.toFixed(2)}</p>
                           </div>
                           <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -2741,7 +2745,7 @@ export default function TripPage() {
                             <div>
                               <h4 className="text-md font-semibold text-gray-800 mb-4">Paid Settlements</h4>
                               <div className="space-y-4">
-                                {getPaidSettlements().map((settlement, index) => {
+                                {getPaidSettlements().map((settlement) => {
                                   const fromParticipant = participants.find(p => p.id === settlement.from_user_id);
                                   const toParticipant = participants.find(p => p.id === settlement.to_user_id);
                                   
