@@ -157,7 +157,7 @@ interface TripRecommendation {
   title: string;
   description: string;
   location: string;
-  activity_type: 'transportation' | 'accommodation' | 'activity' | 'food' | 'shopping' | 'nature' | 'history' | 'culture';
+  activity_type: 'transportation' | 'accommodation' | 'activity' | 'food' | 'shopping' | 'nature' | 'history' | 'culture' | 'entertainment' | 'sports' | 'religion';
   relevant_link: string;
   estimated_time: string;
   image_url?: string;
@@ -169,6 +169,13 @@ interface TripRecommendation {
   website?: string;
   phone_number?: string;
   place_id?: string;
+  price_level?: number;
+  // New comprehensive fields
+  category?: 'Must-Visit' | 'Recommended' | 'Consider';
+  best_for?: string;
+  timing_advice?: string;
+  group_suitability?: string;
+  practical_tips?: string;
 }
 
 export default function TripPage() {
@@ -330,11 +337,6 @@ export default function TripPage() {
 
         // Get current user
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('Current user:', user);
-        console.log('Trip data:', tripData);
-        console.log('User ID:', user?.id);
-        console.log('Trip owner ID:', tripData?.owner_id);
-        console.log('Is owner:', user?.id === tripData?.owner_id);
         setUser(user);
 
         // Fetch ideas for this trip (optional - table might not exist yet)
@@ -673,18 +675,14 @@ export default function TripPage() {
           participantIds.push(user.id);
         }
         
-        console.log('Refreshing participants with IDs:', participantIds);
         
         const { data: profilesData, error } = await supabase
           .from('profiles')
           .select('id, name')
           .in('id', participantIds);
 
-        console.log('Profiles query result:', { profilesData, error });
-
         if (!error) {
           setParticipants(profilesData || []);
-          console.log('Participants updated:', profilesData);
         } else {
           console.error('Error fetching profiles:', error);
         }
@@ -700,13 +698,11 @@ export default function TripPage() {
   };
 
   const handleArchiveTrip = async () => {
-    console.log('handleArchiveTrip called');
     if (!confirm('Are you sure you want to archive this trip? It will be hidden from your active trips.')) {
       return;
     }
 
     try {
-      console.log('Archiving trip:', trip?.id);
       const { error } = await supabase
         .from('trips')
         .update({ archived: true })
@@ -724,13 +720,11 @@ export default function TripPage() {
   };
 
   const handleCompleteTrip = async () => {
-    console.log('handleCompleteTrip called');
     if (!confirm('Are you sure you want to mark this trip as completed?')) {
       return;
     }
 
     try {
-      console.log('Completing trip:', trip?.id);
       const { error } = await supabase
         .from('trips')
         .update({ completed: true })
@@ -748,7 +742,6 @@ export default function TripPage() {
   };
 
   const handleDeleteTrip = async () => {
-    console.log('handleDeleteTrip called');
     if (!confirm('Are you sure you want to delete this trip? This action cannot be undone and will delete all activities, expenses, and ideas.')) {
       return;
     }
@@ -2221,7 +2214,19 @@ export default function TripPage() {
                                     className="w-full h-full object-cover"
                                   />
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center">
+                                  <div className="w-full h-full flex items-center justify-center relative">
+                                    {/* Category Badge */}
+                                    {recommendation.category && (
+                                      <div className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium ${
+                                        recommendation.category === 'Must-Visit' ? 'bg-red-100 text-red-800' :
+                                        recommendation.category === 'Recommended' ? 'bg-green-100 text-green-800' :
+                                        'bg-blue-100 text-blue-800'
+                                      }`}>
+                                        {recommendation.category === 'Must-Visit' ? '⭐ Must-Visit' :
+                                         recommendation.category === 'Recommended' ? '✓ Recommended' :
+                                         '💡 Consider'}
+                                      </div>
+                                    )}
                                     <span className="text-4xl">
                                       {recommendation.activity_type === 'transportation' ? '🚗' :
                                        recommendation.activity_type === 'accommodation' ? '🏨' :
@@ -2230,7 +2235,10 @@ export default function TripPage() {
                                        recommendation.activity_type === 'shopping' ? '🛍️' :
                                        recommendation.activity_type === 'nature' ? '🌿' :
                                        recommendation.activity_type === 'history' ? '🏛️' :
-                                       recommendation.activity_type === 'culture' ? '🎭' : '📍'}
+                                       recommendation.activity_type === 'culture' ? '🎭' :
+                                       recommendation.activity_type === 'entertainment' ? '🎪' :
+                                       recommendation.activity_type === 'sports' ? '⚽' :
+                                       recommendation.activity_type === 'religion' ? '⛪' : '📍'}
                                     </span>
                                   </div>
                                 )}
@@ -2275,6 +2283,50 @@ export default function TripPage() {
                                     </div>
 
                                     <p className="text-gray-600 text-sm mb-3">{recommendation.description}</p>
+                                    
+                                    {/* Best For */}
+                                    {recommendation.best_for && (
+                                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                                        <div className="flex items-start gap-2">
+                                          <span className="text-green-500 text-sm">🎯</span>
+                                          <p className="text-green-800 text-sm font-medium">Best for:</p>
+                                        </div>
+                                        <p className="text-green-700 text-sm mt-1">{recommendation.best_for}</p>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Timing Advice */}
+                                    {recommendation.timing_advice && (
+                                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                                        <div className="flex items-start gap-2">
+                                          <span className="text-amber-500 text-sm">⏰</span>
+                                          <p className="text-amber-800 text-sm font-medium">Timing advice:</p>
+                                        </div>
+                                        <p className="text-amber-700 text-sm mt-1">{recommendation.timing_advice}</p>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Group Suitability */}
+                                    {recommendation.group_suitability && (
+                                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-3">
+                                        <div className="flex items-start gap-2">
+                                          <span className="text-purple-500 text-sm">👥</span>
+                                          <p className="text-purple-800 text-sm font-medium">Group suitability:</p>
+                                        </div>
+                                        <p className="text-purple-700 text-sm mt-1">{recommendation.group_suitability}</p>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Practical Tips */}
+                                    {recommendation.practical_tips && (
+                                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+                                        <div className="flex items-start gap-2">
+                                          <span className="text-gray-500 text-sm">💡</span>
+                                          <p className="text-gray-800 text-sm font-medium">Practical tips:</p>
+                                        </div>
+                                        <p className="text-gray-700 text-sm mt-1">{recommendation.practical_tips}</p>
+                                      </div>
+                                    )}
                                     
                                     {/* Enhanced Details */}
                                     <div className="space-y-2">
