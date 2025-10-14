@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Plus,
   Calendar,
-  User
+  User,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -33,6 +34,8 @@ interface GalleryImage {
   updated_at: string;
   uploader_name?: string;
   comments?: ImageComment[];
+  likes_count?: number;
+  liked_by_user?: boolean;
 }
 
 interface ImageComment {
@@ -60,43 +63,78 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [newComment, setNewComment] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Set<string>>(new Set());
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch images for the trip
   const fetchImages = async () => {
     try {
-      console.log('Fetching images for trip:', tripId);
-      const { data, error } = await supabase
-        .from('gallery_images')
-        .select(`
-          *,
-          uploader:profiles(name),
-          comments:image_comments(
-            *,
-            user:profiles(name)
-          )
-        `)
-        .eq('trip_id', tripId)
-        .order('created_at', { ascending: false });
+      setLoading(true);
+    const { data, error } = await supabase
+      .from('gallery_images')
+      .select('*')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Supabase error:', error);
         throw error;
       }
 
-      console.log('Fetched images:', data);
-      const imagesWithUploaderNames = data.map(img => ({
+    const imagesWithUploaderNames = (data || []).map((img: any) => {
+      const uploader = participants.find(p => p.id === img.uploaded_by);
+      return {
         ...img,
-        uploader_name: img.uploader?.name || 'Unknown',
-        comments: img.comments || []
-      }));
+        uploader_name: uploader?.name || 'Unknown',
+        comments: [],
+        likes_count: 0,
+        liked_by_user: false
+      } as GalleryImage;
+    });
 
-      setImages(imagesWithUploaderNames);
+      // Fetch comments and likes for each image in parallel
+      const imagesEnriched = await Promise.all(
+        imagesWithUploaderNames.map(async (img) => {
+          try {
+            const [commentsRes, likesRes] = await Promise.all([
+              fetch(`/api/gallery/comments?imageId=${encodeURIComponent(img.id)}`),
+              fetch(`/api/gallery/likes?imageId=${encodeURIComponent(img.id)}&userId=${encodeURIComponent(userId)}`)
+            ]);
+
+            let comments: ImageComment[] | undefined = img.comments;
+            if (commentsRes.ok) {
+              const json = await commentsRes.json();
+              const commentsRaw = (json.comments || []) as ImageComment[];
+              comments = commentsRaw.map(c => ({
+                ...c,
+                user: { name: participants.find(p => p.id === c.user_id)?.name || 'Unknown' }
+              }));
+            }
+
+            let likes_count = img.likes_count;
+            let liked_by_user = img.liked_by_user;
+            if (likesRes.ok) {
+              const lj = await likesRes.json();
+              likes_count = lj.likesCount ?? 0;
+              liked_by_user = !!lj.likedByUser;
+            }
+
+            return { ...img, comments, likes_count, liked_by_user } as GalleryImage;
+          } catch {
+            return img;
+          }
+        })
+      );
+
+      setImages(imagesEnriched);
     } catch (error) {
       console.error('Error fetching images:', error);
       toast.error(`Failed to load gallery images: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -105,40 +143,48 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
   }, [tripId]);
 
   // Handle image upload
-  const handleImageUpload = async (file: File, caption: string) => {
-    if (!file) return;
+  const handleImageUpload = async (files: File[] | File, caption: string) => {
+    const fileArray = Array.isArray(files) ? files : [files];
+    if (fileArray.length === 0) return;
 
     setUploading(true);
     try {
-      console.log('Uploading image:', { file: file.name, size: file.size, type: file.type });
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('tripId', tripId);
-      formData.append('dayNumber', selectedDay.toString());
-      formData.append('caption', caption);
-      formData.append('userId', userId);
+      setUploadProgress(0);
+      const total = fileArray.length;
+      let completed = 0;
 
-      console.log('Sending upload request...');
-      const response = await fetch('/api/gallery/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      for (const file of fileArray) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('tripId', tripId);
+        formData.append('dayNumber', selectedDay.toString());
+        formData.append('caption', caption);
+        formData.append('userId', userId);
 
-      const result = await response.json();
-      console.log('Upload response:', result);
+        const response = await fetch('/api/gallery/upload', {
+          method: 'POST',
+          body: formData,
+        });
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Upload failed');
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Upload failed');
+        }
+
+        completed += 1;
+        setUploadProgress(Math.round((completed / total) * 100));
       }
 
-      toast.success('Image uploaded successfully!');
+      toast.success('Images uploaded successfully!');
       setShowUploadModal(false);
-      fetchImages(); // Refresh images
+      await fetchImages(); // Refresh images
     } catch (error) {
       console.error('Upload error:', error);
       toast.error(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -166,17 +212,34 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
         throw new Error(result.error || 'Failed to add comment');
       }
 
+      // Clear input
       setNewComment(prev => ({ ...prev, [imageId]: '' }));
-      fetchImages(); // Refresh to get new comment
+
+      // Refresh only this image's comments
+      try {
+        const res = await fetch(`/api/gallery/comments?imageId=${encodeURIComponent(imageId)}`);
+        const json = await res.json();
+        if (res.ok) {
+          const commentsRaw = (json.comments || []) as ImageComment[];
+          const comments = commentsRaw.map(c => ({
+            ...c,
+            user: { name: participants.find(p => p.id === c.user_id)?.name || 'Unknown' }
+          }));
+          setImages(prev => prev.map(img => img.id === imageId ? { ...img, comments } : img));
+          setSelectedImage(prev => (prev && prev.id === imageId) ? { ...prev, comments } as GalleryImage : prev);
+        }
+      } catch {}
+
       toast.success('Comment added!');
     } catch (error) {
       console.error('Comment error:', error);
-      toast.error('Failed to add comment');
+      const message = error instanceof Error ? error.message : 'Failed to add comment';
+      toast.error(message);
     }
   };
 
   // Handle comment deletion
-  const handleDeleteComment = async (commentId: string) => {
+  const handleDeleteComment = async (commentId: string, imageId: string) => {
     try {
       const response = await fetch('/api/gallery/comments', {
         method: 'DELETE',
@@ -192,7 +255,20 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
         throw new Error(result.error || 'Failed to delete comment');
       }
 
-      fetchImages(); // Refresh to remove comment
+      // Refresh only this image's comments
+      try {
+        const res = await fetch(`/api/gallery/comments?imageId=${encodeURIComponent(imageId)}`);
+        const json = await res.json();
+        if (res.ok) {
+          const commentsRaw = (json.comments || []) as ImageComment[];
+          const comments = commentsRaw.map(c => ({
+            ...c,
+            user: { name: participants.find(p => p.id === c.user_id)?.name || 'Unknown' }
+          }));
+          setImages(prev => prev.map(img => img.id === imageId ? { ...img, comments } : img));
+          setSelectedImage(prev => (prev && prev.id === imageId) ? { ...prev, comments } as GalleryImage : prev);
+        }
+      } catch {}
       toast.success('Comment deleted');
     } catch (error) {
       console.error('Delete comment error:', error);
@@ -219,11 +295,85 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
         throw new Error(result.error || 'Failed to delete image');
       }
 
-      fetchImages(); // Refresh images
+      // Optimistically update UI
+      setImages(prev => prev.filter(img => img.id !== imageId));
+      setSelectedImage(prev => (prev && prev.id === imageId) ? null : prev);
       toast.success('Image deleted');
     } catch (error) {
       console.error('Delete image error:', error);
       toast.error('Failed to delete image');
+    }
+  };
+
+  // Handle caption update
+  const handleUpdateCaption = async (imageId: string, caption: string) => {
+    try {
+      // optimistic update
+      setImages(prev => prev.map(img => img.id === imageId ? { ...img, caption } : img));
+      setSelectedImage(prev => (prev && prev.id === imageId) ? { ...prev, caption } as GalleryImage : prev);
+
+      const res = await fetch('/api/gallery/upload', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageId, caption })
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Failed to update caption');
+      }
+      toast.success('Caption updated');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update caption');
+      fetchImages();
+    } finally {
+      // no-op: modal manages its own caption edit state
+    }
+  };
+
+  // Toggle like on an image
+  const handleToggleLike = async (imageId: string) => {
+    // optimistic update
+    setImages(prev => prev.map(img => {
+      if (img.id !== imageId) return img;
+      const liked = !img.liked_by_user;
+      const count = (img.likes_count || 0) + (liked ? 1 : -1);
+      return { ...img, liked_by_user: liked, likes_count: Math.max(0, count) };
+    }));
+    setSelectedImage(prev => {
+      if (!prev || prev.id !== imageId) return prev;
+      const liked = !prev.liked_by_user;
+      const count = (prev.likes_count || 0) + (liked ? 1 : -1);
+      return { ...prev, liked_by_user: liked, likes_count: Math.max(0, count) } as GalleryImage;
+    });
+
+    try {
+      const res = await fetch('/api/gallery/likes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageId, userId })
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setImages(prev => prev.map(img => img.id === imageId ? { ...img, liked_by_user: json.likedByUser, likes_count: json.likesCount } : img));
+        setSelectedImage(prev => (prev && prev.id === imageId) ? { ...prev, liked_by_user: json.likedByUser, likes_count: json.likesCount } as GalleryImage : prev);
+      } else {
+        throw new Error(json.error || 'Failed to toggle like');
+      }
+    } catch (e) {
+      // revert on error
+      setImages(prev => prev.map(img => {
+        if (img.id !== imageId) return img;
+        const liked = !img.liked_by_user;
+        const count = (img.likes_count || 0) + (liked ? 1 : -1);
+        return { ...img, liked_by_user: liked, likes_count: Math.max(0, count) };
+      }));
+      setSelectedImage(prev => {
+        if (!prev || prev.id !== imageId) return prev;
+        const liked = !prev.liked_by_user;
+        const count = (prev.likes_count || 0) + (liked ? 1 : -1);
+        return { ...prev, liked_by_user: liked, likes_count: Math.max(0, count) } as GalleryImage;
+      });
+      toast.error(e instanceof Error ? e.message : 'Failed to toggle like');
     }
   };
 
@@ -276,7 +426,15 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
       </div>
 
       {/* Images Grid */}
-      {dayImages.length > 0 ? (
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Gallery...</h3>
+          <p className="text-gray-500">Fetching your trip photos</p>
+        </div>
+      ) : dayImages.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {dayImages.map((image) => (
             <motion.div
@@ -290,17 +448,28 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
                 <img
                   src={image.image_url}
                   alt={image.caption || image.image_name}
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                 />
               </div>
               
               {/* Overlay */}
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-white" />
-                  <span className="text-white text-sm font-medium">
-                    {image.comments?.length || 0}
-                  </span>
+              <div className="absolute inset-0 bg-transparent group-hover:bg-black group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-4">
+                  <div className="flex items-center gap-1">
+                    <MessageCircle className="w-5 h-5 text-white" />
+                    <span className="text-white text-sm font-medium">
+                      {image.comments?.length || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Heart className="w-5 h-5 text-white" />
+                    <span className="text-white text-sm font-medium">
+                      {image.likes_count ?? 0}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -337,6 +506,7 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
             onClose={() => setShowUploadModal(false)}
             onUpload={handleImageUpload}
             uploading={uploading}
+            uploadProgress={uploadProgress}
             selectedDay={selectedDay}
             fileInputRef={fileInputRef}
           />
@@ -347,11 +517,13 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
       <AnimatePresence>
         {selectedImage && (
           <ImageDetailModal
-            image={selectedImage}
+            image={images.find(img => img.id === selectedImage.id) || selectedImage}
             onClose={() => setSelectedImage(null)}
             onAddComment={handleAddComment}
             onDeleteComment={handleDeleteComment}
             onDeleteImage={handleDeleteImage}
+            onToggleLike={handleToggleLike}
+            onUpdateCaption={handleUpdateCaption}
             newComment={newComment}
             setNewComment={setNewComment}
             showComments={showComments}
@@ -370,23 +542,23 @@ function UploadModal({
   onClose, 
   onUpload, 
   uploading, 
+  uploadProgress,
   selectedDay, 
   fileInputRef 
 }: {
   onClose: () => void;
-  onUpload: (file: File, caption: string) => void;
+  onUpload: (files: File[] | File, caption: string) => void;
   uploading: boolean;
+  uploadProgress: number;
   selectedDay: number;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [caption, setCaption] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedFile) {
-      onUpload(selectedFile, caption);
-    }
+    if (selectedFiles.length > 0) onUpload(selectedFiles, caption);
   };
 
   return (
@@ -413,7 +585,8 @@ function UploadModal({
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              multiple
+              onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               required
             />
@@ -421,7 +594,7 @@ function UploadModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Caption (optional)
+              Caption (optional, applied to all)
             </label>
             <textarea
               value={caption}
@@ -443,18 +616,18 @@ function UploadModal({
             </Button>
             <Button
               type="submit"
-              disabled={!selectedFile || uploading}
+              disabled={selectedFiles.length === 0 || uploading}
               className="flex-1 bg-red-500 hover:bg-red-600 text-white"
             >
               {uploading ? (
                 <>
                   <Upload className="w-4 h-4 mr-2 animate-spin" />
-                  Uploading...
+                  Uploading {uploadProgress}%
                 </>
               ) : (
                 <>
                   <Upload className="w-4 h-4 mr-2" />
-                  Upload
+                  Upload {selectedFiles.length > 1 ? `${selectedFiles.length} files` : 'Photo'}
                 </>
               )}
             </Button>
@@ -472,6 +645,8 @@ function ImageDetailModal({
   onAddComment, 
   onDeleteComment, 
   onDeleteImage,
+  onToggleLike,
+  onUpdateCaption,
   newComment,
   setNewComment,
   showComments,
@@ -482,8 +657,10 @@ function ImageDetailModal({
   image: GalleryImage;
   onClose: () => void;
   onAddComment: (imageId: string) => void;
-  onDeleteComment: (commentId: string) => void;
+  onDeleteComment: (commentId: string, imageId: string) => void;
   onDeleteImage: (imageId: string, fileName: string) => void;
+  onToggleLike: (imageId: string) => void;
+  onUpdateCaption: (imageId: string, caption: string) => void;
   newComment: Record<string, string>;
   setNewComment: (value: Record<string, string>) => void;
   showComments: Set<string>;
@@ -493,6 +670,8 @@ function ImageDetailModal({
 }) {
   const isOwner = image.uploaded_by === userId;
   const fileName = image.image_url.split('/').pop() || '';
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftCaption, setDraftCaption] = useState(image.caption || '');
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
@@ -548,9 +727,55 @@ function ImageDetailModal({
                 className="w-full h-full object-contain"
               />
             </div>
-            {image.caption && (
-              <p className="mt-3 text-gray-700">{image.caption}</p>
-            )}
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={() => onToggleLike(image.id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${image.liked_by_user ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-800'}`}
+              >
+                <Heart className={`w-4 h-4 ${image.liked_by_user ? 'fill-current' : ''}`} />
+                {image.likes_count ?? 0}
+              </button>
+            </div>
+            <div className="mt-3">
+              {isOwner ? (
+                isEditing ? (
+                  <div className="flex gap-2 items-start">
+                    <textarea
+                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                      rows={3}
+                      value={draftCaption}
+                      onChange={(e) => setDraftCaption(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => { onUpdateCaption(image.id, draftCaption); setIsEditing(false); }}
+                        className="bg-red-500 hover:bg-red-600 text-white"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => { setIsEditing(false); setDraftCaption(image.caption || ''); }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-gray-700 flex-1 whitespace-pre-wrap">{image.caption || 'Add a caption...'}</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => { setIsEditing(true); setDraftCaption(image.caption || ''); }}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                )
+              ) : (
+                image.caption ? <p className="text-gray-700">{image.caption}</p> : null
+              )}
+            </div>
           </div>
 
           {/* Comments Sidebar */}
@@ -579,7 +804,7 @@ function ImageDetailModal({
                     </div>
                     {comment.user_id === userId && (
                       <button
-                        onClick={() => onDeleteComment(comment.id)}
+                        onClick={() => onDeleteComment(comment.id, image.id)}
                         className="p-1 hover:bg-red-100 rounded transition-colors"
                       >
                         <Trash2 className="w-3 h-3 text-red-500" />

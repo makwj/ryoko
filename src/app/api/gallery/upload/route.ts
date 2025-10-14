@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
+    if (!supabaseUrl || !serviceKey) {
+      console.error('Missing Supabase server env vars');
+      return NextResponse.json({ error: 'Server is misconfigured' }, { status: 500 });
+    }
+    const admin = createClient(supabaseUrl, serviceKey);
     console.log('Upload API called');
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -35,9 +42,9 @@ export async function POST(request: NextRequest) {
     const fileName = `${tripId}/${dayNumber}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     console.log('Generated filename:', fileName);
 
-    // Upload file to Supabase Storage
+    // Upload file to Supabase Storage (service role bypasses RLS)
     console.log('Uploading to Supabase Storage...');
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await admin.storage
       .from('gallery-images')
       .upload(fileName, file, {
         cacheControl: '3600',
@@ -52,7 +59,7 @@ export async function POST(request: NextRequest) {
     console.log('Storage upload successful:', uploadData);
 
     // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = admin.storage
       .from('gallery-images')
       .getPublicUrl(fileName);
 
@@ -60,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     // Save image metadata to database
     console.log('Saving to database...');
-    const { data: imageData, error: dbError } = await supabase
+    const { data: imageData, error: dbError } = await admin
       .from('gallery_images')
       .insert([
         {
@@ -78,7 +85,7 @@ export async function POST(request: NextRequest) {
     if (dbError) {
       console.error('Database error:', dbError);
       // Clean up uploaded file if database insert fails
-      await supabase.storage.from('gallery-images').remove([fileName]);
+      await admin.storage.from('gallery-images').remove([fileName]);
       return NextResponse.json({ error: `Failed to save image metadata: ${dbError.message}` }, { status: 500 });
     }
 
@@ -107,8 +114,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Delete from database first
-    const { error: dbError } = await supabase
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
+    if (!supabaseUrl || !serviceKey) {
+      console.error('Missing Supabase server env vars');
+      return NextResponse.json({ error: 'Server is misconfigured' }, { status: 500 });
+    }
+    const admin = createClient(supabaseUrl, serviceKey);
+
+    // Delete from database first (service role bypasses RLS)
+    const { error: dbError } = await admin
       .from('gallery_images')
       .delete()
       .eq('id', imageId);
@@ -119,7 +134,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete from storage
-    const { error: storageError } = await supabase.storage
+    const { error: storageError } = await admin.storage
       .from('gallery-images')
       .remove([fileName]);
 
@@ -139,5 +154,40 @@ export async function DELETE(request: NextRequest) {
       { error: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { imageId, caption } = await request.json();
+
+    if (!imageId) {
+      return NextResponse.json({ error: 'Missing imageId' }, { status: 400 });
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
+    if (!supabaseUrl || !serviceKey) {
+      console.error('Missing Supabase server env vars');
+      return NextResponse.json({ error: 'Server is misconfigured' }, { status: 500 });
+    }
+    const admin = createClient(supabaseUrl, serviceKey);
+
+    const { data, error } = await admin
+      .from('gallery_images')
+      .update({ caption: caption ?? null })
+      .eq('id', imageId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Caption update error:', error);
+      return NextResponse.json({ error: 'Failed to update caption' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, image: data });
+  } catch (error) {
+    console.error('PATCH error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { X, Clock, MapPin, FileText, Upload, Trash2, Edit, Edit3 } from "lucide-react";
+import { X, Clock, MapPin, FileText, Upload, Trash2, Edit, Edit3, Sunrise, Sun, Moon, ExternalLink } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { hasUrls } from "@/lib/linkUtils";
 
 interface EditActivityModalProps {
   open: boolean;
@@ -20,10 +21,11 @@ interface EditActivityModalProps {
     id: string;
     title: string;
     description: string;
-    activity_time: string;
+    time_period: 'morning' | 'afternoon' | 'evening';
     location: string;
-    activity_type: 'transportation' | 'accommodation' | 'activity' | 'food';
+    activity_type: 'transportation' | 'accommodation' | 'activity' | 'food' | 'shopping' | 'entertainment' | 'other';
     note?: string;
+    link_url?: string;
     attachments?: (string | {url: string, customName: string})[];
   };
   onActivityUpdated: () => void;
@@ -42,10 +44,11 @@ interface ExistingFile {
 interface ActivityFormData {
   title: string;
   description: string;
-  activity_time: string;
+  time_period: 'morning' | 'afternoon' | 'evening';
   location: string;
-  activity_type: 'transportation' | 'accommodation' | 'activity' | 'food';
-    note?: string;
+  activity_type: 'transportation' | 'accommodation' | 'activity' | 'food' | 'shopping' | 'entertainment' | 'other';
+  note?: string;
+  link_url?: string;
   attachments: FileWithCustomName[];
   existingAttachments: ExistingFile[];
 }
@@ -54,7 +57,16 @@ const activityTypes = [
   { value: 'transportation', label: 'Transportation', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'accommodation', label: 'Accommodation', color: 'bg-blue-100 text-blue-800' },
   { value: 'activity', label: 'Activity', color: 'bg-green-100 text-green-800' },
-  { value: 'food', label: 'Food', color: 'bg-orange-100 text-orange-800' }
+  { value: 'food', label: 'Food', color: 'bg-orange-100 text-orange-800' },
+  { value: 'shopping', label: 'Shopping', color: 'bg-pink-100 text-pink-800' },
+  { value: 'entertainment', label: 'Entertainment', color: 'bg-purple-100 text-purple-800' },
+  { value: 'other', label: 'Other', color: 'bg-gray-100 text-gray-800' }
+];
+
+const timePeriods = [
+  { value: 'morning', label: 'Morning', icon: <Sunrise className="w-4 h-4" /> },
+  { value: 'afternoon', label: 'Afternoon', icon: <Sun className="w-4 h-4" /> },
+  { value: 'evening', label: 'Evening', icon: <Moon className="w-4 h-4" /> }
 ];
 
 export default function EditActivityModal({ 
@@ -69,10 +81,11 @@ export default function EditActivityModal({
   const [formData, setFormData] = useState<ActivityFormData>({
     title: '',
     description: '',
-    activity_time: '',
+    time_period: 'morning',
     location: '',
     activity_type: 'activity',
     note: '',
+    link_url: '',
     attachments: [],
     existingAttachments: []
   });
@@ -82,10 +95,11 @@ export default function EditActivityModal({
       setFormData({
         title: activity.title,
         description: activity.description || '',
-        activity_time: activity.activity_time || '',
+        time_period: activity.time_period || 'morning',
         location: activity.location || '',
         activity_type: activity.activity_type,
         note: activity.note || '',
+        link_url: activity.link_url || '',
         attachments: [],
         existingAttachments: (activity.attachments || []).map(attachment => {
           // Handle both old format (string array) and new format (object array)
@@ -242,10 +256,11 @@ export default function EditActivityModal({
         .update({
           title: formData.title.trim(),
           description: formData.description.trim() || null,
-          activity_time: formData.activity_time || null,
+          time_period: formData.time_period,
           location: formData.location.trim() || null,
           activity_type: formData.activity_type,
           note: formData.note?.trim() || null,
+          link_url: formData.link_url?.trim() || null,
           attachments: allAttachments.length > 0 ? allAttachments : null,
         })
         .eq('id', activity.id);
@@ -315,19 +330,27 @@ export default function EditActivityModal({
               {/* Time and Location */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="time" className="text-sm font-medium text-gray-700">
-                    Time
+                  <Label htmlFor="time_period" className="text-sm font-medium text-gray-700">
+                    Time Period
                   </Label>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <Input
-                      id="time"
-                      type="time"
-                      value={formData.activity_time}
-                      onChange={(e) => handleInputChange("activity_time", e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
+                  <Select
+                    value={formData.time_period}
+                    onValueChange={(value) => handleInputChange("time_period", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select time period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timePeriods.map((period) => (
+                        <SelectItem key={period.value} value={period.value}>
+                          <div className="flex items-center gap-2">
+                            {period.icon}
+                            <span>{period.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="location" className="text-sm font-medium text-gray-700">
@@ -378,6 +401,29 @@ export default function EditActivityModal({
                     rows={2}
                   />
                 </div>
+              </div>
+
+              {/* Link */}
+              <div>
+                <Label htmlFor="link_url" className="text-sm font-medium text-gray-700">
+                  Link
+                </Label>
+                <div className="relative">
+                  <ExternalLink className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <Input
+                    id="link_url"
+                    type="url"
+                    value={formData.link_url}
+                    onChange={(e) => handleInputChange("link_url", e.target.value)}
+                    className="pl-10"
+                    placeholder="https://example.com"
+                  />
+                </div>
+                {formData.link_url && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Link will be displayed as a preview card in the activity
+                  </p>
+                )}
               </div>
 
               {/* File Upload */}

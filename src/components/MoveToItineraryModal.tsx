@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { X, Clock, MapPin, FileText, Plus, Upload, Trash2, Calendar } from "lucide-react";
+import { X, Clock, MapPin, FileText, Plus, Upload, Trash2, Calendar, Link, Sunrise, Sun, Moon } from "lucide-react";
 import toast from "react-hot-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -38,10 +38,11 @@ interface ActivityFormData {
   day: number;
   title: string;
   description: string;
-  activity_time: string;
+  time_period: 'morning' | 'afternoon' | 'evening';
   location: string;
   activity_type: 'transportation' | 'accommodation' | 'activity' | 'food';
   note: string;
+  linkUrl: string;
   attachments: FileWithCustomName[];
 }
 
@@ -50,6 +51,12 @@ const activityTypes = [
   { value: 'accommodation', label: 'Accommodation', color: 'bg-blue-100 text-blue-800' },
   { value: 'activity', label: 'Activity', color: 'bg-green-100 text-green-800' },
   { value: 'food', label: 'Food', color: 'bg-orange-100 text-orange-800' }
+];
+
+const timePeriods = [
+  { value: 'morning', label: 'Morning', icon: <Sunrise className="w-4 h-4" /> },
+  { value: 'afternoon', label: 'Afternoon', icon: <Sun className="w-4 h-4" /> },
+  { value: 'evening', label: 'Evening', icon: <Moon className="w-4 h-4" /> }
 ];
 
 export default function MoveToItineraryModal({ 
@@ -63,14 +70,21 @@ export default function MoveToItineraryModal({
   const [loading, setLoading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [linkPreview, setLinkPreview] = useState<{
+    title: string;
+    description: string;
+    image: string;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [formData, setFormData] = useState<ActivityFormData>({
     day: 1,
     title: '',
     description: '',
-    activity_time: '09:00',
+    time_period: 'morning',
     location: '',
     activity_type: 'activity',
     note: '',
+    linkUrl: '',
     attachments: []
   });
 
@@ -94,10 +108,11 @@ export default function MoveToItineraryModal({
         day: 1,
         title: idea.title,
         description: idea.description || '',
-        activity_time: '09:00',
+        time_period: 'morning',
         location: idea.location || '',
         activity_type: categoryMapping[firstTag] || 'activity',
-        note: idea.link_url ? `Source: ${idea.link_url}` : '',
+        note: '',
+        linkUrl: idea.link_url || '',
         attachments: []
       });
     }
@@ -105,6 +120,32 @@ export default function MoveToItineraryModal({
 
   const handleInputChange = (field: keyof ActivityFormData, value: string | number | File[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const fetchLinkPreview = async (url: string) => {
+    if (!url || !url.startsWith('http')) return;
+    
+    setPreviewLoading(true);
+    try {
+      const response = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setLinkPreview(data);
+      }
+    } catch (error) {
+      console.log('Link preview not available');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleLinkUrlChange = (url: string) => {
+    handleInputChange('linkUrl', url);
+    if (url && url.startsWith('http')) {
+      fetchLinkPreview(url);
+    } else {
+      setLinkPreview(null);
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,10 +240,11 @@ export default function MoveToItineraryModal({
             day_number: formData.day,
             title: formData.title.trim(),
             description: formData.description.trim() || null,
-            activity_time: formData.activity_time || null,
+            time_period: formData.time_period,
             location: formData.location.trim() || null,
             activity_type: formData.activity_type,
             note: formData.note.trim() || null,
+            link_url: formData.linkUrl.trim() || null,
             attachments: attachments.length > 0 ? attachments : null,
             order_index: nextOrderIndex
           }
@@ -224,6 +266,7 @@ export default function MoveToItineraryModal({
       onClose();
       
     } catch (error: unknown) {
+      console.error('MoveToItineraryModal error:', error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       toast.error(errorMessage);
     } finally {
@@ -296,21 +339,30 @@ export default function MoveToItineraryModal({
                 </div>
               </div>
 
-              {/* Time and Location */}
+              {/* Time Period and Location */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">
-                    Time
+                  <Label htmlFor="time_period" className="text-sm font-medium text-gray-700">
+                    Time Period
                   </Label>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <Input
-                      type="time"
-                      value={formData.activity_time}
-                      onChange={(e) => handleInputChange("activity_time", e.target.value)}
-                      className="w-full h-12 pl-10 pr-4"
-                    />
-                  </div>
+                  <Select
+                    value={formData.time_period}
+                    onValueChange={(value) => handleInputChange("time_period", value)}
+                  >
+                    <SelectTrigger className="w-full h-12">
+                      <SelectValue placeholder="Select time period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timePeriods.map((period) => (
+                        <SelectItem key={period.value} value={period.value}>
+                          <div className="flex items-center gap-2">
+                            {period.icon}
+                            <span>{period.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-gray-700">
@@ -341,6 +393,50 @@ export default function MoveToItineraryModal({
                   placeholder="Add details about this activity..."
                   rows={2}
                 />
+              </div>
+
+              {/* Link URL */}
+              <div>
+                <Label htmlFor="linkUrl" className="text-sm font-medium text-gray-700">
+                  <Link className="w-4 h-4 inline mr-1" />
+                  Link URL
+                </Label>
+                <Input
+                  id="linkUrl"
+                  type="url"
+                  value={formData.linkUrl}
+                  onChange={(e) => handleLinkUrlChange(e.target.value)}
+                  className="w-full h-12"
+                  placeholder="https://example.com"
+                />
+                
+                {/* Link Preview */}
+                {previewLoading && (
+                  <div className="mt-3 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-300 rounded w-3/4 mb-2"></div>
+                      <div className="h-3 bg-gray-300 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                )}
+                
+                {linkPreview && !previewLoading && (
+                  <div className="mt-3 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <div className="flex gap-3">
+                      {linkPreview.image && (
+                        <img 
+                          src={linkPreview.image} 
+                          alt="Preview" 
+                          className="w-16 h-16 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <h4 className="font-medium text-dark text-sm">{linkPreview.title}</h4>
+                        <p className="text-xs text-gray-600 mt-1">{linkPreview.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Note */}

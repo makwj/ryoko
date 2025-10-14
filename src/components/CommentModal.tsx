@@ -38,7 +38,7 @@ export default function CommentModal({
 }: CommentModalProps) {
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     const getUser = async () => {
@@ -100,7 +100,7 @@ export default function CommentModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <MessageCircle className="w-5 h-5 text-gray-500" />
-            Comments for &ldquo;{ideaTitle}&rdquo;
+            Comments for "{ideaTitle}"
           </DialogTitle>
         </DialogHeader>
 

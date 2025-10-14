@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import toast from "react-hot-toast";
 import { User } from "@supabase/supabase-js";
-import { Home, MapPin, Users, Bookmark, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Home, MapPin, Users, Bookmark, Mail, Clock, CheckCircle, XCircle } from "lucide-react";
 import CreateTripModal from "@/components/CreateTripModal";
 import DestinationImage from "@/components/DestinationImage";
 import Image from "next/image";
@@ -21,8 +21,10 @@ interface Trip {
   end_date: string;
   interests: string[];
   collaborators: string[];
-  owner_id?: string;
   created_at: string;
+  owner_id: string;
+  archived?: boolean;
+  completed?: boolean;
 }
 
 interface Invitation {
@@ -55,6 +57,7 @@ export default function Dashboard() {
   const [showCreateTripModal, setShowCreateTripModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [invitationsLoading, setInvitationsLoading] = useState(true);
+  const [profileEmail, setProfileEmail] = useState<string | null>(null);
   const router = useRouter();
 
   const fetchInvitations = async (user: User) => {
@@ -82,10 +85,18 @@ export default function Dashboard() {
         return;
       }
 
-      // Fetch pending invitations for this user's email (simplified query)
+      // Save profile email for realtime filter
+      setProfileEmail(String(profile.email).toLowerCase());
+
+      // Fetch pending invitations with joined trip details in one roundtrip
       const { data: invitationsData, error } = await supabase
         .from('invitations')
-        .select('*')
+        .select(`
+          id, trip_id, inviter_id, invitee_email, invitee_name, status, invited_at, expires_at,
+          trips:trip_id (
+            id, title, destination, start_date, end_date, description, owner_id
+          )
+        `)
         .eq('invitee_email', profile.email)
         .eq('status', 'pending')
         .gt('expires_at', new Date().toISOString())
@@ -105,25 +116,9 @@ export default function Dashboard() {
         return;
       }
 
-      // Now fetch trip details for each invitation
-      const invitationsWithTrips = [];
-      for (const invitation of invitationsData || []) {
-        const { data: trip, error: tripError } = await supabase
-          .from('trips')
-          .select('id, title, destination, start_date, end_date, description, owner_id')
-          .eq('id', invitation.trip_id)
-          .single();
-
-        if (!tripError && trip) {
-          invitationsWithTrips.push({
-            ...invitation,
-            trips: trip
-          });
-        }
-      }
-
-      console.log('Successfully fetched invitations:', invitationsWithTrips.length);
-      setInvitations(invitationsWithTrips);
+      console.log('Successfully fetched invitations:', (invitationsData || []).length);
+      // invitationsData already includes trips via join alias
+      setInvitations((invitationsData as any) || []);
     } catch (error) {
       console.error('Error fetching invitations:', error);
     } finally {
@@ -179,7 +174,7 @@ export default function Dashboard() {
           const { data: tripsData, error } = await supabase
             .from('trips')
             .select('*')
-            .eq('owner_id', session.user.id)
+            .or(`owner_id.eq.${session.user.id},collaborators.cs.{${session.user.id}}`)
             .order('created_at', { ascending: false });
 
           if (!error) {
@@ -192,8 +187,126 @@ export default function Dashboard() {
       }
     );
 
-    return () => subscription.unsubscribe();
+    // Refetch on window focus/visibility return
+    const handleFocus = async () => {
+      if (user) {
+        // Refetch trips (owner + collaborator) and invitations on focus
+        const { data: tripsData, error } = await supabase
+          .from('trips')
+          .select('*')
+          .or(`owner_id.eq.${user.id},collaborators.cs.{${user.id}}`)
+          .order('created_at', { ascending: false });
+        if (!error) setTrips(tripsData || []);
+        await fetchInvitations(user);
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && user) handleFocus();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [router]);
+
+  // Realtime: listen for invitation changes (insert/update/delete) for this user's email
+  useEffect(() => {
+    if (!user || !profileEmail) return;
+
+    const channel = supabase
+      .channel(`invitations-realtime-${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'invitations'
+      }, async (payload) => {
+        const newRow = payload.new as any;
+        if (!newRow?.invitee_email) return;
+        if (String(newRow.invitee_email).toLowerCase() !== profileEmail) return;
+        try {
+          // Fetch the trip details for this single invite and merge into state immediately
+          const { data: trip } = await supabase
+            .from('trips')
+            .select('id, title, destination, start_date, end_date, description, owner_id')
+            .eq('id', newRow.trip_id)
+            .single();
+          const inviteWithTrip: any = { ...newRow, trips: trip };
+          setInvitations(prev => [inviteWithTrip, ...prev.filter(i => i.id !== newRow.id)]);
+          setInvitationsLoading(false);
+          toast.success('You received a new trip invitation');
+          // Fallback: two-phase refetch to handle replication lag
+          setTimeout(() => { fetchInvitations(user); }, 800);
+          setTimeout(() => { fetchInvitations(user); }, 2000);
+        } catch (e) {
+          console.error('Realtime invitation refresh failed:', e);
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'invitations'
+      }, async (payload) => {
+        const row = payload.new as any;
+        if (!row?.invitee_email) return;
+        if (String(row.invitee_email).toLowerCase() !== profileEmail) return;
+        try {
+          const { data: trip } = await supabase
+            .from('trips')
+            .select('id, title, destination, start_date, end_date, description, owner_id')
+            .eq('id', row.trip_id)
+            .single();
+          const inviteWithTrip: any = { ...row, trips: trip };
+          setInvitations(prev => [inviteWithTrip, ...prev.filter(i => i.id !== row.id)]);
+          setInvitationsLoading(false);
+          setTimeout(() => { fetchInvitations(user); }, 800);
+          setTimeout(() => { fetchInvitations(user); }, 2000);
+        } catch (e) {
+          console.error('Realtime invitation update refresh failed:', e);
+        }
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'invitations'
+      }, async (payload) => {
+        const oldRow = payload.old as { invitee_email?: string };
+        if (!oldRow?.invitee_email) return;
+        if (String(oldRow.invitee_email).toLowerCase() !== profileEmail) return;
+        try {
+          await fetchInvitations(user);
+        } catch (e) {
+          console.error('Realtime invitation delete refresh failed:', e);
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Subscribed to invitations realtime for', profileEmail);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, profileEmail]);
+
+  // Ensure profileEmail is set even if invitations fetch hasn't run yet
+  useEffect(() => {
+    const initProfileEmail = async () => {
+      const { data: { user: current } } = await supabase.auth.getUser();
+      if (!current) return;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', current.id)
+        .single();
+      if (profile?.email) setProfileEmail(String(profile.email).toLowerCase());
+    };
+    if (!profileEmail) initProfileEmail();
+  }, [profileEmail]);
 
   // Check for email verification success
   useEffect(() => {
@@ -226,7 +339,7 @@ export default function Dashboard() {
       const { data: tripsData, error } = await supabase
         .from('trips')
         .select('*')
-        .eq('owner_id', user.id)
+        .or(`owner_id.eq.${user.id},collaborators.cs.{${user.id}}`)
         .order('created_at', { ascending: false });
 
       if (!error) {
@@ -407,7 +520,7 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
-          {/* Active Trips Section */}
+          {/* Trips Sections */}
           <section className="mb-12">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-dark">Active Trips</h2>
@@ -423,76 +536,120 @@ export default function Dashboard() {
               <div className="grid md:grid-cols-3 gap-6">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse">
-                    <div className="h-48 bg-gray-300"></div>
-                    <div className="p-4">
-                      <div className="h-4 bg-gray-300 rounded mb-2"></div>
-                      <div className="h-6 bg-gray-300 rounded mb-2"></div>
-                      <div className="flex justify-between">
-                        <div className="h-4 bg-gray-300 rounded w-20"></div>
-                        <div className="h-4 bg-gray-300 rounded w-24"></div>
+                    {/* Image placeholder */}
+                    <div className="h-48 bg-gray-200" />
+
+                    {/* Card body skeleton matching design */}
+                    <div className="p-4 space-y-3">
+                      {/* Destination row with icon */}
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full bg-gray-200" />
+                        <div className="h-4 bg-gray-200 rounded w-32" />
+                      </div>
+
+                      {/* Title and badge */}
+                      <div className="flex items-center justify-between">
+                        <div className="h-5 bg-gray-200 rounded w-40" />
+                        <div className="h-5 bg-gray-200 rounded-full w-16" />
+                      </div>
+
+                      {/* Meta row: participants and dates */}
+                      <div className="flex items-center justify-between">
+                        <div className="h-4 bg-gray-200 rounded w-24" />
+                        <div className="h-4 bg-gray-200 rounded w-28" />
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-            ) : trips.length > 0 ? (
-              <div className="grid md:grid-cols-3 gap-6">
-                {trips.map((trip, index) => (
-                  <motion.div
-                    key={trip.id}
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => router.push(`/trip/${trip.id}`)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.1 }}
-                  >
-                    <DestinationImage 
-                      destination={trip.destination || ''}
-                      className="h-48"
-                      fallbackClassName={`bg-gradient-to-br ${getGradientClass(index)}`}
-                    />
-                    <div className="p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="w-4 h-4 text-[#ff5a58]" />
-                        <span className="text-sm text-gray-600">{trip.destination || 'No destination'}</span>
-                      </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-dark">{trip.title}</h3>
-                        {trip.owner_id === user?.id ? (
-                          <span className="px-2 py-1 bg-[#ff5a58] text-white text-xs rounded-full">Owner</span>
-                        ) : (
-                          <span className="px-2 py-1 bg-gray-500 text-white text-xs rounded-full">Collaborator</span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span>{trip.collaborators ? trip.collaborators.length + 1 : 1} Participants</span>
-                        <span>
-                          {trip.start_date && trip.end_date 
-                            ? `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`
-                            : 'No dates set'
-                          }
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <MapPin className="w-12 h-12 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-dark mb-2">No trips yet</h3>
-                <p className="text-form mb-6">Create your first trip to get started with planning your adventure!</p>
-                <button 
-                  onClick={() => setShowCreateTripModal(true)}
-                  className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                >
-                  Create Your First Trip
-                </button>
-              </div>
+              (() => {
+                // Booleans from DB control state: default to Active when undefined
+                const isArchived = (t: Trip) => Boolean(t.archived);
+                const isCompleted = (t: Trip) => Boolean(t.completed) && !isArchived(t);
+                const isActive = (t: Trip) => !isArchived(t) && !Boolean(t.completed);
+
+                const activeTrips = trips.filter(isActive);
+                const completedTrips = trips.filter(isCompleted);
+                const archivedTrips = trips.filter(isArchived);
+
+                const renderGrid = (items: Trip[]) => (
+                  <div className="grid md:grid-cols-3 gap-6">
+                    {items.map((trip, index) => (
+                      <motion.div
+                        key={trip.id}
+                        className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => router.push(`/trip/${trip.id}`)}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                      >
+                        <DestinationImage 
+                          destination={trip.destination || ''}
+                          className="h-48"
+                          fallbackClassName={`bg-gradient-to-br ${getGradientClass(index)}`}
+                        />
+                        <div className="p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MapPin className="w-4 h-4 text-[#ff5a58]" />
+                            <span className="text-sm text-gray-600">{trip.destination || 'No destination'}</span>
+                          </div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold text-dark">{trip.title}</h3>
+                            {trip.owner_id === user?.id ? (
+                              <span className="px-2 py-1 bg-[#ff5a58] text-white text-xs rounded-full">Owner</span>
+                            ) : (
+                              <span className="px-2 py-1 bg-gray-500 text-white text-xs rounded-full">Collaborator</span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-sm text-gray-500">
+                            <span>{trip.collaborators ? trip.collaborators.length + 1 : 1} Participants</span>
+                            <span>
+                              {trip.start_date && trip.end_date 
+                                ? `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`
+                                : 'No dates set'
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-12">
+                    {/* Active */}
+                    {activeTrips.length > 0 ? renderGrid(activeTrips) : (
+                      <div className="text-center py-12">
+                        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <MapPin className="w-12 h-12 text-gray-400" />
+                        </div>
+                        <h3 className="text-lg font-medium text-dark mb-2">No active trips</h3>
+                        <p className="text-form mb-6">Create a new trip to get started!</p>
+                      </div>
+                    )}
+
+                    {/* Completed */}
+                    <div>
+                      <h2 className="text-2xl font-bold text-dark mb-6">Completed Trips</h2>
+                      {completedTrips.length > 0 ? renderGrid(completedTrips) : (
+                        <div className="text-center py-6 text-gray-500 text-sm">No completed trips yet</div>
+                      )}
+                    </div>
+
+                    {/* Archived */}
+                    <div>
+                      <h2 className="text-2xl font-bold text-dark mb-6">Archived Trips</h2>
+                      {archivedTrips.length > 0 ? renderGrid(archivedTrips) : (
+                        <div className="text-center py-6 text-gray-500 text-sm">No archived trips</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
             )}
           </section>
 
@@ -608,3 +765,5 @@ export default function Dashboard() {
     </ProtectedRoute>
   );
 }
+
+

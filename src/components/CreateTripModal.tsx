@@ -141,7 +141,41 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
       if (error) throw error;
 
       if (data && data.length > 0) {
+        const createdTrip = data[0];
         toast.success("Trip created successfully!");
+
+        // If collaborator emails were provided, send invitations now
+        if (formData.collaborators.length > 0) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              const invites = formData.collaborators.map(email => ({ email }));
+              const resp = await fetch('/api/send-invitations', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({
+                  tripId: createdTrip.id,
+                  tripTitle: formData.title,
+                  invites
+                })
+              });
+
+              if (resp.ok) {
+                const resJson = await resp.json().catch(() => ({}));
+                toast.success(`Invited ${resJson.sentCount ?? invites.length} collaborator(s)`);
+              } else {
+                const err = await resp.json().catch(() => ({}));
+                console.warn('Invitation sending failed:', err);
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to send invitations after trip creation:', e);
+          }
+        }
+
         onTripCreated();
         onClose();
         // Reset form

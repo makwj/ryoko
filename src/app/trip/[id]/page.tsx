@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { motion } from "framer-motion";
+import { RealtimeCursors } from "@/components/RealtimeCursors";
 import { 
   Home, 
   MapPin, 
@@ -26,10 +28,30 @@ import {
   MessageCircle,
   ExternalLink,
   Archive,
+  Play,
   CheckCircle,
   AlertTriangle,
   Sparkles,
-  Loader2
+  Loader2,
+  GripVertical,
+  Check,
+  Square,
+  X,
+  Camera,
+  Upload,
+  Sun,
+  Moon,
+  Cloud,
+  CloudSun,
+  CloudMoon,
+  CloudRain,
+  CloudDrizzle,
+  Zap,
+  Snowflake,
+  CloudFog,
+  HelpCircle,
+  Navigation,
+  Star
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -44,8 +66,36 @@ import MoveToItineraryModal from "@/components/MoveToItineraryModal";
 import EditTripModal from "@/components/EditTripModal";
 import InviteCollaboratorsModal from "@/components/InviteCollaboratorsModal";
 import Gallery from "@/components/Gallery";
-import DestinationImage from "@/components/DestinationImage";
+import TripImageHeader from "@/components/TripImageHeader";
+import LinkPreview from "@/components/LinkPreview";
+import TextSelectionAI from "@/components/TextSelectionAI";
+import LocationTooltip from "@/components/LocationTooltip";
+import ConfirmationDialog from "@/components/ConfirmationDialog";
+import { extractFirstUrl, removeUrlsFromText } from "@/lib/linkUtils";
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import {
+  DndContext,
+  closestCenter,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  useDroppable,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Trip {
   id: string;
@@ -56,9 +106,10 @@ interface Trip {
   end_date: string;
   interests: string[];
   collaborators: string[] | null;
-  owner_id?: string;
+  owner_id: string;
   archived?: boolean;
   completed?: boolean;
+  trip_image_url?: string;
   created_at: string;
 }
 
@@ -68,10 +119,11 @@ interface Activity {
   day_number: number;
   title: string;
   description: string;
-  activity_time: string;
+  time_period: 'morning' | 'afternoon' | 'evening';
   location: string;
-  activity_type: 'transportation' | 'accommodation' | 'activity' | 'food';
+  activity_type: 'transportation' | 'accommodation' | 'activity' | 'food' | 'shopping' | 'entertainment' | 'other';
   note?: string;
+  link_url?: string;
   attachments?: (string | {url: string, customName: string})[];
   order_index: number;
   created_at: string;
@@ -96,11 +148,6 @@ interface Expense {
 interface Participant {
   id: string;
   name: string;
-}
-
-interface User {
-  id: string;
-  email?: string;
 }
 
 interface ExpenseSummary {
@@ -182,6 +229,468 @@ interface TripRecommendation {
   practical_tips?: string;
 }
 
+// Helper function to get weather icon component
+const getWeatherIconComponent = (iconName: string) => {
+  const iconMap: Record<string, React.ReactElement> = {
+    'sun': <Sun className="w-4 h-4" />,
+    'moon': <Moon className="w-4 h-4" />,
+    'cloud-sun': <CloudSun className="w-4 h-4" />,
+    'cloud-moon': <CloudMoon className="w-4 h-4" />,
+    'cloud': <Cloud className="w-4 h-4" />,
+    'cloud-rain': <CloudRain className="w-4 h-4" />,
+    'cloud-drizzle': <CloudDrizzle className="w-4 h-4" />,
+    'zap': <Zap className="w-4 h-4" />,
+    'snowflake': <Snowflake className="w-4 h-4" />,
+    'cloud-fog': <CloudFog className="w-4 h-4" />
+  };
+  
+  return iconMap[iconName] || <Cloud className="w-4 h-4" />;
+};
+
+// Droppable Day Component
+function DroppableDay({ 
+  day, 
+  isActive, 
+  onDayClick, 
+  formatDate,
+  weather,
+  getWeatherIconComponent,
+  onlineUsers,
+  currentUserId
+}: {
+  day: { day: number; date: Date; activities: number };
+  isActive: boolean;
+  onDayClick: (dayNumber: number) => void;
+  formatDate: (date: string) => string;
+  weather?: any;
+  getWeatherIconComponent: (iconName: string) => React.ReactElement;
+  onlineUsers?: { id: string; name: string; currentTab: string; currentDay?: number }[];
+  currentUserId?: string;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `day-${day.day}`,
+  });
+
+  // Get users currently viewing this specific day
+  const usersOnThisDay = onlineUsers?.filter(u => 
+    u.id !== currentUserId && 
+    u.currentTab === 'itinerary' && 
+    u.currentDay === day.day
+  ) || [];
+
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={() => onDayClick(day.day)}
+      className={`w-full text-left p-3 rounded-lg transition-colors ${
+        isActive
+          ? 'bg-[#ff5a58] text-white'
+          : isOver
+          ? 'bg-blue-100 border-2 border-blue-400 border-dashed'
+          : 'hover:bg-gray-50'
+      }`}
+    >
+      <div className="flex justify-between items-center">
+        <div className="flex-1">
+          <div className="font-medium">Day {day.day}</div>
+          <div className="text-sm opacity-75">
+            {formatDate(day.date.toISOString())}
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            {weather ? (
+              <>
+                {getWeatherIconComponent(weather.icon)}
+                <div className="text-xs">
+                  <div className="font-medium">
+                    {weather.temperature.high}°/{weather.temperature.low}°F
+                  </div>
+                  <div className="text-gray-500">{weather.condition}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <HelpCircle className="w-4 h-4 text-gray-400" />
+                <div className="text-xs">
+                  <div className="font-medium text-gray-500">Not Available</div>
+                  <div className="text-gray-400">Weather data unavailable</div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Avatar indicators for users on this day */}
+          {usersOnThisDay.length > 0 && (
+            <div className="flex -space-x-1">
+              {usersOnThisDay.slice(0, 3).map((user, index) => (
+                <div
+                  key={user.id}
+                  className={`w-5 h-5 rounded-full border-2 ${
+                    isActive ? 'border-white' : 'border-gray-100'
+                  } flex items-center justify-center text-xs font-medium`}
+                  style={{ 
+                    backgroundColor: `hsl(${(index * 137.5) % 360}, 70%, 50%)`,
+                    color: 'white'
+                  }}
+                  title={user.name}
+                >
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+              ))}
+              {usersOnThisDay.length > 3 && (
+                <div className={`w-5 h-5 rounded-full border-2 ${
+                  isActive ? 'border-white' : 'border-gray-100'
+                } bg-gray-400 flex items-center justify-center text-xs font-medium text-white`}>
+                  +{usersOnThisDay.length - 3}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Activity count */}
+          <div className={`w-6 h-6 text-white text-xs rounded-full flex items-center justify-center ${
+            isActive ? 'bg-white text-[#ff5a58]' : 'bg-red-500'
+          }`}>
+            {day.activities}
+          </div>
+        </div>
+      </div>
+      {isOver && (
+        <div className="mt-2 text-xs text-blue-600 font-medium">
+          Drop activity here
+        </div>
+      )}
+    </button>
+  );
+}
+
+// Drop Indicator Component
+function DropIndicator({ isVisible }: { isVisible: boolean }) {
+  if (!isVisible) return null;
+  
+  return (
+    <div className="h-0.5 bg-blue-400 rounded-full mx-4 my-2 animate-pulse" />
+  );
+}
+
+
+// Insert Drop Zone Component
+function InsertDropZone({ 
+  id, 
+  isVisible, 
+  dragOverId 
+}: { 
+  id: string; 
+  isVisible: boolean; 
+  dragOverId: string | null;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-h-[20px] transition-colors ${
+        dragOverId === id 
+          ? 'bg-blue-100 border-2 border-blue-400 border-dashed rounded' 
+          : ''
+      }`}
+    >
+      <DropIndicator isVisible={isVisible} />
+    </div>
+  );
+}
+
+// Time Period Section Component
+function TimePeriodSection({ 
+  period, 
+  periodActivities, 
+  activeDay, 
+  dragOverId, 
+  activeId, 
+  selectedActivities, 
+  toggleActivitySelection, 
+  handleEditActivity, 
+  handleDeleteActivity, 
+  getTypeColor, 
+  getTypeIcon, 
+  isMultiSelectMode,
+  onAskAI
+}: {
+  period: { key: string; label: string; icon: string };
+  periodActivities: Activity[];
+  activeDay: number;
+  dragOverId: string | null;
+  activeId: string | null;
+  selectedActivities: Set<string>;
+  toggleActivitySelection: (activityId: string) => void;
+  handleEditActivity: (activity: Activity) => void;
+  handleDeleteActivity: (activityId: string) => void;
+  getTypeColor: (type: string) => string;
+  getTypeIcon: (type: string) => React.ReactElement;
+  isMultiSelectMode: boolean;
+  onAskAI: (title: string) => void;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: `time-${activeDay}-${period.key}`,
+  });
+
+  return (
+    <div className="mb-6">
+      {/* Time Period Header */}
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
+        <span className="text-lg">{period.icon}</span>
+        <h3 className="text-lg font-semibold text-gray-800">{period.label}</h3>
+        {periodActivities.length > 0 && (
+          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+            {periodActivities.length} {periodActivities.length === 1 ? 'activity' : 'activities'}
+          </span>
+        )}
+      </div>
+      
+      {/* Activities for this time period - Droppable Area */}
+      <div 
+        ref={setNodeRef}
+        className={`space-y-3 min-h-[60px] p-3 rounded-lg transition-colors ${
+          dragOverId === `time-${activeDay}-${period.key}` 
+            ? 'bg-blue-50 border-2 border-blue-300 border-dashed' 
+            : 'border-2 border-transparent'
+        }`}
+      >
+        {periodActivities.length === 0 && dragOverId === `time-${activeDay}-${period.key}` && (
+          <div className="text-center py-4 text-blue-600 font-medium">
+            Drop activity here to add to {period.label}
+          </div>
+        )}
+        
+        {periodActivities.map((activity, index) => (
+          <div key={activity.id}>
+            {/* Drop zone before each activity */}
+            <InsertDropZone
+              id={`insert-${activeDay}-${period.key}-${index}`}
+              isVisible={dragOverId === `insert-${activeDay}-${period.key}-${index}`}
+              dragOverId={dragOverId}
+            />
+            
+            <SortableActivityItem
+              activity={activity}
+              isSelected={selectedActivities.has(activity.id)}
+              onToggleSelect={toggleActivitySelection}
+              onEdit={handleEditActivity}
+              onDelete={handleDeleteActivity}
+              getTypeColor={getTypeColor}
+              getTypeIcon={getTypeIcon}
+              isMultiSelectMode={isMultiSelectMode}
+              onAskAI={onAskAI}
+            />
+          </div>
+        ))}
+        
+        {/* Drop zone after the last activity */}
+        <InsertDropZone
+          id={`insert-${activeDay}-${period.key}-${periodActivities.length}`}
+          isVisible={dragOverId === `insert-${activeDay}-${period.key}-${periodActivities.length}`}
+          dragOverId={dragOverId}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Sortable Activity Component
+function SortableActivityItem({ 
+  activity, 
+  isSelected, 
+  onToggleSelect, 
+  onEdit, 
+  onDelete, 
+  getTypeColor, 
+  getTypeIcon,
+  isMultiSelectMode,
+  onAskAI
+}: {
+  activity: Activity;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
+  onEdit: (activity: Activity) => void;
+  onDelete: (id: string) => void;
+  getTypeColor: (type: string) => string;
+  getTypeIcon: (type: string) => React.ReactElement;
+  isMultiSelectMode: boolean;
+  onAskAI: (title: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: activity.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : 1,
+  };
+
+  return (
+    <motion.div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 ${
+        isMultiSelectMode && isSelected 
+          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+          : 'border-gray-200 hover:border-gray-300'
+      }`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Drag Handle */}
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-2 rounded hover:bg-gray-100 transition-colors touch-none"
+            style={{ touchAction: 'none' }}
+          >
+            <GripVertical className="w-4 h-4" />
+          </div>
+          
+          {/* Selection Checkbox - Only show in multi-select mode */}
+          {isMultiSelectMode && (
+            <button
+              onClick={() => onToggleSelect(activity.id)}
+              className="p-1 rounded hover:bg-gray-100 transition-colors"
+            >
+              {isSelected ? (
+                <Check className="w-4 h-4 text-blue-600" />
+              ) : (
+                <Square className="w-4 h-4 text-gray-400" />
+              )}
+            </button>
+          )}
+          
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(activity.activity_type)} whitespace-nowrap`}>
+            {activity.activity_type.charAt(0).toUpperCase() + activity.activity_type.slice(1)}
+          </span>
+          <LocationTooltip 
+            locationText={activity.title} 
+            onAskAI={() => onAskAI(activity.title)}
+          >
+            <h3 className="font-semibold text-dark truncate hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{activity.title}</h3>
+          </LocationTooltip>
+        </div>
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={() => onEdit(activity)}
+            className="text-gray-400 hover:text-blue-600 p-1 rounded-full hover:bg-blue-50 transition-colors"
+            title="Edit activity"
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={() => onDelete(activity.id)}
+            className="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition-colors"
+            title="Delete activity"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {activity.description && (
+        <p className="text-gray-600 text-sm mb-3">{activity.description}</p>
+      )}
+
+      <div className="flex items-center gap-4 mb-3">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Clock className="w-4 h-4" />
+          <span className="capitalize">{activity.time_period}</span>
+        </div>
+        {activity.location && (
+          <div className="flex items-center gap-2 text-sm text-gray-500" data-location={activity.location}>
+            {getTypeIcon(activity.activity_type)}
+            {activity.location}
+          </div>
+        )}
+      </div>
+
+      {activity.note && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+          <p className="text-sm text-yellow-800">
+            <strong>Note:</strong> {activity.note}
+          </p>
+        </div>
+      )}
+
+      {activity.link_url && (
+        <div className="mb-3">
+          <LinkPreview url={activity.link_url} />
+        </div>
+      )}
+
+      {activity.attachments && activity.attachments.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-600 font-medium">Attachments:</p>
+          {activity.attachments.map((attachment, index) => {
+            // Handle different attachment formats
+            let url: string;
+            let fileName: string;
+            
+            // Check if attachment is a stringified JSON object
+            if (typeof attachment === 'string' && attachment.startsWith('{')) {
+              try {
+                const parsedAttachment = JSON.parse(attachment);
+                url = parsedAttachment.url;
+                fileName = (parsedAttachment.customName && parsedAttachment.customName.trim()) 
+                  ? parsedAttachment.customName 
+                  : parsedAttachment.url.split('/').pop() || `attachment-${index + 1}`;
+              } catch {
+                // If parsing fails, treat as regular URL
+                url = attachment;
+                fileName = attachment.split('/').pop() || `attachment-${index + 1}`;
+              }
+            } else if (typeof attachment === 'string') {
+              // Regular URL string
+              url = attachment;
+              fileName = attachment.split('/').pop() || `attachment-${index + 1}`;
+            } else {
+              // Object format
+              url = attachment.url;
+              fileName = (attachment.customName && attachment.customName.trim()) 
+                ? attachment.customName 
+                : attachment.url.split('/').pop() || `attachment-${index + 1}`;
+            }
+            
+            // Ensure url is a string
+            if (typeof url !== 'string') {
+              console.error('Invalid URL type:', typeof url, url);
+              return null;
+            }
+            
+            return (
+              <a
+                key={index}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                <Paperclip className="w-4 h-4" />
+                <span>{fileName}</span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 export default function TripPage() {
   const params = useParams();
   const router = useRouter();
@@ -201,6 +710,307 @@ export default function TripPage() {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [newCommentText, setNewCommentText] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+
+  // Helper function to show confirmation dialog
+  const showConfirmation = (title: string, description: string, onConfirm: () => void, variant: 'danger' | 'warning' = 'danger', confirmText?: string, cancelText?: string) => {
+    setConfirmationConfig({
+      title,
+      description,
+      onConfirm: async () => {
+        setConfirmationConfig(prev => prev ? { ...prev, isLoading: true } : null);
+        try {
+          await onConfirm();
+          setShowConfirmationDialog(false);
+          setConfirmationConfig(null);
+        } catch (error) {
+          console.error('Confirmation action failed:', error);
+          setConfirmationConfig(prev => prev ? { ...prev, isLoading: false } : null);
+        }
+      },
+      variant,
+      confirmText,
+      cancelText
+    });
+    setShowConfirmationDialog(true);
+  };
+
+  // Handle AI chat for destination (function declaration to allow hoisting before JSX usage)
+  function handleDestinationAskAI(destinationText: string) {
+    setSelectedDestination(destinationText);
+    setShowAIChatSidebar(true);
+    setAiMessages([]);
+    setNearbyAttractions([]);
+  }
+
+  // Send AI message
+  const sendAIMessage = async (message: string) => {
+    if (!selectedDestination) return;
+    
+    // Check if this is the nearby attractions question
+    if (message === "What are the nearby attractions?") {
+      await fetchNearbyAttractions();
+      return;
+    }
+    if (message === "What are the nearby accommodations?") {
+      await fetchNearbyAccommodations();
+      return;
+    }
+    
+    setAiLoading(true);
+    const userMessage = { role: 'user' as const, content: message };
+    setAiMessages(prev => [...prev, userMessage]);
+
+    try {
+      const response = await fetch('/api/chat-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tripData: trip ? {
+            destination: trip.destination,
+            interests: trip.interests || [],
+            numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+            numberOfParticipants: participants.length,
+            startDate: trip.start_date
+          } : undefined,
+          question: message,
+          selectedPlace: {
+            name: selectedDestination,
+            location: trip?.destination || '',
+            description: `Information about ${selectedDestination}`
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const data = await response.json();
+      console.log('AI response data:', data);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      const aiMessage = { role: 'assistant' as const, content: data.response };
+      setAiMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Error sending AI message:', error);
+      const errorMessage = { role: 'assistant' as const, content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.` };
+      setAiMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Fetch nearby attractions
+  const fetchNearbyAttractions = async () => {
+    if (!selectedDestination || !trip) return;
+    
+    // Clear existing results while refreshing
+    setNearbyAttractions([]);
+    setAttractionsLoading(true);
+    const userMessage = { role: 'user' as const, content: "What are the nearby attractions?" };
+    setAiMessages(prev => [...prev, userMessage]);
+
+    try {
+      const response = await fetch('/api/nearby-attractions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          destination: trip.destination,
+          placeName: selectedDestination,
+          refreshToken: `${Date.now()}`
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby attractions'}`);
+      }
+
+      const data = await response.json();
+      console.log('Nearby attractions data:', data);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (data.success && data.attractions) {
+        setNearbyAttractions(data.attractions);
+        const aiMessage = { 
+          role: 'assistant' as const, 
+          content: `Found ${data.attractions.length} nearby attractions! Check them out below and add any that interest you to your idea board.` 
+        };
+        setAiMessages(prev => [...prev, aiMessage]);
+      } else {
+        throw new Error('No attractions found');
+      }
+    } catch (error) {
+      console.error('Error fetching nearby attractions:', error);
+      const errorMessage = { role: 'assistant' as const, content: `Sorry, I couldn't find nearby attractions: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.` };
+      setAiMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setAttractionsLoading(false);
+    }
+  };
+
+  // Fetch nearby accommodations
+  const fetchNearbyAccommodations = async () => {
+    if (!selectedDestination || !trip) return;
+    // Clear existing results while refreshing
+    setNearbyAccommodations([]);
+    setAccommodationsLoading(true);
+    const userMessage = { role: 'user' as const, content: "What are the nearby accommodations?" };
+    setAiMessages(prev => [...prev, userMessage]);
+
+    try {
+      const response = await fetch('/api/nearby-accommodations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: trip.destination,
+          placeName: selectedDestination,
+          refreshToken: `${Date.now()}`
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby accommodations'}`);
+      }
+
+      const data = await response.json();
+      console.log('Nearby accommodations data:', data);
+      if (data.error) throw new Error(data.error);
+
+      if (data.success && data.accommodations) {
+        setNearbyAccommodations(data.accommodations);
+        const aiMessage = { role: 'assistant' as const, content: `Found ${data.accommodations.length} nearby accommodations.` };
+        setAiMessages(prev => [...prev, aiMessage]);
+      } else {
+        throw new Error('No accommodations found');
+      }
+    } catch (error) {
+      console.error('Error fetching nearby accommodations:', error);
+      const errorMessage = { role: 'assistant' as const, content: `Sorry, I couldn't find nearby accommodations: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.` };
+      setAiMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setAccommodationsLoading(false);
+    }
+  };
+
+  // Add attraction to idea board
+  const addAttractionToIdeas = async (attraction: {
+    name: string;
+    category: string;
+    description: string;
+    location?: string;
+    rating?: number;
+    distance?: string;
+    image?: string;
+    linkUrl?: string;
+  }) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Map category to tag (normalized for accommodations and other types)
+      const normalized = (attraction.category || '').toLowerCase();
+      let mappedTag: string = 'other';
+      if (
+        normalized.includes('accommodation') ||
+        normalized.includes('lodging') ||
+        normalized.includes('hotel') ||
+        normalized.includes('resort') ||
+        normalized.includes('hostel')
+      ) {
+        mappedTag = 'accommodation';
+      } else if (
+        normalized.includes('restaurant') ||
+        normalized.includes('cafe') ||
+        normalized.includes('bar') ||
+        normalized.includes('food') ||
+        normalized.includes('night')
+      ) {
+        mappedTag = 'food';
+      } else if (
+        normalized.includes('station') ||
+        normalized.includes('airport') ||
+        normalized.includes('bus') ||
+        normalized.includes('train') ||
+        normalized.includes('subway') ||
+        normalized.includes('transit')
+      ) {
+        mappedTag = 'transportation';
+      } else if (
+        normalized.includes('museum') ||
+        normalized.includes('temple') ||
+        normalized.includes('historical') ||
+        normalized.includes('gallery') ||
+        normalized.includes('monument')
+      ) {
+        mappedTag = 'culture';
+      } else if (
+        normalized.includes('park') ||
+        normalized.includes('beach') ||
+        normalized.includes('garden') ||
+        normalized.includes('zoo') ||
+        normalized.includes('aquarium') ||
+        normalized.includes('viewpoint') ||
+        normalized.includes('natural')
+      ) {
+        mappedTag = 'nature';
+      } else if (normalized.includes('shopping') || normalized.includes('market') || normalized.includes('mall')) {
+        mappedTag = 'shopping';
+      } else if (normalized.includes('theater') || normalized.includes('entertainment') || normalized.includes('amusement')) {
+        mappedTag = 'entertainment';
+      } else {
+        mappedTag = 'activity';
+      }
+
+      const { error } = await supabase
+        .from('ideas')
+        .insert([
+          {
+            trip_id: params.id,
+            title: attraction.name,
+            description: attraction.description,
+            location: attraction.location || trip?.destination,
+            tags: [mappedTag],
+            added_by: user.id,
+            link_url: attraction.linkUrl || null,
+            link_title: attraction.name || null,
+            link_description: attraction.description || null,
+            link_image: attraction.image || null
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast.success(`"${attraction.name}" added to Ideas!`);
+      // Remove the added item from chat lists
+      setNearbyAttractions(prev => prev.filter(item => !(item.name === attraction.name && (item.location || '') === (attraction.location || ''))));
+      setNearbyAccommodations(prev => prev.filter(item => !(item.name === attraction.name && (item.location || '') === (attraction.location || ''))));
+      handleIdeaAdded(); // Refresh ideas
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      console.error('Error adding attraction to ideas:', errorMessage);
+      toast.error(`Failed to add "${attraction.name}" to Ideas: ${errorMessage}`);
+    }
+  };
+
+  // Close AI chat sidebar
+  const closeAIChatSidebar = () => {
+    setShowAIChatSidebar(false);
+    setSelectedDestination(null);
+    setAiMessages([]);
+    setNearbyAttractions([]);
+  };
   const [activeDay, setActiveDay] = useState(1);
   const [activeTab, setActiveTab] = useState('itinerary');
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
@@ -213,15 +1023,96 @@ export default function TripPage() {
   const [showMoveToItineraryModal, setShowMoveToItineraryModal] = useState(false);
   const [showEditTripModal, setShowEditTripModal] = useState(false);
   const [showInviteCollaboratorsModal, setShowInviteCollaboratorsModal] = useState(false);
+  
+  // Map nearby attraction category to itinerary activity_type for consistent labeling
+  const mapAttractionCategoryToActivityType = (category: string): Activity['activity_type'] => {
+    const c = category.toLowerCase();
+    if (c.includes('restaurant') || c.includes('cafe') || c.includes('bar') || c.includes('night')) return 'food';
+    if (c.includes('hotel') || c.includes('lodging') || c.includes('resort') || c.includes('hostel')) return 'accommodation';
+    if (c.includes('station') || c.includes('airport') || c.includes('bus') || c.includes('train') || c.includes('subway') || c.includes('transit')) return 'transportation';
+    return 'activity';
+  };
+  const [selectedRecommendation, setSelectedRecommendation] = useState<any>(null);
   const [showTripActionsMenu, setShowTripActionsMenu] = useState(false);
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [confirmationConfig, setConfirmationConfig] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    isLoading?: boolean;
+    variant?: 'danger' | 'warning';
+    confirmText?: string;
+    cancelText?: string;
+  } | null>(null);
+  const [showAIChatSidebar, setShowAIChatSidebar] = useState(false);
+  const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
+  const [aiMessages, setAiMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [nearbyAttractions, setNearbyAttractions] = useState<Array<{
+    name: string;
+    category: string;
+    description: string;
+    location?: string;
+    rating?: number;
+    distance?: string;
+    image?: string;
+    linkUrl?: string;
+  }>>([]);
+  const [attractionsLoading, setAttractionsLoading] = useState(false);
+  const [nearbyAccommodations, setNearbyAccommodations] = useState<Array<{
+    name: string;
+    category: string;
+    description: string;
+    location?: string;
+    rating?: number;
+    image?: string;
+    linkUrl?: string;
+  }>>([]);
+  const [accommodationsLoading, setAccommodationsLoading] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const dropdownButtonRef = useRef<HTMLButtonElement>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<{ id: string; email?: string; name?: string } | null>(null);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [recommendations, setRecommendations] = useState<TripRecommendation[]>([]);
+  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [generatingRecommendations, setGeneratingRecommendations] = useState(false);
-  const [additionalInfo, setAdditionalInfo] = useState('');
+  const [generatingMore, setGeneratingMore] = useState(false);
+  const [showInterestSelector, setShowInterestSelector] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [weatherData, setWeatherData] = useState<any[]>([]);
+  const [loadingWeather, setLoadingWeather] = useState(false);
+  const weatherFetchRef = useRef<string>(''); // Track last fetched weather key to prevent duplicates
+
+  // Available interest categories for browsing
+  const availableInterests = [
+    { value: 'adventure', label: 'Adventure', icon: '🏔️', description: 'Thrilling activities and outdoor adventures' },
+    { value: 'music', label: 'Music', icon: '🎵', description: 'Concerts, music venues, and musical experiences' },
+    { value: 'relaxation', label: 'Relaxation', icon: '🧘', description: 'Spas, wellness, and peaceful activities' },
+    { value: 'nightlife', label: 'Nightlife', icon: '🌃', description: 'Bars, clubs, and evening entertainment' },
+    { value: 'photography', label: 'Photography', icon: '📸', description: 'Scenic spots and photo opportunities' },
+    { value: 'architecture', label: 'Architecture', icon: '🏛️', description: 'Historic buildings and modern structures' },
+    { value: 'local-culture', label: 'Local Culture', icon: '🎭', description: 'Traditional experiences and local customs' },
+    { value: 'sports', label: 'Sports', icon: '⚽', description: 'Sports events and athletic activities' },
+    { value: 'accommodation', label: 'Accommodation', icon: '🏨', description: 'Hotels, hostels, and lodging options' },
+    { value: 'nature', label: 'Nature', icon: '🌿', description: 'Parks, gardens, and natural attractions' },
+    { value: 'art', label: 'Art', icon: '🎨', description: 'Museums, galleries, and artistic experiences' },
+    { value: 'food-culture', label: 'Food Culture', icon: '🍜', description: 'Culinary experiences and local cuisine' }
+  ];
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Close trip actions menu when clicking outside
   useEffect(() => {
@@ -395,6 +1286,11 @@ export default function TripPage() {
         setIdeas(ideasData);
         setIdeaVotes(votesData);
         setIdeaComments(commentsData);
+
+        // Fetch weather data for the trip
+        if (tripData.destination && tripData.start_date && tripData.end_date) {
+          await fetchWeatherData(tripData.destination, tripData.start_date, tripData.end_date);
+        }
       } catch (error) {
         console.error('Error fetching trip data:', error);
         console.error('Error details:', {
@@ -411,7 +1307,271 @@ export default function TripPage() {
     if (params.id) {
       fetchTripData();
     }
+
+    // Refetch on window focus/visibility return
+    const handleFocus = () => {
+      if (params.id) fetchTripData();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
   }, [params.id, router]);
+
+  // Refresh weather when trip dates/destination change (e.g., after editing trip)
+  useEffect(() => {
+    if (!trip) return;
+    if (!trip.destination || !trip.start_date || !trip.end_date) return;
+    
+    // Only fetch if the weather key has actually changed
+    const weatherKey = `${trip.destination}-${trip.start_date}-${trip.end_date}`;
+    if (weatherFetchRef.current === weatherKey) {
+      return; // Already fetched this exact weather data
+    }
+    
+    // Clear current weather and refetch for new date range
+    setWeatherData([]);
+    fetchWeatherData(trip.destination, trip.start_date, trip.end_date);
+  }, [trip?.destination, trip?.start_date, trip?.end_date]);
+
+  // Realtime: as trip owner, see collaborators join immediately
+  useEffect(() => {
+    if (!trip?.id) return;
+    
+    // Helper to reload trip and participants to reflect latest collaborators
+    const reloadTripAndParticipants = async () => {
+      try {
+        const { data: latestTrip, error } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('id', trip.id)
+          .single();
+        if (!error && latestTrip) {
+          setTrip(latestTrip as any);
+          // Build participants list from owner + collaborators
+          const participantIds = [latestTrip.owner_id, ...(latestTrip.collaborators || [])];
+          const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, name')
+            .in('id', participantIds);
+          if (!profilesError) {
+            setParticipants(profiles || []);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to reload trip and participants:', e);
+      }
+    };
+    // Subscribe to changes on this trip row (collaborators updates)
+    const tripChannel = supabase
+      .channel(`trip-collab-${trip.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'trips',
+        filter: `id=eq.${trip.id}`
+      }, async (payload) => {
+        try {
+          // If the current user was removed from collaborators, notify and redirect
+          const newRow = payload.new as any;
+          if (user && newRow) {
+            const isOwner = newRow.owner_id === user.id;
+            const isCollaborator = Array.isArray(newRow.collaborators) && newRow.collaborators.includes(user.id);
+            if (!isOwner && !isCollaborator) {
+              toast.error('You were removed from the trip');
+              router.push('/dashboard');
+              return;
+            }
+          }
+          await reloadTripAndParticipants();
+          toast.success('A collaborator has joined the trip');
+        } catch (e) {
+          console.error('Failed to refresh participants after update:', e);
+        }
+      })
+      .subscribe();
+
+    // Also listen to invitations being accepted for this trip
+    const inviteChannel = supabase
+      .channel(`trip-invites-${trip.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'invitations'
+      }, async (payload) => {
+        try {
+          const row = payload.new as { trip_id?: string; status?: string; invitee_email?: string };
+          if (row?.trip_id === trip.id && row?.status === 'accepted') {
+            await reloadTripAndParticipants();
+            const email = row.invitee_email || 'A collaborator';
+            toast.success(`${email} accepted your invitation`);
+          }
+        } catch (e) {
+          console.error('Invitation acceptance handling failed:', e);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(tripChannel);
+      supabase.removeChannel(inviteChannel);
+    };
+  }, [trip?.id]);
+
+  // Realtime: activities and ideas CRUD sync for this trip
+  useEffect(() => {
+    if (!trip?.id) return;
+
+    const tripId = trip.id;
+
+    const activitiesChannel = supabase
+      .channel(`activities-realtime-${tripId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'activities',
+        filter: `trip_id=eq.${tripId}`
+      }, (payload) => {
+        const row = payload.new as any;
+        if (row?.trip_id !== tripId) return;
+        setActivities(prev => {
+          const exists = prev.some(a => a.id === row.id);
+          return exists ? prev : [row, ...prev];
+        });
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'activities',
+        filter: `trip_id=eq.${tripId}`
+      }, (payload) => {
+        const row = payload.new as any;
+        if (row?.trip_id !== tripId) return;
+        setActivities(prev => prev.map(a => a.id === row.id ? { ...a, ...row } : a));
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'activities'
+      }, (payload) => {
+        const oldRow = payload.old as any;
+        if (oldRow?.trip_id !== tripId) return;
+        setActivities(prev => prev.filter(a => a.id !== oldRow.id));
+      })
+      .subscribe();
+
+    const ideasChannel = supabase
+      .channel(`ideas-realtime-${tripId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'ideas',
+        filter: `trip_id=eq.${tripId}`
+      }, (payload) => {
+        const row = payload.new as any;
+        if (row?.trip_id !== tripId) return;
+        setIdeas(prev => {
+          const exists = prev.some(i => i.id === row.id);
+          return exists ? prev : [row, ...prev];
+        });
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'ideas',
+        filter: `trip_id=eq.${tripId}`
+      }, (payload) => {
+        const row = payload.new as any;
+        if (row?.trip_id !== tripId) return;
+        setIdeas(prev => prev.map(i => i.id === row.id ? { ...i, ...row } : i));
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'ideas'
+      }, (payload) => {
+        const oldRow = payload.old as any;
+        if (oldRow?.trip_id !== tripId) return;
+        setIdeas(prev => prev.filter(i => i.id !== oldRow.id));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(activitiesChannel);
+      supabase.removeChannel(ideasChannel);
+    };
+  }, [trip?.id]);
+
+  // Presence: show online collaborators viewing this trip with tab and day tracking
+  const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string; currentTab: string; currentDay?: number }[]>([]);
+  const presenceChannelRef = useRef<any>(null);
+  
+  useEffect(() => {
+    if (!trip?.id || !user) return;
+
+    const presenceChannel = supabase.channel(`presence:trip:${trip.id}`, {
+      config: { presence: { key: user.id } }
+    });
+    presenceChannelRef.current = presenceChannel;
+
+    presenceChannel.on('presence', { event: 'sync' }, () => {
+      const state = presenceChannel.presenceState() as Record<string, Array<{ id: string; name: string; currentTab: string; currentDay?: number }>>;
+      const users = Object.values(state).flat();
+      
+      // Only update if the data actually changed to prevent unnecessary re-renders
+      setOnlineUsers(prev => {
+        const prevIds = prev.map(u => u.id).sort();
+        const newIds = users.map(u => u.id).sort();
+        if (JSON.stringify(prevIds) === JSON.stringify(newIds)) {
+          return prev; // No change in users, don't update
+        }
+        return users;
+      });
+    });
+
+    presenceChannel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+      // No toast notification - green dot indicator is sufficient
+    });
+
+    presenceChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
+      // No action needed - cursors are handled by broadcast events
+    });
+
+    presenceChannel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        const displayName = (participants.find((p: any) => p.id === user.id)?.name || user.email || 'Someone') as string;
+        await presenceChannel.track({ 
+          id: user.id, 
+          name: displayName,
+          currentTab: activeTab,
+          currentDay: activeTab === 'itinerary' ? activeDay : undefined
+        });
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [trip?.id, user?.id, participants]);
+
+  // Update presence when active tab or day changes (debounced)
+  useEffect(() => {
+    if (presenceChannelRef.current && user) {
+      const timeoutId = setTimeout(() => {
+        const displayName = (participants.find((p: any) => p.id === user.id)?.name || user.email || 'Someone') as string;
+        presenceChannelRef.current.track({ 
+          id: user.id, 
+          name: displayName,
+          currentTab: activeTab,
+          currentDay: activeTab === 'itinerary' ? activeDay : undefined
+        });
+      }, 200); // Debounce tab/day changes
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [activeTab, activeDay, user?.id, participants]);
 
   // Calculate expense summary when expenses or participants change
   useEffect(() => {
@@ -433,6 +1593,52 @@ export default function TripPage() {
       refreshParticipants();
     }
   }, [user, trip]);
+
+  // Reset recommendations when trip changes
+  useEffect(() => {
+    setRecommendations([]);
+  }, [trip?.id]);
+
+  // Refetch core trip data on window focus / visibility regain to avoid stale UI
+  useEffect(() => {
+    const refetchOnFocus = async () => {
+      if (!params?.id) return;
+      try {
+        const { data: latestTrip } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('id', params.id)
+          .single();
+        if (latestTrip) setTrip(latestTrip as any);
+
+        const { data: activitiesData } = await supabase
+          .from('activities')
+          .select('*')
+          .eq('trip_id', params.id)
+          .order('day_number', { ascending: true })
+          .order('order_index', { ascending: true });
+        if (activitiesData) setActivities(activitiesData as any);
+
+        const { data: ideasData } = await supabase
+          .from('ideas')
+          .select('*')
+          .eq('trip_id', params.id)
+          .order('created_at', { ascending: false });
+        if (ideasData) setIdeas(ideasData as any);
+      } catch (e) {
+        console.warn('Focus refetch failed:', e);
+      }
+    };
+
+    const onFocus = () => { refetchOnFocus(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') refetchOnFocus(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [params?.id]);
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -458,16 +1664,456 @@ export default function TripPage() {
     return activities
       .filter(activity => activity.day_number === dayNumber)
       .sort((a, b) => {
-        // Sort by time, with activities without time at the end
-        if (!a.activity_time && !b.activity_time) return 0;
-        if (!a.activity_time) return 1;
-        if (!b.activity_time) return -1;
-        return a.activity_time.localeCompare(b.activity_time);
+        // Sort by time period first, then by order_index
+        const timePeriodOrder = { morning: 0, afternoon: 1, evening: 2 };
+        const aPeriod = timePeriodOrder[a.time_period] ?? 3;
+        const bPeriod = timePeriodOrder[b.time_period] ?? 3;
+        
+        if (aPeriod !== bPeriod) {
+          return aPeriod - bPeriod;
+        }
+        
+        return a.order_index - b.order_index;
       });
+  };
+
+  const getActivitiesForDayGroupedByTime = (dayNumber: number) => {
+    const dayActivities = activities.filter(activity => activity.day_number === dayNumber);
+    
+    const grouped = {
+      morning: dayActivities.filter(a => a.time_period === 'morning').sort((a, b) => a.order_index - b.order_index),
+      afternoon: dayActivities.filter(a => a.time_period === 'afternoon').sort((a, b) => a.order_index - b.order_index),
+      evening: dayActivities.filter(a => a.time_period === 'evening').sort((a, b) => a.order_index - b.order_index)
+    };
+    
+    return grouped;
   };
 
   const getActivityCountForDay = (dayNumber: number) => {
     return activities.filter(activity => activity.day_number === dayNumber).length;
+  };
+
+  const getWeatherForDay = (dayNumber: number) => {
+    if (!weatherData.length) return null;
+    const dayDate = new Date(trip?.start_date || '');
+    dayDate.setDate(dayDate.getDate() + (dayNumber - 1));
+    const dateString = dayDate.toISOString().split('T')[0];
+    return weatherData.find(weather => weather.date === dateString) || null;
+  };
+
+  // Multi-select helper functions
+  const toggleActivitySelection = (activityId: string) => {
+    const newSelected = new Set(selectedActivities);
+    if (newSelected.has(activityId)) {
+      newSelected.delete(activityId);
+    } else {
+      newSelected.add(activityId);
+    }
+    setSelectedActivities(newSelected);
+  };
+
+  const selectAllActivitiesForDay = () => {
+    const dayActivities = getActivitiesForDay(activeDay);
+    const allSelected = dayActivities.every(activity => selectedActivities.has(activity.id));
+    
+    if (allSelected) {
+      // Deselect all activities for this day
+      const newSelected = new Set(selectedActivities);
+      dayActivities.forEach(activity => newSelected.delete(activity.id));
+      setSelectedActivities(newSelected);
+    } else {
+      // Select all activities for this day
+      const newSelected = new Set(selectedActivities);
+      dayActivities.forEach(activity => newSelected.add(activity.id));
+      setSelectedActivities(newSelected);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedActivities.size === 0) {
+      toast.error('No activities selected');
+      return;
+    }
+
+    const activityIds = Array.from(selectedActivities);
+
+    try {
+      const response = await fetch('/api/activities/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          activityIds: activityIds
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete activities');
+      }
+
+      // Refresh activities from database to ensure sync
+      await handleActivityAdded();
+      setSelectedActivities(new Set());
+      setIsMultiSelectMode(false);
+      
+      toast.success(`Successfully deleted ${activityIds.length} activities`);
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      toast.error(`Failed to delete activities: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Drag start handler
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  // Drag over handler
+  const handleDragOver = (event: any) => {
+    const { over } = event;
+    if (over) {
+      setDragOverId(over.id as string);
+    } else {
+      setDragOverId(null);
+    }
+  };
+
+  // Drag end handler
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveId(null);
+    setDragOverId(null);
+    const { active, over } = event;
+
+    if (!over) {
+      return;
+    }
+
+    setIsReordering(true);
+
+    try {
+      // Check if dropped on another activity (same-time-period reordering)
+      if (typeof over.id === 'string' && !over.id.startsWith('day-') && !over.id.startsWith('time-') && !over.id.startsWith('insert-')) {
+        const activityToMove = activities.find(activity => activity.id === active.id);
+        const targetActivity = activities.find(activity => activity.id === over.id);
+        
+        if (!activityToMove || !targetActivity) {
+          throw new Error('Activity not found');
+        }
+
+        // Check if both activities are in the same day and time period
+        if (activityToMove.day_number === targetActivity.day_number && 
+            activityToMove.time_period === targetActivity.time_period) {
+          
+          // Get all activities in the same time period
+          const timePeriodActivities = activities
+            .filter(a => a.day_number === activityToMove.day_number && a.time_period === activityToMove.time_period)
+            .sort((a, b) => a.order_index - b.order_index);
+
+          const oldIndex = timePeriodActivities.findIndex(a => a.id === activityToMove.id);
+          const newIndex = timePeriodActivities.findIndex(a => a.id === targetActivity.id);
+
+          if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+            // Reorder activities within the same time period
+            const reorderedActivities = arrayMove(timePeriodActivities, oldIndex, newIndex);
+            const activitiesToUpdate = reorderedActivities.map((activity, index) => ({
+              id: activity.id,
+              order_index: index + 1,
+              day_number: activity.day_number,
+              time_period: activity.time_period
+            }));
+
+            const response = await fetch('/api/activities/reorder', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ activities: activitiesToUpdate })
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to update activity order');
+            }
+
+            toast.success('Activity reordered successfully');
+            await handleActivityAdded();
+            return;
+          }
+        }
+      }
+
+      // Check if dropped on a day tab (cross-day move)
+      if (typeof over.id === 'string' && over.id.startsWith('day-')) {
+        const targetDay = parseInt(over.id.replace('day-', ''));
+        const activityToMove = activities.find(activity => activity.id === active.id);
+        
+        if (!activityToMove) {
+          throw new Error('Activity not found');
+        }
+
+        if (activityToMove.day_number === targetDay) {
+          // Same day, just reorder - but we need to handle this differently
+          // since we're dropping on a day tab, not reordering within time periods
+          return;
+        } else {
+          // Cross-day move
+          const targetDayActivities = getActivitiesForDay(targetDay);
+          const newOrderIndex = targetDayActivities.length + 1;
+
+          const response = await fetch('/api/activities/reorder', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              activities: [{
+                id: activityToMove.id,
+                order_index: newOrderIndex,
+                day_number: targetDay
+              }]
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to move activity to new day');
+          }
+
+          toast.success(`Activity moved to Day ${targetDay}`);
+        }
+      } else if (typeof over.id === 'string' && over.id.startsWith('time-')) {
+        // Dropped into a time period (append to end)
+        const [, targetDayStr, targetTimePeriod] = over.id.split('-');
+        const targetDay = parseInt(targetDayStr);
+        const activityToMove = activities.find(activity => activity.id === active.id);
+        
+        if (!activityToMove) {
+          throw new Error('Activity not found');
+        }
+
+        // Get activities in the target time period to calculate new order
+        const targetTimeActivities = activities
+          .filter(a => a.day_number === targetDay && a.time_period === targetTimePeriod)
+          .sort((a, b) => a.order_index - b.order_index);
+        
+        const newOrderIndex = targetTimeActivities.length + 1;
+
+        const response = await fetch('/api/activities/reorder', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            activities: [{
+              id: activityToMove.id,
+              order_index: newOrderIndex,
+              day_number: targetDay,
+              time_period: targetTimePeriod
+            }]
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to move activity to time period');
+        }
+
+        const timePeriodLabels = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' };
+        toast.success(`Activity moved to ${timePeriodLabels[targetTimePeriod as keyof typeof timePeriodLabels]} of Day ${targetDay}`);
+      } else if (typeof over.id === 'string' && over.id.startsWith('insert-')) {
+        // Dropped at a specific insertion point
+        const [, targetDayStr, targetTimePeriod, insertIndexStr] = over.id.split('-');
+        const targetDay = parseInt(targetDayStr);
+        const insertIndex = parseInt(insertIndexStr);
+        const activityToMove = activities.find(activity => activity.id === active.id);
+        
+        if (!activityToMove) {
+          throw new Error('Activity not found');
+        }
+
+        // Get activities in the target time period
+        const targetTimeActivities = activities
+          .filter(a => a.day_number === targetDay && a.time_period === targetTimePeriod)
+          .sort((a, b) => a.order_index - b.order_index);
+
+        // Calculate new order index based on insertion point
+        let newOrderIndex: number;
+        if (insertIndex === 0) {
+          // Inserting at the beginning
+          newOrderIndex = 1;
+        } else if (insertIndex >= targetTimeActivities.length) {
+          // Inserting at the end
+          newOrderIndex = targetTimeActivities.length + 1;
+        } else {
+          // Inserting between activities
+          newOrderIndex = insertIndex + 1;
+        }
+
+        // Update order indices for activities that come after the insertion point
+        const activitiesToUpdate = [];
+        
+        // Add the moved activity
+        activitiesToUpdate.push({
+          id: activityToMove.id,
+          order_index: newOrderIndex,
+          day_number: targetDay,
+          time_period: targetTimePeriod
+        });
+
+        // Update order indices for existing activities that need to shift
+        for (const activity of targetTimeActivities) {
+          if (activity.id !== activityToMove.id && activity.order_index >= newOrderIndex) {
+            activitiesToUpdate.push({
+              id: activity.id,
+              order_index: activity.order_index + 1,
+              day_number: activity.day_number,
+              time_period: activity.time_period
+            });
+          }
+        }
+
+        const response = await fetch('/api/activities/reorder', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ activities: activitiesToUpdate })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to insert activity at position');
+        }
+
+        const timePeriodLabels = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' };
+        toast.success(`Activity inserted into ${timePeriodLabels[targetTimePeriod as keyof typeof timePeriodLabels]} of Day ${targetDay}`);
+      } else {
+        // Same-day reorder
+        const dayActivities = getActivitiesForDay(activeDay);
+        const oldIndex = dayActivities.findIndex(activity => activity.id === active.id);
+        
+        if (oldIndex === -1) {
+          return;
+        }
+
+        let newIndex: number;
+        
+        newIndex = dayActivities.findIndex(activity => activity.id === over.id);
+        if (newIndex === -1) {
+          return;
+        }
+
+        const reorderedActivities = arrayMove(dayActivities, oldIndex, newIndex);
+        const activitiesToUpdate = reorderedActivities.map((activity, index) => ({
+          id: activity.id,
+          order_index: index + 1,
+          day_number: activity.day_number
+        }));
+
+        const response = await fetch('/api/activities/reorder', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ activities: activitiesToUpdate })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update activity order');
+        }
+
+        toast.success('Activity reordered successfully');
+      }
+
+      // Refresh activities from database to ensure sync
+      await handleActivityAdded();
+    } catch (error) {
+      console.error('Drag operation error:', error);
+      toast.error(`Failed to move activity: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
+  const handleEditExpense = (expense: Expense) => {
+    setSelectedExpense(expense);
+    setShowEditExpenseModal(true);
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    const expense = expenses.find(e => e.id === expenseId);
+    const expenseTitle = expense?.description || 'this expense';
+    
+    showConfirmation(
+      'Delete Expense',
+      `Are you sure you want to delete "${expenseTitle}"? This action cannot be undone.`,
+      async () => {
+        try {
+          const { error } = await supabase
+            .from('expenses')
+            .delete()
+            .eq('id', expenseId);
+
+          if (error) throw error;
+
+          toast.success('Expense deleted successfully');
+          await handleExpenseAdded();
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(errorMessage);
+          throw error; // Re-throw to trigger error handling in showConfirmation
+        }
+      }
+    );
+  };
+
+  const calculateExpenseSummary = (expensesList: Expense[]) => {
+    if (!user || participants.length === 0) return;
+
+    let totalExpenses = 0;
+    let userPaid = 0;
+    let userShare = 0;
+
+    expensesList.forEach(expense => {
+      totalExpenses += expense.amount;
+      
+      if (expense.paid_by === user.id) {
+        userPaid += expense.amount;
+      }
+
+      const splitCount = expense.split_with === 'everyone' 
+        ? participants.length 
+        : (expense.split_with as string[]).length;
+      const shareAmount = expense.amount / splitCount;
+      
+      if (expense.split_with === 'everyone' || (expense.split_with as string[]).includes(user.id)) {
+        userShare += shareAmount;
+      }
+    });
+
+    setExpenseSummary({
+      totalExpenses,
+      userPaid,
+      userShare
+    });
+  };
+
+  const handleTripUpdated = async () => {
+    // Refresh trip data
+    if (params.id) {
+      try {
+        const { data: tripData, error } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('id', params.id)
+          .single();
+
+        if (!error && tripData) {
+          setTrip(tripData);
+        }
+      } catch (error) {
+        console.warn('Failed to refresh trip:', error);
+      }
+    }
+  };
+
+  const handleInvitesSent = async () => {
+    // Refresh participants after invites are sent
+    await refreshParticipants();
+  };
+
+  const handleInterestsUpdated = async () => {
+    // Refresh trip data after interests are updated
+    await handleTripUpdated();
   };
 
   const handleActivityAdded = async () => {
@@ -486,6 +2132,41 @@ export default function TripPage() {
     }
   };
 
+  const fetchWeatherData = useCallback(async (destination: string, startDate: string, endDate: string) => {
+    if (!destination || !startDate || !endDate) return;
+    
+    // Create a unique key for this weather fetch to prevent duplicate requests
+    const weatherKey = `${destination}-${startDate}-${endDate}`;
+    if (weatherFetchRef.current === weatherKey) {
+      console.log('Weather already fetched for:', weatherKey);
+      return; // Already fetched this exact weather data
+    }
+    
+    console.log('Fetching weather for:', weatherKey);
+    weatherFetchRef.current = weatherKey;
+    setLoadingWeather(true);
+    
+    try {
+      const response = await fetch(
+        `/api/weather?destination=${encodeURIComponent(destination)}&startDate=${startDate}&endDate=${endDate}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setWeatherData(data.weather || []);
+        console.log('Weather data loaded successfully');
+      } else {
+        console.warn('Weather service not available');
+        setWeatherData([]); // Set empty array to show "Not Available"
+      }
+    } catch (error) {
+      console.warn('Weather fetch error:', error);
+      setWeatherData([]); // Set empty array to show "Not Available"
+    } finally {
+      setLoadingWeather(false);
+    }
+  }, []);
+
   const handleExpenseAdded = async () => {
     // Refresh expenses data
     if (params.id) {
@@ -499,32 +2180,6 @@ export default function TripPage() {
         setExpenses(expensesData || []);
         calculateExpenseSummary(expensesData || []);
       }
-    }
-  };
-
-  const handleEditExpense = (expense: Expense) => {
-    setSelectedExpense(expense);
-    setShowEditExpenseModal(true);
-  };
-
-  const handleDeleteExpense = async (expenseId: string) => {
-    if (!confirm('Are you sure you want to delete this expense?')) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('expenses')
-        .delete()
-        .eq('id', expenseId);
-
-      if (error) throw error;
-
-      toast.success('Expense deleted successfully!');
-      handleExpenseAdded(); // Refresh expenses
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(errorMessage);
     }
   };
 
@@ -650,25 +2305,6 @@ export default function TripPage() {
     setShowMoveToItineraryModal(true);
   };
 
-  const handleTripUpdated = async () => {
-    // Refresh trip data
-    if (params.id) {
-      try {
-        const { data: tripData, error } = await supabase
-          .from('trips')
-          .select('*')
-          .eq('id', params.id)
-          .single();
-
-        if (!error && tripData) {
-          setTrip(tripData);
-        }
-      } catch (error) {
-        console.warn('Failed to refresh trip:', error);
-      }
-    }
-  };
-
   const refreshParticipants = async () => {
     // Refresh participants data
     if (trip) {
@@ -696,76 +2332,116 @@ export default function TripPage() {
     }
   };
 
-  const handleInvitesSent = async () => {
-    // Refresh participants data after invitations are sent
-    await refreshParticipants();
-  };
-
   const handleArchiveTrip = async () => {
-    if (!confirm('Are you sure you want to archive this trip? It will be hidden from your active trips.')) {
-      return;
-    }
+    showConfirmation(
+      'Archive Trip',
+      `Are you sure you want to archive "${trip?.title}"? It will be hidden from your active trips.`,
+      async () => {
+        try {
+          const { error } = await supabase
+            .from('trips')
+            .update({ archived: true })
+            .eq('id', trip?.id);
 
-    try {
-      const { error } = await supabase
-        .from('trips')
-        .update({ archived: true })
-        .eq('id', trip?.id);
+          if (error) throw error;
 
-      if (error) throw error;
-
-      toast.success('Trip archived successfully!');
-      router.push('/dashboard');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      console.error('Archive error:', errorMessage);
-      toast.error(errorMessage);
-    }
+          toast.success('Trip archived successfully!');
+          router.push('/dashboard');
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          console.error('Archive error:', errorMessage);
+          toast.error(errorMessage);
+          throw error; // Re-throw to trigger error handling in showConfirmation
+        }
+      },
+      'warning',
+      'Yes, archive it',
+      'No, keep active'
+    );
   };
 
   const handleCompleteTrip = async () => {
-    if (!confirm('Are you sure you want to mark this trip as completed?')) {
-      return;
-    }
+    showConfirmation(
+      'Complete Trip',
+      `Are you sure you want to mark "${trip?.title}" as completed?`,
+      async () => {
+        try {
+          const { error } = await supabase
+            .from('trips')
+            .update({ completed: true })
+            .eq('id', trip?.id);
 
-    try {
-      const { error } = await supabase
-        .from('trips')
-        .update({ completed: true })
-        .eq('id', trip?.id);
+          if (error) throw error;
 
-      if (error) throw error;
+          toast.success('Trip marked as completed!');
+          handleTripUpdated();
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          console.error('Complete error:', errorMessage);
+          toast.error(errorMessage);
+          throw error; // Re-throw to trigger error handling in showConfirmation
+        }
+      },
+      'warning',
+      'Yes, complete it',
+      'No, keep active'
+    );
+  };
 
-      toast.success('Trip marked as completed!');
-      handleTripUpdated();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      console.error('Complete error:', errorMessage);
-      toast.error(errorMessage);
-    }
+  const handleActivateTrip = async () => {
+    showConfirmation(
+      'Activate Trip',
+      `Are you sure you want to set "${trip?.title}" as active? This will remove it from archived/completed status.`,
+      async () => {
+        try {
+          const { error } = await supabase
+            .from('trips')
+            .update({ 
+              completed: false,
+              archived: false 
+            })
+            .eq('id', trip?.id);
+
+          if (error) throw error;
+
+          toast.success('Trip set as active!');
+          handleTripUpdated();
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          console.error('Activate error:', errorMessage);
+          toast.error(errorMessage);
+          throw error; // Re-throw to trigger error handling in showConfirmation
+        }
+      },
+      'warning',
+      'Yes, activate it',
+      'No, keep current status'
+    );
   };
 
   const handleDeleteTrip = async () => {
-    if (!confirm('Are you sure you want to delete this trip? This action cannot be undone and will delete all activities, expenses, and ideas.')) {
-      return;
-    }
+    showConfirmation(
+      'Delete Trip',
+      `Are you sure you want to delete "${trip?.title}"? This action cannot be undone and will delete all activities, expenses, and ideas.`,
+      async () => {
+        try {
+          const { error } = await supabase
+            .from('trips')
+            .delete()
+            .eq('id', trip?.id);
 
-    try {
-      console.log('Deleting trip:', trip?.id);
-      const { error } = await supabase
-        .from('trips')
-        .delete()
-        .eq('id', trip?.id);
+          if (error) throw error;
 
-      if (error) throw error;
-
-      toast.success('Trip deleted successfully!');
-      router.push('/dashboard');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      console.error('Delete error:', errorMessage);
-      toast.error(errorMessage);
-    }
+          toast.success('Trip deleted successfully!');
+          router.push('/dashboard');
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          console.error('Delete error:', errorMessage);
+          toast.error(errorMessage);
+          throw error; // Re-throw to trigger error handling in showConfirmation
+        }
+      }
+    );
   };
 
   const getTripDays = () => {
@@ -831,22 +2507,27 @@ export default function TripPage() {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!confirm('Are you sure you want to delete this comment?')) return;
+    showConfirmation(
+      'Delete Comment',
+      'Are you sure you want to delete this comment? This action cannot be undone.',
+      async () => {
+        try {
+          const { error } = await supabase
+            .from('idea_comments')
+            .delete()
+            .eq('id', commentId);
 
-    try {
-      const { error } = await supabase
-        .from('idea_comments')
-        .delete()
-        .eq('id', commentId);
+          if (error) throw error;
 
-      if (error) throw error;
-
-      toast.success('Comment deleted!');
-      handleCommentsUpdated();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(errorMessage);
-    }
+          toast.success('Comment deleted!');
+          handleCommentsUpdated();
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(errorMessage);
+          throw error; // Re-throw to trigger error handling in showConfirmation
+        }
+      }
+    );
   };
 
   const handleEditIdea = (idea: Idea) => {
@@ -855,51 +2536,30 @@ export default function TripPage() {
   };
 
   const handleDeleteIdea = async (ideaId: string) => {
-    if (!confirm('Are you sure you want to delete this idea? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('ideas')
-        .delete()
-        .eq('id', ideaId);
-
-      if (error) throw error;
-
-      toast.success('Idea deleted successfully!');
-      handleIdeaAdded(); // Refresh ideas
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(errorMessage);
-    }
-  };
-
-  const calculateExpenseSummary = (expensesData: Expense[]) => {
-    if (!user || !participants.length) return;
-
-    const totalExpenses = expensesData.reduce((sum, expense) => sum + expense.amount, 0);
-    const userPaid = expensesData
-      .filter(expense => expense.paid_by === user.id)
-      .reduce((sum, expense) => sum + expense.amount, 0);
+    const idea = ideas.find(i => i.id === ideaId);
+    const ideaTitle = idea?.title || 'this idea';
     
-    const userShare = expensesData.reduce((sum, expense) => {
-      const splitCount = expense.split_with === 'everyone' 
-        ? participants.length 
-        : (expense.split_with as string[]).length;
-      
-      // Only add to user's share if they are included in the split
-      const isUserInSplit = expense.split_with === 'everyone' || 
-        (expense.split_with as string[]).includes(user.id);
-      
-      return isUserInSplit ? sum + (expense.amount / splitCount) : sum;
-    }, 0);
+    showConfirmation(
+      'Delete Idea',
+      `Are you sure you want to delete "${ideaTitle}"? This action cannot be undone.`,
+      async () => {
+        try {
+          const { error } = await supabase
+            .from('ideas')
+            .delete()
+            .eq('id', ideaId);
 
-    setExpenseSummary({
-      totalExpenses,
-      userPaid,
-      userShare
-    });
+          if (error) throw error;
+
+          toast.success('Idea deleted successfully!');
+          handleIdeaAdded(); // Refresh ideas
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(errorMessage);
+          throw error; // Re-throw to trigger error handling in showConfirmation
+        }
+      }
+    );
   };
 
   // Helper function to get unpaid settlements (those not in the settlements table)
@@ -984,19 +2644,23 @@ export default function TripPage() {
   };
 
   // Function to generate AI recommendations
-  const generateRecommendations = async () => {
+  const generateRecommendations = async (browseInterests?: string[]) => {
     if (!trip) return;
 
     setGeneratingRecommendations(true);
 
     try {
+      // Use selected interests if provided, otherwise use trip interests
+      const interestsToUse = browseInterests && browseInterests.length > 0 
+        ? browseInterests 
+        : (trip.interests || []);
+
       const tripData = {
         destination: trip.destination,
-        interests: trip.interests || [],
+        interests: interestsToUse,
         numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
         numberOfParticipants: participants.length,
         startDate: trip.start_date,
-        additionalInfo: additionalInfo.trim() || undefined
       };
 
       const response = await fetch('/api/enhanced-recommendations', {
@@ -1022,9 +2686,202 @@ export default function TripPage() {
     }
   };
 
+  // Function to generate recommendations with selected interests
+  const generateRecommendationsWithInterests = async () => {
+    if (selectedInterests.length === 0) {
+      toast.error('Please select at least one interest category');
+      return;
+    }
+    
+    setShowInterestSelector(false);
+    await generateRecommendations(selectedInterests);
+  };
+
+  // Function to toggle interest selection
+  const toggleInterest = (interest: string) => {
+    setSelectedInterests(prev => 
+      prev.includes(interest) 
+        ? prev.filter(i => i !== interest)
+        : [...prev, interest]
+    );
+  };
+
+  // Function to generate more recommendations
+  const generateMoreRecommendations = async () => {
+    if (!trip) return;
+
+    setGeneratingMore(true);
+    try {
+      // Get existing place IDs to exclude
+      const excludePlaceIds = recommendations.map(rec => rec.place_id).filter(Boolean);
+
+      const tripData = {
+        trip_id: trip.id,
+        destination: trip.destination,
+        interests: trip.interests || [],
+        numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+        numberOfParticipants: participants.length,
+        startDate: trip.start_date,
+        excludePlaceIds
+      };
+
+      const response = await fetch('/api/enhanced-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tripData }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate more recommendations');
+      }
+
+      const data = await response.json();
+      
+      // Append new recommendations to existing ones
+      setRecommendations(prev => [...prev, ...data.recommendations]);
+      toast.success(`Added ${data.recommendations.length} more recommendations!`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      toast.error(`Failed to generate more recommendations: ${errorMessage}`);
+    } finally {
+      setGeneratingMore(false);
+    }
+  };
+
+  // Function to map recommendation activity types to idea tag values
+  const mapActivityTypeToTag = (activityType: string): string => {
+    const mapping: { [key: string]: string } = {
+      'Food': 'food',
+      'Culture': 'culture',
+      'History': 'history',
+      'Nature': 'nature',
+      'Shopping': 'shopping',
+      'Entertainment': 'activity',
+      'Sports': 'activity',
+      'Religion': 'culture',
+      'Transportation': 'transportation',
+      'Accommodation': 'accommodation',
+      'Activity': 'activity'
+    };
+    return mapping[activityType] || 'other';
+  };
+
+  const [movingRecommendationIds, setMovingRecommendationIds] = useState<Set<string>>(new Set());
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+
+  // Function to handle image upload
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+
+      // Create a unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${trip?.id}-${Date.now()}.${fileExt}`;
+      const filePath = `trip-images/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('gallery-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('gallery-images')
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+
+      // Update the trip record
+      const { error: updateError } = await supabase
+        .from('trips')
+        .update({ trip_image_url: publicUrl })
+        .eq('id', trip?.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Update the trip state
+      setTrip(prev => prev ? { ...prev, trip_image_url: publicUrl } : null);
+      toast.success('Trip image updated successfully!');
+      setShowTripActionsMenu(false);
+
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Function to handle image removal
+  const handleRemoveImage = async () => {
+    try {
+      setUploadingImage(true);
+
+      // Update the trip record to remove the image
+      const { error: updateError } = await supabase
+        .from('trips')
+        .update({ trip_image_url: null })
+        .eq('id', trip?.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Update the trip state
+      setTrip(prev => prev ? { ...prev, trip_image_url: undefined } : null);
+      toast.success('Trip image removed successfully!');
+      setShowTripActionsMenu(false);
+
+    } catch (error) {
+      console.error('Error removing image:', error);
+      toast.error('Failed to remove image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+
   // Function to move recommendation to ideas
   const moveRecommendationToIdeas = async (recommendation: TripRecommendation) => {
     try {
+      // Guard against double-triggering
+      if (movingRecommendationIds.has(recommendation.id)) return;
+      setMovingRecommendationIds(prev => new Set(prev).add(recommendation.id));
+
+      const mappedTag = mapActivityTypeToTag(recommendation.activity_type);
+      
       const { error } = await supabase
         .from('ideas')
         .insert([
@@ -1037,7 +2894,7 @@ export default function TripPage() {
             link_title: recommendation.title,
             link_description: recommendation.description,
             link_image: recommendation.image_url,
-            tags: [recommendation.activity_type],
+            tags: [mappedTag],
             added_by: user?.id
           }
         ]);
@@ -1052,14 +2909,27 @@ export default function TripPage() {
         .order('created_at', { ascending: false });
 
       if (!ideasError) {
-        setIdeas(ideasData || []);
+        const uniqueIdeas = (ideasData || []).filter((idea, index, self) =>
+          self.findIndex(i => i.id === idea.id) === index
+        );
+        setIdeas(uniqueIdeas);
       }
 
       // Remove from recommendations
       setRecommendations(prev => prev.filter(rec => rec.id !== recommendation.id));
+      
+      // Show success toast
+      toast.success(`"${recommendation.title}" added to Ideas!`);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      throw new Error(errorMessage);
+      console.error('Error moving recommendation to ideas:', errorMessage);
+      toast.error(`Failed to add "${recommendation.title}" to Ideas: ${errorMessage}`);
+    } finally {
+      setMovingRecommendationIds(prev => {
+        const next = new Set(prev);
+        next.delete(recommendation.id);
+        return next;
+      });
     }
   };
 
@@ -1162,49 +3032,49 @@ export default function TripPage() {
     return settlements;
   };
 
-  const handleInterestsUpdated = (interests: string[]) => {
-    if (trip) {
-      setTrip({ ...trip, interests });
-    }
-  };
-
   const handleEditActivity = (activity: Activity) => {
     setSelectedActivity(activity);
     setShowEditActivityModal(true);
   };
 
   const handleDeleteActivity = async (activityId: string) => {
-    if (!confirm('Are you sure you want to delete this activity?')) {
-      return;
-    }
+    const activity = activities.find(a => a.id === activityId);
+    const activityTitle = activity?.title || 'this activity';
+    
+    showConfirmation(
+      'Delete Activity',
+      `Are you sure you want to delete "${activityTitle}"? This action cannot be undone.`,
+      async () => {
+        try {
+          // First, get the activity to find its attachments
+          const { data: activityData } = await supabase
+            .from('activities')
+            .select('attachments')
+            .eq('id', activityId)
+            .single();
 
-    try {
-      // First, get the activity to find its attachments
-      const { data: activityData } = await supabase
-        .from('activities')
-        .select('attachments')
-        .eq('id', activityId)
-        .single();
+          // Delete files from storage if they exist
+          if (activityData?.attachments && activityData.attachments.length > 0) {
+            await deleteActivityFiles(activityData.attachments);
+          }
 
-      // Delete files from storage if they exist
-      if (activityData?.attachments && activityData.attachments.length > 0) {
-        await deleteActivityFiles(activityData.attachments);
+          // Delete the activity from database
+          const { error } = await supabase
+            .from('activities')
+            .delete()
+            .eq('id', activityId);
+
+          if (error) throw error;
+
+          toast.success('Activity deleted successfully!');
+          handleActivityAdded(); // Refresh activities
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(errorMessage);
+          throw error; // Re-throw to trigger error handling in showConfirmation
+        }
       }
-
-      // Delete the activity from database
-      const { error } = await supabase
-        .from('activities')
-        .delete()
-        .eq('id', activityId);
-
-      if (error) throw error;
-
-      toast.success('Activity deleted successfully!');
-      handleActivityAdded(); // Refresh activities
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(errorMessage);
-    }
+    );
   };
 
   const deleteActivityFiles = async (attachments: (string | {url: string, customName: string})[]) => {
@@ -1390,13 +3260,19 @@ export default function TripPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Trip Card */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow relative">
-              {/* Trip Actions Menu - Debug version */}
+              {/* Trip Actions Menu */}
               {(user?.id === trip?.owner_id || true) && (
                 <div className="absolute top-4 right-4 z-10" data-trip-menu-trigger>
                   <button
+                    ref={dropdownButtonRef}
                     onClick={() => {
-                      console.log('Trip actions menu clicked');
-                      console.log('Current showTripActionsMenu:', showTripActionsMenu);
+                      if (dropdownButtonRef.current) {
+                        const rect = dropdownButtonRef.current.getBoundingClientRect();
+                        setDropdownPosition({
+                          top: rect.bottom + window.scrollY + 8,
+                          right: window.innerWidth - rect.right - window.scrollX
+                        });
+                      }
                       setShowTripActionsMenu(!showTripActionsMenu);
                     }}
                     className="p-2 rounded-full bg-white/90 hover:bg-white shadow-sm transition-colors"
@@ -1404,53 +3280,111 @@ export default function TripPage() {
                     <MoreVertical className="w-4 h-4 text-gray-600" />
                   </button>
                   
-                  {showTripActionsMenu && (
-                    <div className="absolute right-0 top-10 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[200px] z-50" data-trip-menu>
+                  {showTripActionsMenu && typeof window !== 'undefined' && createPortal(
+                    <div 
+                      className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[180px] z-[9999] max-h-[400px] overflow-y-auto" 
+                      data-trip-menu
+                      style={{
+                        top: `${dropdownPosition.top}px`,
+                        right: `${dropdownPosition.right}px`
+                      }}
+                    >
                       <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('Edit trip clicked');
                           setShowEditTripModal(true);
                           setShowTripActionsMenu(false);
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Edit className="w-4 h-4" />
-                        Edit Trip Details
+                        Edit Details
                       </button>
+                      {/* Show different options based on trip status */}
+                      {trip?.completed || trip?.archived ? (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleActivateTrip();
+                            setShowTripActionsMenu(false);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                        >
+                          <Play className="w-4 h-4" />
+                          Set as Active
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleCompleteTrip();
+                              setShowTripActionsMenu(false);
+                            }}
+                            className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Mark Complete
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleArchiveTrip();
+                              setShowTripActionsMenu(false);
+                            }}
+                            className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <Archive className="w-4 h-4" />
+                            Archive Trip
+                          </button>
+                        </>
+                      )}
+                      <hr className="my-1" />
                       <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('Complete trip clicked');
-                          handleCompleteTrip();
+                          fileInputRef.current?.click();
                           setShowTripActionsMenu(false);
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        disabled={uploadingImage}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
                       >
-                        <CheckCircle className="w-4 h-4" />
-                        Mark as Completed
+                        {uploadingImage ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="w-4 h-4" />
+                            Upload
+                          </>
+                        )}
                       </button>
+                      {trip?.trip_image_url && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRemoveImage();
+                          }}
+                          disabled={uploadingImage}
+                          className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <X className="w-4 h-4" />
+                          Remove
+                        </button>
+                      )}
+                      <hr className="my-1" />
                       <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('Archive trip clicked');
-                          handleArchiveTrip();
-                          setShowTripActionsMenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <Archive className="w-4 h-4" />
-                        Archive Trip
-                      </button>
-                      <hr className="my-2" />
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log('Delete trip clicked');
                           handleDeleteTrip();
                           setShowTripActionsMenu(false);
                         }}
@@ -1459,18 +3393,45 @@ export default function TripPage() {
                         <AlertTriangle className="w-4 h-4" />
                         Delete Trip
                       </button>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               )}
 
-              <DestinationImage 
+              {/* Hidden file input for image upload */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+
+              <TripImageHeader 
+                tripId={trip.id}
                 destination={trip.destination || ''}
-                className="h-48"
-                fallbackClassName="bg-gradient-to-br from-green-400 to-green-600"
+                tripImageUrl={trip.trip_image_url}
+                className="h-64 w-full"
+                onImageUpdate={(imageUrl) => {
+                  // Update the trip state with the new image URL
+                  setTrip(prev => prev ? { ...prev, trip_image_url: imageUrl || undefined } : null);
+                }}
               >
                 <div className="absolute bottom-4 left-4 text-white">
-                  <h1 className="text-2xl font-bold mb-2 drop-shadow-lg">{trip.title}</h1>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-2xl font-bold drop-shadow-lg">{trip.title}</h1>
+                    {trip.completed && (
+                      <span className="px-2 py-1 bg-green-500/80 text-white text-xs font-medium rounded-full drop-shadow-sm">
+                        Completed
+                      </span>
+                    )}
+                    {trip.archived && (
+                      <span className="px-2 py-1 bg-gray-500/80 text-white text-xs font-medium rounded-full drop-shadow-sm">
+                        Archived
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mb-2">
                     <Pin className="w-4 h-4 drop-shadow-sm" />
                     <span className="text-sm drop-shadow-sm">{trip.destination || 'No destination set'}</span>
@@ -1490,7 +3451,7 @@ export default function TripPage() {
                     <p className="text-white text-sm drop-shadow-sm line-clamp-2">{trip.description}</p>
                   </div>
                 )}
-              </DestinationImage>
+              </TripImageHeader>
             </div>
 
             {/* Group Interests */}
@@ -1529,7 +3490,6 @@ export default function TripPage() {
                 <h3 className="text-lg font-bold text-dark">Participants</h3>
                 <button 
                   onClick={() => {
-                    console.log('Opening invite modal for trip:', trip?.id, 'title:', trip?.title);
                     setShowInviteCollaboratorsModal(true);
                   }}
                   className="text-sm text-gray-500 hover:text-[#ff5a58] transition-colors font-medium"
@@ -1541,11 +3501,6 @@ export default function TripPage() {
                 {/* Show trip owner as creator */}
                 {(() => {
                   const tripOwner = participants.find(p => p.id === trip.owner_id);
-                  console.log('Trip owner lookup:', { 
-                    tripOwnerId: trip.owner_id, 
-                    participants: participants, 
-                    tripOwner: tripOwner 
-                  });
                   
                   // If no trip owner found in participants, show a fallback
                   if (!tripOwner && participants.length === 0) {
@@ -1560,12 +3515,19 @@ export default function TripPage() {
                     );
                   }
                   
+                  const isOnline = tripOwner ? onlineUsers.some(u => u.id === tripOwner.id) : false;
+                  
                   return (
                     <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center shadow-sm">
-                        <span className="text-xs text-white font-medium">
-                          {tripOwner?.name?.charAt(0) || 'U'}
-                        </span>
+                      <div className="relative">
+                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center shadow-sm">
+                          <span className="text-xs text-white font-medium">
+                            {tripOwner?.name?.charAt(0) || 'U'}
+                          </span>
+                        </div>
+                        {isOnline && (
+                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                        )}
                       </div>
                       <span className="text-sm text-gray-700 font-medium">
                         {tripOwner?.name || 'Trip Owner'}
@@ -1577,26 +3539,63 @@ export default function TripPage() {
                 {trip.collaborators && trip.collaborators.length > 0 ? (
                   trip.collaborators.map((collaboratorId, index) => {
                     const collaborator = participants.find(p => p.id === collaboratorId);
-                    console.log('Collaborator lookup:', { 
-                      collaboratorId, 
-                      participants: participants, 
-                      collaborator: collaborator 
-                    });
+                    const isOnline = onlineUsers.some(u => u.id === collaboratorId);
+                    
                     return (
                       <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
-                          index === 0 ? 'bg-gradient-to-br from-green-500 to-green-600' : 
-                          index === 1 ? 'bg-gradient-to-br from-yellow-500 to-yellow-600' :
-                          'bg-gradient-to-br from-blue-500 to-blue-600'
-                        }`}>
-                          <span className="text-xs text-white font-medium">
-                            {collaborator?.name?.charAt(0) || 'U'}
-                          </span>
+                        <div className="relative">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
+                            index === 0 ? 'bg-gradient-to-br from-green-500 to-green-600' : 
+                            index === 1 ? 'bg-gradient-to-br from-yellow-500 to-yellow-600' :
+                            'bg-gradient-to-br from-blue-500 to-blue-600'
+                          }`}>
+                            <span className="text-xs text-white font-medium">
+                              {collaborator?.name?.charAt(0) || 'U'}
+                            </span>
+                          </div>
+                          {isOnline && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                          )}
                         </div>
                         <span className="text-sm text-gray-700 font-medium">
                           {collaborator?.name || 'Unknown User'}
                         </span>
                         <span className="px-2 py-1 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 text-xs rounded-full font-medium border border-blue-200">Collaborator</span>
+                        {user && trip.owner_id === user.id && (
+                          <button
+                            onClick={() => {
+                              // Confirm removal
+                              showConfirmation(
+                                'Remove collaborator?',
+                                `This will remove ${collaborator?.name || 'this user'} from the trip collaborators.`,
+                                async () => {
+                                  try {
+                                    const current = Array.isArray(trip.collaborators) ? trip.collaborators : [];
+                                    const updated = current.filter((id: string) => id !== collaboratorId);
+                                    const { error } = await supabase
+                                      .from('trips')
+                                      .update({ collaborators: updated })
+                                      .eq('id', trip.id);
+                                    if (error) throw error;
+                                    toast.success('Collaborator removed');
+                                    // Optimistically update
+                                    setTrip({ ...(trip as any), collaborators: updated } as any);
+                                    refreshParticipants();
+                                  } catch (e) {
+                                    console.error('Failed to remove collaborator:', e);
+                                    toast.error('Failed to remove collaborator');
+                                  }
+                                },
+                                'danger',
+                                'Remove',
+                                "Cancel"
+                              );
+                            }}
+                            className="ml-auto text-xs text-red-600 hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
                     );
                   })
@@ -1614,65 +3613,119 @@ export default function TripPage() {
         {/* Navigation Tabs */}
         <div className="max-w-[1400px] mx-auto px-4 mb-6">
           <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-            {['Itinerary', 'Idea Board', 'Recommendations', 'Expenses', 'Gallery'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab.toLowerCase().replace(' ', ''))}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === tab.toLowerCase().replace(' ', '')
-                    ? 'bg-[#ff5a58] text-white'
-                    : 'text-gray-600 hover:text-dark'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+            {['Itinerary', 'Idea Board', 'Recommendations', 'Expenses', 'Gallery'].map((tab) => {
+              const tabKey = tab.toLowerCase().replace(' ', '');
+              const usersInTab = onlineUsers.filter(u => u.currentTab === tabKey && u.id !== user?.id);
+              
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tabKey)}
+                  className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+                    activeTab === tabKey
+                      ? 'bg-[#ff5a58] text-white'
+                      : 'text-gray-600 hover:text-dark'
+                  }`}
+                >
+                  <span>{tab}</span>
+                  {usersInTab.length > 0 && (
+                    <div className="flex -space-x-1">
+                      {usersInTab.slice(0, 3).map((user, index) => (
+                        <div
+                          key={user.id}
+                          className={`w-5 h-5 rounded-full border-2 ${
+                            activeTab === tabKey ? 'border-white' : 'border-gray-100'
+                          } flex items-center justify-center text-xs font-medium`}
+                          style={{ 
+                            backgroundColor: `hsl(${(index * 137.5) % 360}, 70%, 50%)`,
+                            color: 'white'
+                          }}
+                          title={user.name}
+                        >
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                      ))}
+                      {usersInTab.length > 3 && (
+                        <div className={`w-5 h-5 rounded-full border-2 ${
+                          activeTab === tabKey ? 'border-white' : 'border-gray-100'
+                        } bg-gray-400 flex items-center justify-center text-xs font-medium text-white`}>
+                          +{usersInTab.length - 3}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="max-w-[1400px] mx-auto px-4 pb-8">
-          <div className={`grid grid-cols-1 gap-6 ${activeTab === 'itinerary' ? 'lg:grid-cols-4' : 'lg:grid-cols-1'}`}>
-            {/* Left Sidebar - Days (only visible on itinerary tab) */}
-            {activeTab === 'itinerary' && (
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-bold text-dark mb-2">Days</h3>
-                  <p className="text-sm text-gray-500 mb-4">Select a day to view itinerary</p>
-                  <div className="space-y-2">
-                    {days.map((day, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setActiveDay(day.day)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors ${
-                          activeDay === day.day
-                            ? 'bg-[#ff5a58] text-white'
-                            : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <div className="font-medium">Day {day.day}</div>
-                            <div className="text-sm opacity-75">
-                              {formatDate(day.date.toISOString())}
-                            </div>
-                          </div>
-                          <div className="w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                            {day.activities}
-                          </div>
+        <div className="max-w-[1400px] mx-auto px-4 pb-8 relative">
+          {/* Live Cursors - show based on tab and day context */}
+          {user && (
+            <RealtimeCursors 
+              roomName={activeTab === 'itinerary' 
+                ? `cursors:trip:${trip?.id}:tab:${activeTab}:day:${activeDay}`
+                : `cursors:trip:${trip?.id}:tab:${activeTab}`
+              }
+              username={participants.find((p: any) => p.id === user.id)?.name || user.email || 'Someone'}
+            />
+          )}
+          
+          {activeTab === 'itinerary' ? (
+            <TextSelectionAI 
+              context="itinerary"
+              tripData={trip ? {
+                destination: trip.destination,
+                interests: trip.interests || [],
+                numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+                numberOfParticipants: participants.length,
+                startDate: trip.start_date
+              } : undefined}
+            >
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+              >
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+                {/* Left Sidebar - Days */}
+                <div className="lg:col-span-1">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-bold text-dark">Days</h3>
+                      {loadingWeather && (
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Loading weather...</span>
                         </div>
-                      </button>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 mb-4">Select a day to view itinerary</p>
+                    <div className="space-y-2">
+                    {days.map((day, index) => (
+                      <DroppableDay
+                        key={index}
+                        day={day}
+                        isActive={activeDay === day.day}
+                        onDayClick={setActiveDay}
+                        formatDate={formatDate}
+                        weather={getWeatherForDay(day.day)}
+                        getWeatherIconComponent={getWeatherIconComponent}
+                        onlineUsers={onlineUsers}
+                        currentUserId={user?.id}
+                      />
                     ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* Main Content Area */}
-            <div className={activeTab === 'itinerary' ? 'lg:col-span-3' : 'lg:col-span-1'}>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                {activeTab === 'itinerary' && (
-                  <>
+                {/* Main Content Area */}
+                <div className="lg:col-span-3">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex justify-between items-center mb-6">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-5 h-5 text-gray-500" />
@@ -1680,133 +3733,115 @@ export default function TripPage() {
                           Day {activeDay} {currentDay && formatDate(currentDay.date.toISOString())} {currentDay && getDayName(currentDay.date.toISOString())}
                         </h2>
                       </div>
-                      <button 
-                        onClick={() => setShowAddActivityModal(true)}
-                        className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Activities
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {/* Multi-select controls */}
+                        {getActivitiesForDay(activeDay).length > 0 && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setIsMultiSelectMode(!isMultiSelectMode);
+                                if (isMultiSelectMode) {
+                                  setSelectedActivities(new Set());
+                                }
+                              }}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                                isMultiSelectMode 
+                                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              {isMultiSelectMode ? (
+                                <>
+                                  <Square className="w-4 h-4" />
+                                  Cancel
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-4 h-4" />
+                                  Select
+                                </>
+                              )}
+                            </button>
+                            
+                            {isMultiSelectMode && (
+                              <>
+                                <button
+                                  onClick={selectAllActivitiesForDay}
+                                  className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
+                                >
+                                  {getActivitiesForDay(activeDay).every(activity => selectedActivities.has(activity.id)) ? 'Deselect All' : 'Select All'}
+                                </button>
+                                
+                                {selectedActivities.size > 0 && (
+                                  <button
+                                    onClick={handleBulkDelete}
+                                    className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete ({selectedActivities.size})
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
+                        
+                        <button 
+                          onClick={() => setShowAddActivityModal(true)}
+                          className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Activities
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-4">
+                      {isReordering && (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="w-5 h-5 animate-spin text-blue-600 mr-2" />
+                          <span className="text-sm text-gray-600">Updating activity order...</span>
+                        </div>
+                      )}
                       {getActivitiesForDay(activeDay).length > 0 ? (
-                        getActivitiesForDay(activeDay).map((activity) => (
-                          <motion.div
-                            key={activity.id}
-                            className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 hover:border-gray-300"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3 }}
+                        <>
+                          <SortableContext
+                            items={getActivitiesForDay(activeDay).map(activity => activity.id)}
+                            strategy={verticalListSortingStrategy}
                           >
-                            <div className="flex justify-between items-start mb-3">
-                              <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(activity.activity_type)} whitespace-nowrap`}>
-                                  {activity.activity_type.charAt(0).toUpperCase() + activity.activity_type.slice(1)}
-                                </span>
-                                <h3 className="font-semibold text-dark truncate">{activity.title}</h3>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <button 
-                                  onClick={() => handleEditActivity(activity)}
-                                  className="text-gray-400 hover:text-blue-600 p-1 rounded-full hover:bg-blue-50 transition-colors"
-                                  title="Edit activity"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteActivity(activity.id)}
-                                  className="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition-colors"
-                                  title="Delete activity"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {activity.description && (
-                              <p className="text-gray-600 text-sm mb-3">{activity.description}</p>
-                            )}
-
-                            <div className="flex items-center gap-4 mb-3">
-                              {activity.activity_time && (
-                                <div className="flex items-center gap-2 text-sm text-gray-500">
-                                  <Clock className="w-4 h-4" />
-                                  {activity.activity_time}
-                                </div>
-                              )}
-                              {activity.location && (
-                                <div className="flex items-center gap-2 text-sm text-gray-500">
-                                  {getTypeIcon(activity.activity_type)}
-                                  {activity.location}
-                                </div>
-                              )}
-                            </div>
-
-                            {activity.note && (
-                              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
-                                <p className="text-sm text-yellow-800">
-                                  <strong>Note:</strong> {activity.note}
-                                </p>
-                              </div>
-                            )}
-
-                            {activity.attachments && activity.attachments.length > 0 && (
-                              <div className="space-y-2">
-                                <p className="text-sm text-gray-600 font-medium">Attachments:</p>
-                                {activity.attachments.map((attachment, index) => {
-                                  // Handle different attachment formats
-                                  let url: string;
-                                  let fileName: string;
-                                  
-                                  // Check if attachment is a stringified JSON object
-                                  if (typeof attachment === 'string' && attachment.startsWith('{')) {
-                                    try {
-                                      const parsedAttachment = JSON.parse(attachment);
-                                      url = parsedAttachment.url;
-                                      fileName = (parsedAttachment.customName && parsedAttachment.customName.trim()) 
-                                        ? parsedAttachment.customName 
-                                        : parsedAttachment.url.split('/').pop() || `attachment-${index + 1}`;
-                                    } catch {
-                                      // If parsing fails, treat as regular URL
-                                      url = attachment;
-                                      fileName = attachment.split('/').pop() || `attachment-${index + 1}`;
-                                    }
-                                  } else if (typeof attachment === 'string') {
-                                    // Regular URL string
-                                    url = attachment;
-                                    fileName = attachment.split('/').pop() || `attachment-${index + 1}`;
-                                  } else {
-                                    // Object format
-                                    url = attachment.url;
-                                    fileName = (attachment.customName && attachment.customName.trim()) 
-                                      ? attachment.customName 
-                                      : attachment.url.split('/').pop() || `attachment-${index + 1}`;
-                                  }
-                                  
-                                  // Ensure url is a string
-                                  if (typeof url !== 'string') {
-                                    console.error('Invalid URL type:', typeof url, url);
-                                    return null;
-                                  }
-                                  
-                                  return (
-                                    <a
-                                      key={index}
-                                      href={url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
-                                    >
-                                      <Paperclip className="w-4 h-4" />
-                                      <span>{fileName}</span>
-                                    </a>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </motion.div>
-                        ))
+                            {(() => {
+                              const groupedActivities = getActivitiesForDayGroupedByTime(activeDay);
+                              const timePeriods = [
+                                { key: 'morning', label: 'Morning', icon: '' },
+                                { key: 'afternoon', label: 'Afternoon', icon: '' },
+                                { key: 'evening', label: 'Evening', icon: '' }
+                              ];
+                              
+                              return timePeriods.map((period) => {
+                                const periodActivities = groupedActivities[period.key as keyof typeof groupedActivities];
+                                
+                                return (
+                                  <TimePeriodSection
+                                    key={period.key}
+                                    period={period}
+                                    periodActivities={periodActivities}
+                                    activeDay={activeDay}
+                                    dragOverId={dragOverId}
+                                    activeId={activeId}
+                                    selectedActivities={selectedActivities}
+                                    toggleActivitySelection={toggleActivitySelection}
+                                    handleEditActivity={handleEditActivity}
+                                    handleDeleteActivity={handleDeleteActivity}
+                                    getTypeColor={getTypeColor}
+                                    getTypeIcon={getTypeIcon}
+                                    isMultiSelectMode={isMultiSelectMode}
+                                    onAskAI={handleDestinationAskAI}
+                                  />
+                                );
+                              });
+                            })()}
+                          </SortableContext>
+                        </>
                       ) : (
                         <div className="text-center py-12">
                           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1823,76 +3858,450 @@ export default function TripPage() {
                         </div>
                       )}
                     </div>
-                  </>
-                )}
-
-                {activeTab === 'ideaboard' && (
-                  <div className="space-y-6">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold text-dark">Collaborate on Trip Ideas and Vote on Activities</h2>
-                        <p className="text-gray-600 mt-1">Share inspiration and decide what to do together</p>
-                      </div>
-                      <button
-                        onClick={() => setShowAddIdeaModal(true)}
-                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add an Idea
-                      </button>
+                  </div>
+                </div>
+              </div>
+              <DragOverlay>
+                {activeId ? (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-lg opacity-90 transform rotate-3">
+                    <div className="flex items-center gap-3">
+                      <GripVertical className="w-4 h-4 text-gray-400" />
+                      <span className="font-semibold text-dark">
+                        {activities.find(a => a.id === activeId)?.title}
+                      </span>
                     </div>
+                  </div>
+                ) : null}
+              </DragOverlay>
+              </DndContext>
+            </TextSelectionAI>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-1">
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  {activeTab === 'ideaboard' && (
+                    <TextSelectionAI 
+                      context="ideas"
+                      tripData={trip ? {
+                        destination: trip.destination,
+                        interests: trip.interests || [],
+                        numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+                        numberOfParticipants: participants.length,
+                        startDate: trip.start_date
+                      } : undefined}
+                    >
+                      <div className="flex justify-between items-center mb-6">
+                        <div>
+                          <h2 className="text-2xl font-bold text-dark">Collaborate on Trip Ideas and Vote on Activities</h2>
+                          <p className="text-gray-600 mt-1">Share inspiration and decide what to do together</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setShowAddIdeaModal(true)}
+                            className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add Idea
+                          </button>
+                        </div>
+                      </div>
 
-                    {/* Category Filter */}
-                    <div className="flex gap-2 flex-wrap">
-                      <button
-                        onClick={() => setSelectedCategory('all')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                          selectedCategory === 'all'
-                            ? 'bg-red-500 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        All
-                      </button>
-                      {['food', 'transportation', 'accommodation', 'activity', 'shopping', 'nature', 'history', 'culture', 'other'].map((category) => (
+                      {/* Category Filter */}
+                      <div className="flex gap-2 flex-wrap mb-6">
                         <button
-                          key={category}
-                          onClick={() => setSelectedCategory(category)}
-                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors capitalize ${
-                            selectedCategory === category
+                          onClick={() => setSelectedCategory('all')}
+                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                            selectedCategory === 'all'
                               ? 'bg-red-500 text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          {category}
+                          All
                         </button>
-                      ))}
-                    </div>
+                        {['food', 'transportation', 'accommodation', 'activity', 'shopping', 'nature', 'history', 'culture', 'other'].map((category) => (
+                          <button
+                            key={category}
+                            onClick={() => setSelectedCategory(category)}
+                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors capitalize ${
+                              selectedCategory === category
+                                ? 'bg-red-500 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {category}
+                          </button>
+                        ))}
+                      </div>
 
-                    {/* Ideas Grid */}
-                    <div className="grid gap-6">
-                      {ideas
-                        .filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory))
-                        .map((idea) => {
-                          const addedByParticipant = participants.find(p => p.id === idea.added_by);
-                          const userVote = ideaVotes.find(vote => vote.idea_id === idea.id && vote.user_id === user?.id);
-                          const ideaCommentsList = ideaComments.filter(comment => comment.idea_id === idea.id);
+                      {/* Ideas Grid */}
+                      <div className="grid gap-6">
+                        {ideas
+                          .filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory))
+                          .map((idea) => {
+                            const addedByParticipant = participants.find(p => p.id === idea.added_by);
+                            const userVote = ideaVotes.find(vote => vote.idea_id === idea.id && vote.user_id === user?.id);
+                            const ideaCommentsList = ideaComments.filter(comment => comment.idea_id === idea.id);
 
-                          return (
-                            <div key={idea.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
+                            return (
+                              <div key={idea.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
+                                <div className="flex">
+                                  {/* Image */}
+                                  <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
+                                    {idea.link_image ? (
+                                      <img 
+                                        src={idea.link_image} 
+                                        alt={idea.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <MapPin className="w-8 h-8 text-gray-400" />
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Content */}
+                                  <div className="flex-1 p-4">
+                                    <div className="flex items-start justify-between mb-2">
+                                      <div className="flex-1">
+                                        <LocationTooltip 
+                                          locationText={idea.title} 
+                                          onAskAI={() => handleDestinationAskAI(idea.title)}
+                                        >
+                                          <h3 className="text-lg font-semibold text-dark mb-1 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{idea.title}</h3>
+                                        </LocationTooltip>
+                                        
+                                        {/* Tags */}
+                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                          {idea.tags.map((tag) => (
+                                            <span key={tag} className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                              tag === 'food' ? 'bg-green-100 text-green-800' :
+                                              tag === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
+                                              tag === 'accommodation' ? 'bg-blue-100 text-blue-800' :
+                                              tag === 'activity' ? 'bg-purple-100 text-purple-800' :
+                                              tag === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                              tag === 'nature' ? 'bg-emerald-100 text-emerald-800' :
+                                              tag === 'history' ? 'bg-amber-100 text-amber-800' :
+                                              tag === 'culture' ? 'bg-indigo-100 text-indigo-800' :
+                                              'bg-gray-100 text-dark-medium'
+                                            }`}>
+                                              {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                                            </span>
+                                          ))}
+                                          {idea.link_url && (
+                                            <ExternalLink className="w-4 h-4 text-gray-400" />
+                                          )}
+                                        </div>
+
+                                        {/* Description */}
+                                        {idea.description && (
+                                          <p className="text-sm text-gray-600 mb-3">{idea.description}</p>
+                                        )}
+
+                                        {/* Location */}
+                                        {idea.location && (
+                                          <div className="flex items-center gap-1 mb-3" data-location={idea.location}>
+                                            <MapPin className="w-4 h-4 text-gray-400" />
+                                            <span className="text-sm text-gray-600">{idea.location}</span>
+                                          </div>
+                                        )}
+
+                                        {/* Link Preview */}
+                                        {idea.link_url && (
+                                          <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                                            <a 
+                                              href={idea.link_url} 
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                            >
+                                              {idea.link_title || idea.link_url}
+                                            </a>
+                                            {idea.link_description && (
+                                              <p className="text-xs text-gray-500 mt-1">{idea.link_description}</p>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {/* Voting */}
+                                        <div className="flex items-center gap-4 mb-3">
+                                          <button
+                                            onClick={() => handleVoteIdea(idea.id, 'upvote')}
+                                            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                                              userVote?.vote_type === 'upvote'
+                                                ? 'bg-red-100 text-red-600'
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                          >
+                                            <ThumbsUp className="w-4 h-4" />
+                                            <span className="text-sm font-medium">{idea.upvotes}</span>
+                                          </button>
+                                          <button
+                                            onClick={() => handleVoteIdea(idea.id, 'downvote')}
+                                            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                                              userVote?.vote_type === 'downvote'
+                                                ? 'bg-red-100 text-red-600'
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                          >
+                                            <ThumbsDown className="w-4 h-4" />
+                                            <span className="text-sm font-medium">{idea.downvotes}</span>
+                                          </button>
+                                          <div className="flex items-center gap-1 text-sm text-gray-500">
+                                            <MessageCircle className="w-4 h-4" />
+                                            <button
+                                              onClick={() => handleToggleComments(idea.id)}
+                                              className="hover:text-gray-700 transition-colors"
+                                            >
+                                              {ideaCommentsList.length}
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {/* Added By */}
+                                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                                          <span>Added By:</span>
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
+                                              <span className="text-xs font-medium text-gray-600">
+                                                {addedByParticipant?.name?.charAt(0) || '?'}
+                                              </span>
+                                            </div>
+                                            <span>{addedByParticipant?.name || 'Unknown'}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Action Buttons */}
+                                      <div className="flex items-center gap-2 ml-4">
+                                        {/* Edit and Delete buttons */}
+                                        <button
+                                          onClick={() => handleEditIdea(idea)}
+                                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                          title="Edit idea"
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteIdea(idea.id)}
+                                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                          title="Delete idea"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        
+                                        {/* Move to Itinerary Button */}
+                                        <button
+                                          onClick={() => handleMoveToItinerary(idea)}
+                                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                                        >
+                                          Move to Itinerary
+                                          <ArrowLeft className="w-4 h-4 rotate-180" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Inline Comments Section */}
+                                  {expandedComments.has(idea.id) && (
+                                    <div className="border-t bg-gray-50 p-4">
+                                      {/* Comments List */}
+                                      <div className="space-y-3 mb-4">
+                                        {ideaCommentsList.length === 0 ? (
+                                          <p className="text-sm text-form text-center py-2">No comments yet. Be the first to comment!</p>
+                                        ) : (
+                                          ideaCommentsList.map((comment) => {
+                                            const commenter = participants.find(p => p.id === comment.user_id);
+                                            const isOwnComment = user?.id === comment.user_id;
+
+                                            return (
+                                              <div key={comment.id} className="flex gap-3">
+                                                <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                                  <span className="text-xs font-medium text-gray-600">
+                                                    {commenter?.name?.charAt(0) || '?'}
+                                                  </span>
+                                                </div>
+                                                <div className="flex-1">
+                                                  <div className="bg-white rounded-lg p-3 shadow-sm">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                      <span className="font-medium text-sm text-dark">
+                                                        {commenter?.name || 'Unknown'}
+                                                      </span>
+                                                      <span className="text-xs text-gray-500">
+                                                        {new Date(comment.created_at).toLocaleDateString()}
+                                                      </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-700">{comment.content}</p>
+                                                  </div>
+                                                  {isOwnComment && (
+                                                    <button
+                                                      onClick={() => handleDeleteComment(comment.id)}
+                                                      className="text-xs text-red-600 hover:text-red-800 mt-1"
+                                                    >
+                                                      Delete
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            );
+                                          })
+                                        )}
+                                      </div>
+
+                                      {/* Add Comment */}
+                                      <div className="flex gap-3">
+                                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                          <span className="text-xs font-medium text-gray-600">
+                                            {user?.email?.charAt(0) || '?'}
+                                          </span>
+                                        </div>
+                                        <div className="flex-1">
+                                          <textarea
+                                            value={newCommentText[idea.id] || ''}
+                                            onChange={(e) => setNewCommentText(prev => ({ ...prev, [idea.id]: e.target.value }))}
+                                            placeholder="Write a comment..."
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-sm"
+                                            rows={2}
+                                          />
+                                        </div>
+                                        <button
+                                          onClick={() => handleAddComment(idea.id)}
+                                          disabled={!newCommentText[idea.id]?.trim()}
+                                          className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
+                                        >
+                                          <MessageCircle className="w-3 h-3" />
+                                          Send
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+
+                      {/* Empty State */}
+                      {ideas.filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory)).length === 0 && (
+                        <div className="text-center py-12">
+                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Bookmark className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <h3 className="text-lg font-medium text-dark mb-2">No ideas yet</h3>
+                          <p className="text-form mb-6">
+                            {selectedCategory === 'all' 
+                              ? 'Start adding ideas to collaborate on your trip!'
+                              : `No ${selectedCategory} ideas yet. Add some inspiration!`
+                            }
+                          </p>
+                          <button
+                            onClick={() => setShowAddIdeaModal(true)}
+                            className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                          >
+                            Add Your First Idea
+                          </button>
+                        </div>
+                      )}
+                    </TextSelectionAI>
+                  )}
+
+                  {activeTab === 'recommendations' && (
+                    <TextSelectionAI 
+                      context="recommendations"
+                      tripData={trip ? {
+                        destination: trip.destination,
+                        interests: trip.interests || [],
+                        numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+                        numberOfParticipants: participants.length,
+                        startDate: trip.start_date
+                      } : undefined}
+                    >
+                      <div className="space-y-6">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-2xl font-bold text-dark">AI Trip Recommendations</h2>
+                          <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setShowInterestSelector(true)}
+                            disabled={generatingRecommendations}
+                            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
+                          >
+                            <span className="text-lg">🔍</span>
+                            Browse Other Interests
+                          </button>
+                          <button
+                            onClick={() => generateRecommendations()}
+                            disabled={generatingRecommendations}
+                            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                          >
+                            {generatingRecommendations ? (
+                              <>
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-5 h-5" />
+                                Generate Recommendations
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Loading State */}
+                      {generatingRecommendations && (
+                        <div className="text-center py-12">
+                          <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
+                          <p className="text-gray-600">Generating personalized recommendations...</p>
+                          <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
+                        </div>
+                      )}
+
+                      {/* Recommendations Grid */}
+                      {!generatingRecommendations && recommendations.length > 0 && (
+                        <div className="grid gap-6">
+                          {recommendations.map((recommendation) => (
+                            <div key={recommendation.id} className="border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
                               <div className="flex">
                                 {/* Image */}
                                 <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
-                                  {idea.link_image ? (
+                                  {recommendation.image_url ? (
                                     <img 
-                                      src={idea.link_image} 
-                                      alt={idea.title}
+                                      src={recommendation.image_url} 
+                                      alt={recommendation.title}
                                       className="w-full h-full object-cover"
                                     />
                                   ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <MapPin className="w-8 h-8 text-gray-400" />
+                                    <div className="w-full h-full flex items-center justify-center relative">
+                                      {/* Category Badge */}
+                                      {recommendation.category && (
+                                        <div className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium ${
+                                          recommendation.category === 'Must-Visit' ? 'bg-red-100 text-red-800' :
+                                          recommendation.category === 'Recommended' ? 'bg-green-100 text-green-800' :
+                                          'bg-blue-100 text-blue-800'
+                                        }`}>
+                                          {recommendation.category === 'Must-Visit' ? '⭐ Must-Visit' :
+                                           recommendation.category === 'Recommended' ? '✓ Recommended' :
+                                           '💡 Consider'}
+                                        </div>
+                                      )}
+                                      <span className="text-4xl">
+                                        {recommendation.activity_type === 'transportation' ? '🚗' :
+                                         recommendation.activity_type === 'accommodation' ? '🏨' :
+                                         recommendation.activity_type === 'activity' ? '🎯' :
+                                         recommendation.activity_type === 'food' ? '🍽️' :
+                                         recommendation.activity_type === 'shopping' ? '🛍️' :
+                                         recommendation.activity_type === 'nature' ? '🌿' :
+                                         recommendation.activity_type === 'history' ? '🏛️' :
+                                         recommendation.activity_type === 'culture' ? '🎭' :
+                                         recommendation.activity_type === 'entertainment' ? '🎪' :
+                                         recommendation.activity_type === 'sports' ? '⚽' :
+                                         recommendation.activity_type === 'religion' ? '⛪' : '📍'}
+                                      </span>
                                     </div>
                                   )}
                                 </div>
@@ -1901,960 +4310,525 @@ export default function TripPage() {
                                 <div className="flex-1 p-4">
                                   <div className="flex items-start justify-between mb-2">
                                     <div className="flex-1">
-                                      <h3 className="text-lg font-semibold text-dark mb-1">{idea.title}</h3>
+                                      <LocationTooltip 
+                                        locationText={recommendation.title} 
+                                        onAskAI={() => handleDestinationAskAI(recommendation.title)}
+                                      >
+                                        <h3 className="text-lg font-semibold text-dark mb-1 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{recommendation.title}</h3>
+                                      </LocationTooltip>
                                       
-                                      {/* Tags */}
-                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                        {idea.tags.map((tag) => (
-                                          <span key={tag} className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                            tag === 'food' ? 'bg-green-100 text-green-800' :
-                                            tag === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
-                                            tag === 'accommodation' ? 'bg-blue-100 text-blue-800' :
-                                            tag === 'activity' ? 'bg-purple-100 text-purple-800' :
-                                            tag === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                            tag === 'nature' ? 'bg-emerald-100 text-emerald-800' :
-                                            tag === 'history' ? 'bg-amber-100 text-amber-800' :
-                                            tag === 'culture' ? 'bg-indigo-100 text-indigo-800' :
-                                            'bg-gray-100 text-dark-medium'
-                                          }`}>
-                                            {tag.charAt(0).toUpperCase() + tag.slice(1)}
-                                          </span>
-                                        ))}
-                                        {idea.link_url && (
-                                          <ExternalLink className="w-4 h-4 text-gray-400" />
+                                      {/* Activity Type Badge and Rating */}
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                          recommendation.activity_type === 'transportation' ? 'bg-blue-100 text-blue-800' :
+                                          recommendation.activity_type === 'accommodation' ? 'bg-purple-100 text-purple-800' :
+                                          recommendation.activity_type === 'activity' ? 'bg-green-100 text-green-800' :
+                                          recommendation.activity_type === 'food' ? 'bg-orange-100 text-orange-800' :
+                                          recommendation.activity_type === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                          recommendation.activity_type === 'nature' ? 'bg-emerald-100 text-emerald-800' :
+                                          recommendation.activity_type === 'history' ? 'bg-amber-100 text-amber-800' :
+                                          recommendation.activity_type === 'culture' ? 'bg-indigo-100 text-indigo-800' :
+                                          'bg-gray-100 text-gray-800'
+                                        }`}>
+                                          {recommendation.activity_type}
+                                        </span>
+                                        
+                                        {/* Google Places Rating - Clickable */}
+                                        {recommendation.rating && (
+                                          <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(recommendation.title + ' ' + recommendation.location)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                                            title="View all reviews on Google Maps"
+                                          >
+                                            <span className="text-yellow-500">⭐</span>
+                                            <span className="text-sm font-medium text-gray-700">
+                                              {recommendation.rating.toFixed(1)}
+                                            </span>
+                                            {recommendation.user_ratings_total && (
+                                              <span className="text-xs text-gray-500">
+                                                ({recommendation.user_ratings_total.toLocaleString()} reviews)
+                                              </span>
+                                            )}
+                                            <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
+                                          </a>
                                         )}
                                       </div>
 
-                                      {/* Description */}
-                                      {idea.description && (
-                                        <p className="text-sm text-gray-600 mb-3">{idea.description}</p>
-                                      )}
-
-                                      {/* Location */}
-                                      {idea.location && (
-                                        <div className="flex items-center gap-1 mb-3">
-                                          <MapPin className="w-4 h-4 text-gray-400" />
-                                          <span className="text-sm text-gray-600">{idea.location}</span>
+                                      <p className="text-gray-600 text-sm mb-3">{recommendation.description}</p>
+                                      
+                                      {/* Best For */}
+                                      {recommendation.best_for && (
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                                          <div className="flex items-start gap-2">
+                                            <span className="text-green-500 text-sm">🎯</span>
+                                            <p className="text-green-800 text-sm font-medium">Best for:</p>
+                                          </div>
+                                          <p className="text-green-700 text-sm mt-1">{recommendation.best_for}</p>
                                         </div>
                                       )}
-
-                                      {/* Link Preview */}
-                                      {idea.link_url && (
-                                        <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-                                          <a 
-                                            href={idea.link_url} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                                          >
-                                            {idea.link_title || idea.link_url}
-                                          </a>
-                                          {idea.link_description && (
-                                            <p className="text-xs text-gray-500 mt-1">{idea.link_description}</p>
+                                      
+                                      {/* Timing Advice */}
+                                      {recommendation.timing_advice && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                                          <div className="flex items-start gap-2">
+                                            <span className="text-amber-500 text-sm">⏰</span>
+                                            <p className="text-amber-800 text-sm font-medium">Timing advice:</p>
+                                          </div>
+                                          <p className="text-amber-700 text-sm mt-1">{recommendation.timing_advice}</p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Group Suitability */}
+                                      {recommendation.group_suitability && (
+                                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-3">
+                                          <div className="flex items-start gap-2">
+                                            <span className="text-purple-500 text-sm">👥</span>
+                                            <p className="text-purple-800 text-sm font-medium">Group suitability:</p>
+                                          </div>
+                                          <p className="text-purple-700 text-sm mt-1">{recommendation.group_suitability}</p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Practical Tips */}
+                                      {recommendation.practical_tips && (
+                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+                                          <div className="flex items-start gap-2">
+                                            <span className="text-gray-500 text-sm">💡</span>
+                                            <p className="text-gray-800 text-sm font-medium">Practical tips:</p>
+                                          </div>
+                                          <p className="text-gray-700 text-sm mt-1">{recommendation.practical_tips}</p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Enhanced Details */}
+                                      <div className="space-y-2">
+                                        {/* Location */}
+                                        <div className="flex items-center gap-1 text-sm text-gray-500" data-location={recommendation.location}>
+                                          <MapPin className="w-4 h-4" />
+                                          <span>{recommendation.location}</span>
+                                        </div>
+                                        
+                                        {/* Time and Opening Hours */}
+                                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                                          <div className="flex items-center gap-1">
+                                            <Clock className="w-4 h-4" />
+                                            <span>{recommendation.estimated_time}</span>
+                                          </div>
+                                          
+                                          {/* Opening Hours */}
+                                          {recommendation.opening_hours && recommendation.opening_hours.length > 0 && (
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-xs">🕒</span>
+                                              <span className="text-xs">
+                                                {recommendation.opening_hours[0]}
+                                              </span>
+                                            </div>
                                           )}
                                         </div>
-                                      )}
-
-                                      {/* Voting */}
-                                      <div className="flex items-center gap-4 mb-3">
-                                        <button
-                                          onClick={() => handleVoteIdea(idea.id, 'upvote')}
-                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
-                                            userVote?.vote_type === 'upvote'
-                                              ? 'bg-red-100 text-red-600'
-                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                          }`}
-                                        >
-                                          <ThumbsUp className="w-4 h-4" />
-                                          <span className="text-sm font-medium">{idea.upvotes}</span>
-                                        </button>
-                                        <button
-                                          onClick={() => handleVoteIdea(idea.id, 'downvote')}
-                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
-                                            userVote?.vote_type === 'downvote'
-                                              ? 'bg-red-100 text-red-600'
-                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                          }`}
-                                        >
-                                          <ThumbsDown className="w-4 h-4" />
-                                          <span className="text-sm font-medium">{idea.downvotes}</span>
-                                        </button>
-                                        <div className="flex items-center gap-1 text-sm text-gray-500">
-                                          <MessageCircle className="w-4 h-4" />
-                                          <button
-                                            onClick={() => handleToggleComments(idea.id)}
-                                            className="hover:text-gray-700 transition-colors"
-                                          >
-                                            {ideaCommentsList.length}
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      {/* Added By */}
-                                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                                        <span>Added By:</span>
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
-                                            <span className="text-xs font-medium text-gray-600">
-                                              {addedByParticipant?.name?.charAt(0) || '?'}
-                                            </span>
+                                        
+                                        {/* Contact Info */}
+                                        {(recommendation.website || recommendation.phone_number) && (
+                                          <div className="flex items-center gap-4 text-sm">
+                                            {recommendation.website && (
+                                              <a 
+                                                href={recommendation.website} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                              >
+                                                <ExternalLink className="w-3 h-3" />
+                                                Website
+                                              </a>
+                                            )}
+                                            {recommendation.phone_number && (
+                                              <a 
+                                                href={`tel:${recommendation.phone_number}`}
+                                                className="text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
+                                              >
+                                                <span className="text-xs">📞</span>
+                                                Call
+                                              </a>
+                                            )}
                                           </div>
-                                          <span>{addedByParticipant?.name || 'Unknown'}</span>
+                                        )}
+                                        
+                                        {/* Learn More Link */}
+                                        <div className="flex items-center gap-1">
+                                          <ExternalLink className="w-4 h-4 text-gray-400" />
+                                          <a 
+                                            href={recommendation.relevant_link} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 hover:text-blue-800 hover:underline text-sm"
+                                          >
+                                            Learn More
+                                          </a>
                                         </div>
                                       </div>
                                     </div>
 
                                     {/* Action Buttons */}
-                                    <div className="flex items-center gap-2 ml-4">
-                                      {/* Edit and Delete buttons */}
+                                    <div className="ml-4 flex flex-col gap-2">
                                       <button
-                                        onClick={() => handleEditIdea(idea)}
-                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                        title="Edit idea"
+                                        onClick={() => moveRecommendationToIdeas(recommendation)}
+                                        className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                                       >
-                                        <Edit className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteIdea(idea.id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        title="Delete idea"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                      
-                                      {/* Move to Itinerary Button */}
-                                      <button
-                                        onClick={() => handleMoveToItinerary(idea)}
-                                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                                      >
-                                        Move to Itinerary
-                                        <ArrowLeft className="w-4 h-4 rotate-180" />
+                                        <Plus className="w-4 h-4" />
+                                        Add to Ideas
                                       </button>
                                     </div>
                                   </div>
                                 </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                                {/* Inline Comments Section */}
-                                {expandedComments.has(idea.id) && (
-                                  <div className="border-t bg-gray-50 p-4">
-                                    {/* Comments List */}
-                                    <div className="space-y-3 mb-4">
-                                      {ideaCommentsList.length === 0 ? (
-                                        <p className="text-sm text-form text-center py-2">No comments yet. Be the first to comment!</p>
-                                      ) : (
-                                        ideaCommentsList.map((comment) => {
-                                          const commenter = participants.find(p => p.id === comment.user_id);
-                                          const isOwnComment = user?.id === comment.user_id;
+                      {/* Generate More Button */}
+                      {!generatingRecommendations && recommendations.length > 0 && (
+                        <div className="flex justify-center mt-6">
+                          <button
+                            onClick={generateMoreRecommendations}
+                            disabled={generatingMore}
+                            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all duration-200 shadow-lg hover:shadow-xl"
+                          >
+                            {generatingMore ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Generating More...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-4 h-4" />
+                                Generate More Recommendations
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
 
-                                          return (
-                                            <div key={comment.id} className="flex gap-3">
-                                              <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                                                <span className="text-xs font-medium text-gray-600">
-                                                  {commenter?.name?.charAt(0) || '?'}
-                                                </span>
-                                              </div>
-                                              <div className="flex-1">
-                                                <div className="bg-white rounded-lg p-3 shadow-sm">
-                                                  <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-medium text-sm text-dark">
-                                                      {commenter?.name || 'Unknown'}
-                                                    </span>
-                                                    <span className="text-xs text-gray-500">
-                                                      {new Date(comment.created_at).toLocaleDateString()}
-                                                    </span>
-                                                  </div>
-                                                  <p className="text-sm text-gray-700">{comment.content}</p>
-                                                </div>
-                                                {isOwnComment && (
-                                                  <button
-                                                    onClick={() => handleDeleteComment(comment.id)}
-                                                    className="text-xs text-red-600 hover:text-red-800 mt-1"
-                                                  >
-                                                    Delete
-                                                  </button>
-                                                )}
-                                              </div>
-                                            </div>
-                                          );
-                                        })
-                                      )}
-                                    </div>
+                      {/* Empty State */}
+                      {!generatingRecommendations && recommendations.length === 0 && (
+                        <div className="text-center py-12">
+                          <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Sparkles className="w-8 h-8 text-white" />
+                          </div>
+                          <h3 className="text-lg font-semibold text-dark mb-2">No Recommendations Yet</h3>
+                          <p className="text-gray-500 mb-6">Generate AI-powered recommendations to get started!</p>
+                        </div>
+                      )}
 
-                                    {/* Add Comment */}
-                                    <div className="flex gap-3">
-                                      <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                                        <span className="text-xs font-medium text-gray-600">
-                                          {user?.email?.charAt(0) || '?'}
-                                        </span>
-                                      </div>
+                      {/* Interest Selector Modal */}
+                      {showInterestSelector && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+                          >
+                            <div className="p-6 border-b border-gray-200">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h3 className="text-xl font-bold text-dark">Browse Other Interests</h3>
+                                  <p className="text-gray-600 mt-1">Select interest categories to explore different types of activities</p>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setShowInterestSelector(false);
+                                    setSelectedInterests([]);
+                                  }}
+                                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                  <X className="w-5 h-5 text-gray-500" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="p-6 max-h-[60vh] overflow-y-auto">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {availableInterests.map((interest) => (
+                                  <div
+                                    key={interest.value}
+                                    onClick={() => toggleInterest(interest.value)}
+                                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                                      selectedInterests.includes(interest.value)
+                                        ? 'border-purple-500 bg-purple-50'
+                                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-2xl">{interest.icon}</span>
                                       <div className="flex-1">
-                                        <textarea
-                                          value={newCommentText[idea.id] || ''}
-                                          onChange={(e) => setNewCommentText(prev => ({ ...prev, [idea.id]: e.target.value }))}
-                                          placeholder="Write a comment..."
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-sm"
-                                          rows={2}
-                                        />
+                                        <h4 className="font-semibold text-dark">{interest.label}</h4>
+                                        <p className="text-sm text-gray-600">{interest.description}</p>
                                       </div>
-                                      <button
-                                        onClick={() => handleAddComment(idea.id)}
-                                        disabled={!newCommentText[idea.id]?.trim()}
-                                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
-                                      >
-                                        <MessageCircle className="w-3 h-3" />
-                                        Send
-                                      </button>
+                                      {selectedInterests.includes(interest.value) && (
+                                        <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                                          <Check className="w-4 h-4 text-white" />
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
-                                )}
+                                ))}
                               </div>
                             </div>
-                          );
-                        })}
-                    </div>
 
-                    {/* Empty State */}
-                    {ideas.filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory)).length === 0 && (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Bookmark className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <h3 className="text-lg font-medium text-dark mb-2">No ideas yet</h3>
-                        <p className="text-form mb-6">
-                          {selectedCategory === 'all' 
-                            ? 'Start adding ideas to collaborate on your trip!'
-                            : `No ${selectedCategory} ideas yet. Add some inspiration!`
-                          }
-                        </p>
-                        <button
-                          onClick={() => setShowAddIdeaModal(true)}
-                          className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                        >
-                          Add Your First Idea
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'recommendations' && (
-                  <div className="space-y-6">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold text-dark">AI Trip Recommendations</h2>
-                        <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
-                      </div>
-                      <button
-                        onClick={generateRecommendations}
-                        disabled={generatingRecommendations}
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
-                      >
-                        {generatingRecommendations ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-5 h-5" />
-                            Generate Recommendations
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Additional Information Input */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                      <div className="mb-4">
-                        <h3 className="text-lg font-semibold text-dark mb-2">Additional Preferences (Optional)</h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                          Tell us more about what you&apos;re looking for to get more personalized recommendations. 
-                          For example: &ldquo;I prefer budget-friendly options&rdquo;, &ldquo;I love street food&rdquo;, &ldquo;I want to avoid crowded places&rdquo;, etc.
-                        </p>
-                      </div>
-                      <div className="flex gap-4">
-                        <textarea
-                          value={additionalInfo}
-                          onChange={(e) => setAdditionalInfo(e.target.value)}
-                          placeholder="e.g., I prefer budget-friendly options, love street food, want to avoid crowded places..."
-                          className="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                          rows={3}
-                          disabled={generatingRecommendations}
-                        />
-                        <div className="flex flex-col justify-end">
-                          <button
-                            onClick={() => setAdditionalInfo('')}
-                            disabled={generatingRecommendations || !additionalInfo.trim()}
-                            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Loading State */}
-                    {generatingRecommendations && (
-                  <div className="text-center py-12">
-                        <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
-                        <p className="text-gray-600">Generating personalized recommendations...</p>
-                        <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
-                    </div>
-                    )}
-
-                    {/* Recommendations Grid */}
-                    {!generatingRecommendations && recommendations.length > 0 && (
-                      <div className="grid gap-6">
-                        {recommendations.map((recommendation) => (
-                          <div key={recommendation.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
-                            <div className="flex">
-                              {/* Image */}
-                              <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
-                                {recommendation.image_url ? (
-                                  <img 
-                                    src={recommendation.image_url} 
-                                    alt={recommendation.title}
-                                    className="w-full h-full object-cover"
-                                  />
+                            <div className="p-6 border-t border-gray-200 flex items-center justify-between">
+                              <div className="text-sm text-gray-600">
+                                {selectedInterests.length > 0 ? (
+                                  <span>Selected: {selectedInterests.length} interest{selectedInterests.length !== 1 ? 's' : ''}</span>
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center relative">
-                                    {/* Category Badge */}
-                                    {recommendation.category && (
-                                      <div className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium ${
-                                        recommendation.category === 'Must-Visit' ? 'bg-red-100 text-red-800' :
-                                        recommendation.category === 'Recommended' ? 'bg-green-100 text-green-800' :
-                                        'bg-blue-100 text-blue-800'
-                                      }`}>
-                                        {recommendation.category === 'Must-Visit' ? '⭐ Must-Visit' :
-                                         recommendation.category === 'Recommended' ? '✓ Recommended' :
-                                         '💡 Consider'}
-                                      </div>
-                                    )}
-                                    <span className="text-4xl">
-                                      {recommendation.activity_type === 'transportation' ? '🚗' :
-                                       recommendation.activity_type === 'accommodation' ? '🏨' :
-                                       recommendation.activity_type === 'activity' ? '🎯' :
-                                       recommendation.activity_type === 'food' ? '🍽️' :
-                                       recommendation.activity_type === 'shopping' ? '🛍️' :
-                                       recommendation.activity_type === 'nature' ? '🌿' :
-                                       recommendation.activity_type === 'history' ? '🏛️' :
-                                       recommendation.activity_type === 'culture' ? '🎭' :
-                                       recommendation.activity_type === 'entertainment' ? '🎪' :
-                                       recommendation.activity_type === 'sports' ? '⚽' :
-                                       recommendation.activity_type === 'religion' ? '⛪' : '📍'}
-                                    </span>
-                                  </div>
+                                  <span>Select at least one interest category</span>
                                 )}
                               </div>
-
-                              {/* Content */}
-                              <div className="flex-1 p-4">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1">
-                                    <h3 className="text-lg font-semibold text-dark mb-1">{recommendation.title}</h3>
-                                    
-                                    {/* Activity Type Badge and Rating */}
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                        recommendation.activity_type === 'transportation' ? 'bg-blue-100 text-blue-800' :
-                                        recommendation.activity_type === 'accommodation' ? 'bg-purple-100 text-purple-800' :
-                                        recommendation.activity_type === 'activity' ? 'bg-green-100 text-green-800' :
-                                        recommendation.activity_type === 'food' ? 'bg-orange-100 text-orange-800' :
-                                        recommendation.activity_type === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                        recommendation.activity_type === 'nature' ? 'bg-emerald-100 text-emerald-800' :
-                                        recommendation.activity_type === 'history' ? 'bg-amber-100 text-amber-800' :
-                                        recommendation.activity_type === 'culture' ? 'bg-indigo-100 text-indigo-800' :
-                                        'bg-gray-100 text-gray-800'
-                                      }`}>
-                                        {recommendation.activity_type}
-                                      </span>
-                                      
-                                      {/* Google Places Rating */}
-                                      {recommendation.rating && (
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-yellow-500">⭐</span>
-                                          <span className="text-sm font-medium text-gray-700">
-                                            {recommendation.rating.toFixed(1)}
-                                          </span>
-                                          {recommendation.user_ratings_total && (
-                                            <span className="text-xs text-gray-500">
-                                              ({recommendation.user_ratings_total.toLocaleString()} reviews)
-                                            </span>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    <p className="text-gray-600 text-sm mb-3">{recommendation.description}</p>
-                                    
-                                    {/* Best For */}
-                                    {recommendation.best_for && (
-                                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
-                                        <div className="flex items-start gap-2">
-                                          <span className="text-green-500 text-sm">🎯</span>
-                                          <p className="text-green-800 text-sm font-medium">Best for:</p>
-                                        </div>
-                                        <p className="text-green-700 text-sm mt-1">{recommendation.best_for}</p>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Timing Advice */}
-                                    {recommendation.timing_advice && (
-                                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
-                                        <div className="flex items-start gap-2">
-                                          <span className="text-amber-500 text-sm">⏰</span>
-                                          <p className="text-amber-800 text-sm font-medium">Timing advice:</p>
-                                        </div>
-                                        <p className="text-amber-700 text-sm mt-1">{recommendation.timing_advice}</p>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Group Suitability */}
-                                    {recommendation.group_suitability && (
-                                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-3">
-                                        <div className="flex items-start gap-2">
-                                          <span className="text-purple-500 text-sm">👥</span>
-                                          <p className="text-purple-800 text-sm font-medium">Group suitability:</p>
-                                        </div>
-                                        <p className="text-purple-700 text-sm mt-1">{recommendation.group_suitability}</p>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Practical Tips */}
-                                    {recommendation.practical_tips && (
-                                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
-                                        <div className="flex items-start gap-2">
-                                          <span className="text-gray-500 text-sm">💡</span>
-                                          <p className="text-gray-800 text-sm font-medium">Practical tips:</p>
-                                        </div>
-                                        <p className="text-gray-700 text-sm mt-1">{recommendation.practical_tips}</p>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Enhanced Details */}
-                                    <div className="space-y-2">
-                                      {/* Location */}
-                                      <div className="flex items-center gap-1 text-sm text-gray-500">
-                                        <MapPin className="w-4 h-4" />
-                                        <span>{recommendation.location}</span>
-                                      </div>
-                                      
-                                      {/* Time and Opening Hours */}
-                                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                                        <div className="flex items-center gap-1">
-                                          <Clock className="w-4 h-4" />
-                                          <span>{recommendation.estimated_time}</span>
-                                        </div>
-                                        
-                                        {/* Opening Hours */}
-                                        {recommendation.opening_hours && recommendation.opening_hours.length > 0 && (
-                                          <div className="flex items-center gap-1">
-                                            <span className="text-xs">🕒</span>
-                                            <span className="text-xs">
-                                              {recommendation.opening_hours[0]}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Contact Info */}
-                                      {(recommendation.website || recommendation.phone_number) && (
-                                        <div className="flex items-center gap-4 text-sm">
-                                          {recommendation.website && (
-                                            <a 
-                                              href={recommendation.website} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer"
-                                              className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                                            >
-                                              <ExternalLink className="w-3 h-3" />
-                                              Website
-                                            </a>
-                                          )}
-                                          {recommendation.phone_number && (
-                                            <a 
-                                              href={`tel:${recommendation.phone_number}`}
-                                              className="text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
-                                            >
-                                              <span className="text-xs">📞</span>
-                                              Call
-                                            </a>
-                                          )}
-                                        </div>
-                                      )}
-                                      
-                                      {/* Learn More Link */}
-                                      <div className="flex items-center gap-1">
-                                        <ExternalLink className="w-4 h-4 text-gray-400" />
-                                        <a 
-                                          href={recommendation.relevant_link} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="text-blue-600 hover:text-blue-800 hover:underline text-sm"
-                                        >
-                                          Learn More
-                                        </a>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Action Button */}
-                                  <div className="ml-4">
-                                    <button
-                                      onClick={() => moveRecommendationToIdeas(recommendation)}
-                                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                      Add to Ideas
-                    </button>
-                                  </div>
-                                </div>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => {
+                                    setShowInterestSelector(false);
+                                    setSelectedInterests([]);
+                                  }}
+                                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={generateRecommendationsWithInterests}
+                                  disabled={selectedInterests.length === 0 || generatingRecommendations}
+                                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                  {generatingRecommendations ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      Generating...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="w-4 h-4" />
+                                      Generate Recommendations
+                                    </>
+                                  )}
+                                </button>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Empty State */}
-                    {!generatingRecommendations && recommendations.length === 0 && (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Sparkles className="w-8 h-8 text-white" />
+                          </motion.div>
                         </div>
-                        <h3 className="text-lg font-semibold text-dark mb-2">No Recommendations Yet</h3>
-                        <p className="text-gray-500 mb-6">Generate AI-powered recommendations to get started!</p>
+                      )}
                       </div>
-                    )}
-                  </div>
-                )}
+                    </TextSelectionAI>
+                  )}
 
-                {activeTab === 'expenses' && (
-                  <div className="space-y-6">
-                    {/* Expense Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-                            <p className="text-2xl font-bold text-dark">${expenseSummary.totalExpenses.toFixed(2)}</p>
-                          </div>
-                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <DollarSign className="w-6 h-6 text-blue-600" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">You&apos;ve Paid</p>
-                            <p className="text-2xl font-bold text-dark">${expenseSummary.userPaid.toFixed(2)}</p>
-                          </div>
-                          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <Calendar className="w-6 h-6 text-green-600" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">Your Share</p>
-                            <p className="text-2xl font-bold text-dark">${expenseSummary.userShare.toFixed(2)}</p>
-                          </div>
-                          <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                            <Users className="w-6 h-6 text-purple-600" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Expense History */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                      <div className="p-6 border-b border-gray-100">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-dark">Expense History</h3>
-                            <p className="text-sm text-gray-500">{expenses.length} expenses recorded</p>
-                          </div>
-                          <button
-                            onClick={() => setShowAddExpenseModal(true)}
-                            className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Add Expense
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="p-6">
-                        {expenses.length > 0 ? (
-                          <div className="space-y-4">
-                            {expenses.map((expense) => {
-                              const paidByParticipant = participants.find(p => p.id === expense.paid_by);
-                              const splitCount = expense.split_with === 'everyone' 
-                                ? participants.length 
-                                : (expense.split_with as string[]).length;
-                              const shareAmount = expense.amount / splitCount;
-
-                              return (
-                                <div key={expense.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-3 mb-2">
-                                        <h4 className="font-medium text-dark">{expense.title}</h4>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                          expense.category === 'food' ? 'bg-green-100 text-green-800' :
-                                          expense.category === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
-                                          expense.category === 'accommodation' ? 'bg-blue-100 text-blue-800' :
-                                          expense.category === 'activity' ? 'bg-purple-100 text-purple-800' :
-                                          expense.category === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                          'bg-gray-100 text-dark-medium'
-                                        }`}>
-                                          {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
-                                        </span>
-                                      </div>
-                                      
-                                      {expense.description && (
-                                        <p className="text-sm text-gray-600 mb-2">{expense.description}</p>
-                                      )}
-                                      
-                                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                                        <div className="flex items-center gap-1">
-                                          <DollarSign className="w-4 h-4" />
-                                          <span className="font-medium">${expense.amount.toFixed(2)}</span>
-                                          <span>(${shareAmount.toFixed(2)} each)</span>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-1">
-                                          <Calendar className="w-4 h-4" />
-                                          <span>{new Date(expense.expense_date).toLocaleDateString('en-US', { 
-                                            month: 'long', 
-                                            day: 'numeric', 
-                                            year: 'numeric' 
-                                          })}</span>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
-                                            <span className="text-xs font-medium text-gray-600">
-                                              {paidByParticipant?.name?.charAt(0) || '?'}
-                                            </span>
-                                          </div>
-                                          <span>Paid by {paidByParticipant?.name || 'Unknown'}</span>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-1">
-                                          <Users className="w-4 h-4" />
-                                          <span>Split with: {expense.split_with === 'everyone' ? 'Everyone' : 'Selected'}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    
-                                    {/* Edit and Delete buttons */}
-                                    <div className="flex items-center gap-2 ml-4">
-                                      <button
-                                        onClick={() => handleEditExpense(expense)}
-                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                        title="Edit expense"
-                                      >
-                                        <Edit className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteExpense(expense.id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        title="Delete expense"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-center py-12">
-                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                              <DollarSign className="w-8 h-8 text-gray-400" />
+                  {activeTab === 'expenses' && (
+                    <div className="space-y-6">
+                      {/* Expense Summary Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
+                              <p className="text-2xl font-bold text-dark">${expenseSummary.totalExpenses.toFixed(2)}</p>
                             </div>
-                            <h3 className="text-lg font-medium text-dark mb-2">No expenses yet</h3>
-                            <p className="text-form mb-6">Start tracking your trip expenses to keep everyone in the loop.</p>
-                            <button
-                              onClick={() => setShowAddExpenseModal(true)}
-                              className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                            >
-                              Add First Expense
-                            </button>
+                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                              <DollarSign className="w-6 h-6 text-blue-600" />
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
+                        </div>
 
-                    {/* Balance Overview */}
-                    {participants.length > 1 && expenses.length > 0 && (
+                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">You've Paid</p>
+                              <p className="text-2xl font-bold text-dark">${expenseSummary.userPaid.toFixed(2)}</p>
+                            </div>
+                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                              <Calendar className="w-6 h-6 text-green-600" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Your Share</p>
+                              <p className="text-2xl font-bold text-dark">${expenseSummary.userShare.toFixed(2)}</p>
+                            </div>
+                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                              <Users className="w-6 h-6 text-purple-600" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expense History */}
                       <div className="bg-white rounded-xl shadow-sm border border-gray-100">
                         <div className="p-6 border-b border-gray-100">
-                          <h3 className="text-lg font-semibold text-dark">Balance Overview</h3>
-                          <p className="text-sm text-gray-500">Current balances before settlements</p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-lg font-semibold text-dark">Expense History</h3>
+                              <p className="text-sm text-gray-500">{expenses.length} expenses recorded</p>
+                            </div>
+                            <button
+                              onClick={() => setShowAddExpenseModal(true)}
+                              className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add Expense
+                            </button>
+                          </div>
                         </div>
-                        
+
                         <div className="p-6">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {(() => {
-                              const balances: Record<string, number> = {};
-                              const participantMap: Record<string, string> = {};
-
-                              // Initialize balances
-                              participants.forEach(participant => {
-                                balances[participant.id] = 0;
-                                participantMap[participant.id] = participant.name;
-                              });
-
-                              // Calculate balances
-                              expenses.forEach(expense => {
+                          {expenses.length > 0 ? (
+                            <div className="space-y-4">
+                              {expenses.map((expense) => {
+                                const paidByParticipant = participants.find(p => p.id === expense.paid_by);
                                 const splitCount = expense.split_with === 'everyone' 
                                   ? participants.length 
                                   : (expense.split_with as string[]).length;
-                                
                                 const shareAmount = expense.amount / splitCount;
-                                
-                                balances[expense.paid_by] += expense.amount;
-                                
-                                if (expense.split_with === 'everyone') {
-                                  participants.forEach(participant => {
-                                    balances[participant.id] -= shareAmount;
-                                  });
-                                } else {
-                                  (expense.split_with as string[]).forEach(participantId => {
-                                    balances[participantId] -= shareAmount;
-                                  });
-                                }
-                              });
-
-                              return participants.map(participant => {
-                                const balance = balances[participant.id];
-                                const isPositive = balance > 0.01;
-                                const isNegative = balance < -0.01;
-                                const isNeutral = !isPositive && !isNegative;
 
                                 return (
-                                  <div key={participant.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                        isPositive ? 'bg-green-100' : 
-                                        isNegative ? 'bg-red-100' : 
-                                        'bg-gray-100'
-                                      }`}>
-                                        <span className={`text-sm font-medium ${
-                                          isPositive ? 'text-green-600' : 
-                                          isNegative ? 'text-red-600' : 
-                                          'text-gray-600'
-                                        }`}>
-                                          {participant.name.charAt(0)}
-                                        </span>
-                                      </div>
-                                      <div>
-                                        <p className="font-medium text-dark">{participant.name}</p>
-                                        <p className="text-sm text-gray-500">
-                                          {isPositive ? 'Should receive' : 
-                                           isNegative ? 'Should pay' : 
-                                           'All settled'}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    
-                                    <span className={`text-lg font-semibold ${
-                                      isPositive ? 'text-green-600' : 
-                                      isNegative ? 'text-red-600' : 
-                                      'text-gray-500'
-                                    }`}>
-                                      {isNeutral ? 'Settled' : `$${Math.abs(balance).toFixed(2)}`}
-                                    </span>
-                                  </div>
-                                );
-                              });
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Settlement Summary */}
-                    {(getUnpaidSettlements().length > 0 || getPaidSettlements().length > 0) && (
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                        <div className="p-6 border-b border-gray-100">
-                          <h3 className="text-lg font-semibold text-dark">Settlement Summary</h3>
-                          <p className="text-sm text-gray-500">
-                            {getUnpaidSettlements().length} unpaid payment{getUnpaidSettlements().length !== 1 ? 's' : ''} • {getPaidSettlements().length} paid settlement{getPaidSettlements().length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                        
-                        <div className="p-6">
-                          {/* Unpaid Settlements */}
-                          {getUnpaidSettlements().length > 0 && (
-                            <div className="mb-6">
-                              <h4 className="text-md font-semibold text-gray-800 mb-4">Unpaid Settlements</h4>
-                          <div className="space-y-4">
-                                {getUnpaidSettlements().map((settlement, index) => (
-                                  <div key={`unpaid-${index}`} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                                      <span className="text-sm font-medium text-red-600">
-                                        {settlement.fromName.charAt(0)}
-                                      </span>
-                                    </div>
-                                    <span className="text-gray-400">→</span>
-                                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                      <span className="text-sm font-medium text-green-600">
-                                        {settlement.toName.charAt(0)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-dark">
-                                      <span className="text-red-600">{settlement.fromName}</span> owes{' '}
-                                      <span className="text-green-600">{settlement.toName}</span>
-                                    </p>
-                                    <p className="text-sm text-gray-500">Payment needed</p>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-3">
-                                  <span className="text-lg font-semibold text-dark">
-                                    ${settlement.amount.toFixed(2)}
-                                  </span>
-                                  <button 
-                                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
-                                        onClick={() => markSettlementAsPaid(settlement)}
-                                  >
-                                    Mark as Paid
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                            </div>
-                          )}
-
-                          {/* Paid Settlements */}
-                          {getPaidSettlements().length > 0 && (
-                            <div>
-                              <h4 className="text-md font-semibold text-gray-800 mb-4">Paid Settlements</h4>
-                              <div className="space-y-4">
-                                {getPaidSettlements().map((settlement) => {
-                                  const fromParticipant = participants.find(p => p.id === settlement.from_user_id);
-                                  const toParticipant = participants.find(p => p.id === settlement.to_user_id);
-                                  
-                                  if (!fromParticipant || !toParticipant) return null;
-                                  
-                                  return (
-                                    <div key={`paid-${settlement.id}`} className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                                            <span className="text-sm font-medium text-red-600">
-                                              {fromParticipant.name.charAt(0)}
-                                            </span>
-                                          </div>
-                                          <span className="text-gray-400">→</span>
-                                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                            <span className="text-sm font-medium text-green-600">
-                                              {toParticipant.name.charAt(0)}
-                                            </span>
-                                          </div>
+                                  <div key={expense.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <h4 className="font-medium text-dark">{expense.title}</h4>
+                                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            expense.category === 'food' ? 'bg-green-100 text-green-800' :
+                                            expense.category === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
+                                            expense.category === 'accommodation' ? 'bg-blue-100 text-blue-800' :
+                                            expense.category === 'activity' ? 'bg-purple-100 text-purple-800' :
+                                            expense.category === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                            'bg-gray-100 text-dark-medium'
+                                          }`}>
+                                            {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
+                                          </span>
                                         </div>
-                                        <div>
-                                          <p className="font-medium text-dark">
-                                            <span className="text-red-600">{fromParticipant.name}</span> paid{' '}
-                                            <span className="text-green-600">{toParticipant.name}</span>
-                                          </p>
-                                          <p className="text-sm text-green-600">✓ Paid on {new Date(settlement.paid_at!).toLocaleDateString()}</p>
+                                        
+                                        {expense.description && (
+                                          <p className="text-sm text-gray-600 mb-2">{expense.description}</p>
+                                        )}
+                                        
+                                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                                          <div className="flex items-center gap-1">
+                                            <DollarSign className="w-4 h-4" />
+                                            <span className="font-medium">${expense.amount.toFixed(2)}</span>
+                                            <span>(${shareAmount.toFixed(2)} each)</span>
+                                          </div>
+                                          
+                                          <div className="flex items-center gap-1">
+                                            <Calendar className="w-4 h-4" />
+                                            <span>{new Date(expense.expense_date).toLocaleDateString('en-US', { 
+                                              month: 'long', 
+                                              day: 'numeric', 
+                                              year: 'numeric' 
+                                            })}</span>
+                                          </div>
+                                          
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
+                                              <span className="text-xs font-medium text-gray-600">
+                                                {paidByParticipant?.name?.charAt(0) || '?'}
+                                              </span>
+                                            </div>
+                                            <span>Paid by {paidByParticipant?.name || 'Unknown'}</span>
+                                          </div>
+                                          
+                                          <div className="flex items-center gap-1">
+                                            <Users className="w-4 h-4" />
+                                            <span>Split with: {expense.split_with === 'everyone' ? 'Everyone' : 'Selected'}</span>
+                                          </div>
                                         </div>
                                       </div>
                                       
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-lg font-semibold text-green-600">
-                                          ${settlement.amount.toFixed(2)}
-                                        </span>
-                                        <button 
-                                          className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
-                                          onClick={() => markSettlementAsUnpaid(settlement.id)}
+                                      {/* Edit and Delete buttons */}
+                                      <div className="flex items-center gap-2 ml-4">
+                                        <button
+                                          onClick={() => handleEditExpense(expense)}
+                                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                          title="Edit expense"
                                         >
-                                          Mark as Unpaid
+                                          <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteExpense(expense.id)}
+                                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                          title="Delete expense"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
                                         </button>
                                       </div>
                                     </div>
-                                  );
-                                })}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-center py-12">
+                              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <DollarSign className="w-8 h-8 text-gray-400" />
                               </div>
+                              <h3 className="text-lg font-medium text-dark mb-2">No expenses yet</h3>
+                              <p className="text-form mb-6">Start tracking your trip expenses to keep everyone in the loop.</p>
+                              <button
+                                onClick={() => setShowAddExpenseModal(true)}
+                                className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                              >
+                                Add First Expense
+                              </button>
                             </div>
                           )}
-                          
-                          {/* Settlement Instructions */}
-                          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <div className="flex items-start gap-3">
-                              <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span className="text-xs font-medium text-blue-600">💡</span>
-                              </div>
-                              <div>
-                                <h4 className="font-medium text-blue-900 mb-1">Settlement Tips</h4>
-                                <p className="text-sm text-blue-700">
-                                  These payments are optimized to minimize the number of transactions needed. 
-                                  Each person only needs to make one payment to settle all their debts.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
 
-                {activeTab === 'gallery' && trip && user && (
-                  <Gallery
-                    tripId={trip.id}
-                    userId={user.id}
-                    numberOfDays={Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1}
-                    participants={participants}
-                  />
-                )}
+                  {activeTab === 'gallery' && trip && user && (
+                    <Gallery
+                      tripId={trip.id}
+                      userId={user.id}
+                      numberOfDays={Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1}
+                      participants={participants}
+                    />
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Add Activity Modal */}
-        <AddActivityModal
-          open={showAddActivityModal}
-          onClose={() => setShowAddActivityModal(false)}
-          tripId={trip.id}
-          dayNumber={activeDay}
-          onActivityAdded={handleActivityAdded}
-        />
+        {/* Modals */}
+        {showAddActivityModal && (
+          <AddActivityModal
+            open={showAddActivityModal}
+            onClose={() => setShowAddActivityModal(false)}
+            tripId={trip?.id || ''}
+            dayNumber={activeDay}
+            onActivityAdded={handleActivityAdded}
+          />
+        )}
 
-        {/* Update Interests Modal */}
-        <UpdateInterestsModal
-          open={showUpdateInterestsModal}
-          onClose={() => setShowUpdateInterestsModal(false)}
-          tripId={trip.id}
-          currentInterests={trip.interests || []}
-          onInterestsUpdated={handleInterestsUpdated}
-        />
+        {showUpdateInterestsModal && trip && (
+          <UpdateInterestsModal
+            open={showUpdateInterestsModal}
+            onClose={() => setShowUpdateInterestsModal(false)}
+            tripId={trip.id}
+            currentInterests={trip.interests}
+            onInterestsUpdated={handleInterestsUpdated}
+          />
+        )}
 
-        {/* Edit Activity Modal */}
-        {selectedActivity && (
+        {showEditActivityModal && selectedActivity && (
           <EditActivityModal
             open={showEditActivityModal}
             onClose={() => {
               setShowEditActivityModal(false);
               setSelectedActivity(null);
             }}
-            activity={selectedActivity!}
+            activity={selectedActivity}
             onActivityUpdated={handleActivityAdded}
           />
         )}
@@ -2910,15 +4884,7 @@ export default function TripPage() {
               setShowMoveToItineraryModal(false);
               setSelectedIdea(null);
             }}
-            idea={{
-              id: selectedIdea.id,
-              title: selectedIdea.title,
-              description: selectedIdea.description,
-              location: selectedIdea.location,
-              tags: selectedIdea.tags,
-              link_url: selectedIdea.link_url,
-              trip_id: selectedIdea.trip_id
-            }}
+            idea={selectedIdea}
             tripDays={getTripDays()}
             onActivityAdded={handleActivityAdded}
             onIdeaRemoved={handleIdeaAdded}
@@ -2943,6 +4909,221 @@ export default function TripPage() {
             onInvitesSent={handleInvitesSent}
           />
         )}
+
+        {showConfirmationDialog && confirmationConfig && (
+          <ConfirmationDialog
+            open={showConfirmationDialog}
+            onClose={() => {
+              setShowConfirmationDialog(false);
+              setConfirmationConfig(null);
+            }}
+            onConfirm={confirmationConfig.onConfirm}
+            title={confirmationConfig.title}
+            description={confirmationConfig.description}
+            isLoading={confirmationConfig.isLoading}
+            variant={confirmationConfig.variant || 'danger'}
+            confirmText={confirmationConfig.confirmText}
+            cancelText={confirmationConfig.cancelText}
+          />
+        )}
+
+    {/* AI Chat Sidebar */}
+    {showAIChatSidebar && selectedDestination && (
+      <div className="fixed top-0 right-0 h-full w-96 bg-white border-l border-gray-200 shadow-lg z-[9998] flex flex-col">
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-gray-900">
+              Ask AI about "{selectedDestination}"
+            </h3>
+          </div>
+          <button
+            onClick={closeAIChatSidebar}
+            className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+              {aiMessages.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] p-3 rounded-lg ${
+                      message.role === 'user'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-900'
+                    }`}
+                  >
+                    {message.content}
+                  </div>
+                </div>
+              ))}
+              
+          {aiLoading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 p-3 rounded-lg flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-gray-600">AI is thinking...</span>
+              </div>
+            </div>
+          )}
+
+          {attractionsLoading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 p-3 rounded-lg flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-gray-600">Finding nearby attractions...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Nearby Attractions */}
+          {nearbyAttractions.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-sm font-medium text-gray-700 mb-2">
+                Nearby Attractions ({nearbyAttractions.length})
+              </div>
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => fetchNearbyAttractions()}
+                  disabled={attractionsLoading}
+                  className="text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {attractionsLoading ? 'Refreshing...' : 'Generate more options'}
+                </button>
+              </div>
+              {nearbyAttractions.map((attraction, index) => (
+                <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-gray-900 text-sm">{attraction.name}</h4>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                          {mapAttractionCategoryToActivityType(attraction.category).charAt(0).toUpperCase() + mapAttractionCategoryToActivityType(attraction.category).slice(1)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mb-2">{attraction.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        {attraction.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {attraction.location}
+                          </span>
+                        )}
+                        {attraction.distance && (
+                          <span className="flex items-center gap-1">
+                            <Navigation className="w-3 h-3" />
+                            {attraction.distance}
+                          </span>
+                        )}
+                        {attraction.rating && (
+                          <span className="flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                            {attraction.rating}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => addAttractionToIdeas(attraction)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add to Ideas
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Nearby Accommodations */}
+          {nearbyAccommodations.length > 0 && (
+            <div className="space-y-3 mt-4">
+              <div className="text-sm font-medium text-gray-700 mb-2">
+                Nearby Accommodations ({nearbyAccommodations.length})
+              </div>
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => fetchNearbyAccommodations()}
+                  disabled={accommodationsLoading}
+                  className="text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {accommodationsLoading ? 'Refreshing...' : 'Generate more options'}
+                </button>
+              </div>
+              {nearbyAccommodations.map((item, index) => (
+                <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                          Accommodation
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mb-2">{item.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        {item.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {item.location}
+                          </span>
+                        )}
+                        {item.rating && (
+                          <span className="flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                            {item.rating}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => addAttractionToIdeas(item)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add to Ideas
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+            </div>
+
+            {/* Input Area */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+              <div className="space-y-2">
+            {[
+                  "What are the best things to do here?",
+                  "What's the best time to visit?",
+                  "How much time should I spend here?",
+                  "What should I know before visiting?",
+                  "What are the nearby attractions?",
+              "What are the nearby accommodations?",
+                  "What are the reviews saying about this place?"
+                ].map((question, index) => (
+                  <button
+                    key={index}
+                    onClick={() => sendAIMessage(question)}
+                    disabled={aiLoading}
+                    className="w-full text-left p-2 text-sm text-gray-700 hover:bg-white hover:text-gray-900 rounded-md transition-colors"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </ProtectedRoute>
   );
