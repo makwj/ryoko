@@ -1032,7 +1032,7 @@ export default function TripPage() {
     if (c.includes('station') || c.includes('airport') || c.includes('bus') || c.includes('train') || c.includes('subway') || c.includes('transit')) return 'transportation';
     return 'activity';
   };
-  const [selectedRecommendation, setSelectedRecommendation] = useState<any>(null);
+  const [selectedRecommendation, setSelectedRecommendation] = useState<{ id: string; title: string; description: string } | null>(null);
   const [showTripActionsMenu, setShowTripActionsMenu] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [confirmationConfig, setConfirmationConfig] = useState<{
@@ -1987,9 +1987,7 @@ export default function TripPage() {
           return;
         }
 
-        let newIndex: number;
-        
-        newIndex = dayActivities.findIndex(activity => activity.id === over.id);
+        const newIndex = dayActivities.findIndex(activity => activity.id === over.id);
         if (newIndex === -1) {
           return;
         }

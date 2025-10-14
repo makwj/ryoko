@@ -77,8 +77,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Failed to process invitation' }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error)?.message || 'Failed to process invitation' }, { status: 500 });
   }
 }
 

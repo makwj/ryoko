@@ -45,10 +45,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    console.log('Weather API called with:', { destination, startDate, endDate });
-
     if (!destination || !startDate || !endDate) {
-      console.log('Missing required parameters');
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
@@ -70,43 +67,28 @@ async function getWeatherAPIForecast(destination: string, startDate: string, end
   const apiKey = process.env.WEATHERAPI_API_KEY;
   
   if (!apiKey) {
-    console.warn('WeatherAPI key not found, falling back to historical data');
     return await getHistoricalWeatherData(destination, startDate, endDate);
   }
-
-  console.log('Using WeatherAPI for extended forecast');
   
   try {
     // WeatherAPI provides up to 14 days of forecast
     const forecastUrl = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(destination)}&days=14&aqi=no&alerts=no`;
-    console.log('Fetching extended forecast from WeatherAPI:', forecastUrl);
     
     const response = await fetch(forecastUrl);
     if (!response.ok) {
-      console.error('WeatherAPI error:', response.status, response.statusText);
       throw new Error(`WeatherAPI error: ${response.status}`);
     }
 
     const forecastData = await response.json();
-    console.log('WeatherAPI forecast data received:', {
-      location: forecastData.location?.name,
-      country: forecastData.location?.country,
-      forecastDays: forecastData.forecast?.forecastday?.length
-    });
-
     const weatherData = processWeatherAPIData(forecastData, startDate, endDate);
-    console.log('Processed WeatherAPI data:', weatherData);
 
     return NextResponse.json({ weather: weatherData });
   } catch (error) {
-    console.error('WeatherAPI error:', error);
-    console.log('Falling back to historical weather data');
     return await getHistoricalWeatherData(destination, startDate, endDate);
   }
 }
 
 async function getHistoricalWeatherData(destination: string, startDate: string, endDate: string) {
-  console.log('Using historical weather patterns for extended forecast');
   
   // For dates beyond forecast range, use historical averages
   const start = new Date(startDate);
@@ -129,7 +111,6 @@ async function getHistoricalWeatherData(destination: string, startDate: string, 
     });
   }
   
-  console.log('Generated historical weather data:', weatherData);
   return NextResponse.json({ weather: weatherData });
 }
 
@@ -137,19 +118,15 @@ async function getCoordinatesForDestination(destination: string, apiKey: string)
   try {
     // Use WeatherAPI's search endpoint for geocoding
     const geocodeUrl = `https://api.weatherapi.com/v1/search.json?key=${apiKey}&q=${encodeURIComponent(destination)}`;
-    console.log('Geocoding URL (WeatherAPI):', geocodeUrl);
 
     const response = await fetch(geocodeUrl);
     if (!response.ok) {
-      console.error('Geocoding API error:', response.status, response.statusText);
       throw new Error(`Geocoding API error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('Geocoding response:', data);
 
     if (!Array.isArray(data) || data.length === 0) {
-      console.log('No geocoding results found for:', destination);
       return null;
     }
 
@@ -157,10 +134,8 @@ async function getCoordinatesForDestination(destination: string, apiKey: string)
       lat: data[0].lat,
       lon: data[0].lon
     };
-    console.log('Selected coordinates:', coordinates, 'from location:', data[0].name, data[0].country);
     return coordinates;
   } catch (error) {
-    console.error('Geocoding error:', error);
     return null;
   }
 }
@@ -170,13 +145,6 @@ function processForecastData(forecastData: any, startDate: string, endDate: stri
   const end = new Date(endDate);
   const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   
-  console.log('Processing forecast data for trip:', {
-    startDate,
-    endDate,
-    days,
-    totalForecasts: forecastData.list?.length
-  });
-  
   const weatherData: WeatherData[] = [];
   
   for (let i = 0; i < days; i++) {
@@ -184,19 +152,14 @@ function processForecastData(forecastData: any, startDate: string, endDate: stri
     currentDate.setDate(start.getDate() + i);
     const dateString = currentDate.toISOString().split('T')[0];
     
-    console.log(`Processing day ${i + 1}: ${dateString}`);
-    
     // Get forecasts for this date (OpenWeatherMap provides 3-hour intervals)
     const dayForecasts = forecastData.list.filter((forecast: OpenWeatherForecast) => {
       const forecastDate = new Date(forecast.dt * 1000).toISOString().split('T')[0];
       return forecastDate === dateString;
     });
     
-    console.log(`Found ${dayForecasts.length} forecasts for ${dateString}`);
-    
     if (dayForecasts.length === 0) {
       // If no forecast data for this date, use the first available forecast
-      console.log(`No forecasts for ${dateString}, using first available forecast`);
       const firstForecast = forecastData.list[0] as OpenWeatherForecast;
       weatherData.push(convertForecastToWeatherData(firstForecast, dateString));
       continue;
@@ -206,8 +169,6 @@ function processForecastData(forecastData: any, startDate: string, endDate: stri
     const temperatures = dayForecasts.map((f: OpenWeatherForecast) => f.main.temp);
     const highTemp = Math.max(...temperatures);
     const lowTemp = Math.min(...temperatures);
-    
-    console.log(`Temperature range for ${dateString}: ${lowTemp}°F - ${highTemp}°F`);
     
     // Use the most representative forecast (usually midday)
     const representativeForecast = dayForecasts[Math.floor(dayForecasts.length / 2)] || dayForecasts[0];
@@ -226,11 +187,9 @@ function processForecastData(forecastData: any, startDate: string, endDate: stri
       precipitation: calculatePrecipitation(dayForecasts)
     };
     
-    console.log(`Day ${i + 1} weather:`, dayWeather);
     weatherData.push(dayWeather);
   }
   
-  console.log('Final processed weather data:', weatherData);
   return weatherData;
 }
 
@@ -288,7 +247,6 @@ function calculatePrecipitation(forecasts: OpenWeatherForecast[]): number {
   
   // Convert to percentage (0-100)
   const precipitationPercent = Math.min(Math.round(totalPrecipitation * 10), 100);
-  console.log(`Precipitation calculation: ${totalPrecipitation}mm -> ${precipitationPercent}%`);
   return precipitationPercent;
 }
 
@@ -297,21 +255,12 @@ function processWeatherAPIData(forecastData: any, startDate: string, endDate: st
   const end = new Date(endDate);
   const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   
-  console.log('Processing WeatherAPI data for trip:', {
-    startDate,
-    endDate,
-    days,
-    availableForecasts: forecastData.forecast?.forecastday?.length
-  });
-  
   const weatherData: WeatherData[] = [];
   
   for (let i = 0; i < days; i++) {
     const currentDate = new Date(start);
     currentDate.setDate(start.getDate() + i);
     const dateString = currentDate.toISOString().split('T')[0];
-    
-    console.log(`Processing day ${i + 1}: ${dateString}`);
     
     // Find matching forecast day
     const forecastDay = forecastData.forecast?.forecastday?.find((day: any) => {
@@ -320,7 +269,6 @@ function processWeatherAPIData(forecastData: any, startDate: string, endDate: st
     });
     
     if (forecastDay) {
-      console.log(`Found WeatherAPI forecast for ${dateString}`);
       const dayWeather = {
         date: dateString,
         temperature: {
@@ -335,10 +283,8 @@ function processWeatherAPIData(forecastData: any, startDate: string, endDate: st
         precipitation: Math.round(forecastDay.day.totalprecip_in * 10) // Convert inches to percentage
       };
       
-      console.log(`Day ${i + 1} weather:`, dayWeather);
       weatherData.push(dayWeather);
     } else {
-      console.log(`No WeatherAPI forecast for ${dateString}, using historical data`);
       const weather = generateHistoricalWeather(forecastData.location?.name || 'Unknown', currentDate);
       weatherData.push({
         date: dateString,
@@ -347,7 +293,6 @@ function processWeatherAPIData(forecastData: any, startDate: string, endDate: st
     }
   }
   
-  console.log('Final processed WeatherAPI data:', weatherData);
   return weatherData;
 }
 

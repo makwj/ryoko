@@ -24,7 +24,7 @@ export async function PUT(request: NextRequest) {
 
     // Update each activity's order_index, day_number, and time_period
     const updatePromises = activities.map(activity => {
-      const updateData: any = {
+      const updateData: { order_index: number; day_number: number; updated_at: string; time_period?: string } = {
         order_index: activity.order_index,
         day_number: activity.day_number,
         updated_at: new Date().toISOString()

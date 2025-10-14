@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
     if (trip.owner_id !== user.id) return NextResponse.json({ error: 'Only owner can invite' }, { status: 403 });
 
     const rows = invites
-      .map((i: any) => (typeof i === 'string' ? { email: i } : i))
-      .filter((i: any) => i && i.email)
-      .map((i: any) => ({
+      .map((i: string | { email: string; name?: string }) => (typeof i === 'string' ? { email: i } : i))
+      .filter((i: { email: string; name?: string }) => i && i.email)
+      .map((i: { email: string; name?: string }) => ({
         trip_id: tripId,
         inviter_id: user.id,
         invitee_email: String(i.email).toLowerCase(),
@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     return NextResponse.json({ sentCount: rows.length, tripId, tripTitle: tripTitle || null });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Failed to send invitations' }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error)?.message || 'Failed to send invitations' }, { status: 500 });
   }
 }
 
