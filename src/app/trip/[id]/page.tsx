@@ -51,7 +51,9 @@ import {
   CloudFog,
   HelpCircle,
   Navigation,
-  Star
+  Star,
+  Activity,
+  Calculator
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -73,6 +75,9 @@ import LocationTooltip from "@/components/LocationTooltip";
 import ConfirmationDialog from "@/components/ConfirmationDialog";
 import { extractFirstUrl, removeUrlsFromText } from "@/lib/linkUtils";
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import { ActivityLogger, fetchActivityLogs, clearActivityHistory, ActivityLog } from "@/lib/activityLogger";
+import Avatar from "@/components/ui/avatar";
+import Navbar from "@/components/Navbar";
 import {
   DndContext,
   closestCenter,
@@ -138,6 +143,7 @@ interface Expense {
   amount: number;
   category: 'food' | 'transportation' | 'accommodation' | 'activity' | 'shopping' | 'other';
   paid_by: string;
+  added_by: string;
   split_with: string[] | 'everyone';
   split_amounts?: Record<string, number>;
   expense_date: string;
@@ -148,6 +154,8 @@ interface Expense {
 interface Participant {
   id: string;
   name: string;
+  email?: string;
+  avatar_url?: string;
 }
 
 interface ExpenseSummary {
@@ -256,7 +264,8 @@ function DroppableDay({
   weather,
   getWeatherIconComponent,
   onlineUsers,
-  currentUserId
+  currentUserId,
+  participants
 }: {
   day: { day: number; date: Date; activities: number };
   isActive: boolean;
@@ -266,6 +275,7 @@ function DroppableDay({
   getWeatherIconComponent: (iconName: string) => React.ReactElement;
   onlineUsers?: { id: string; name: string; currentTab: string; currentDay?: number }[];
   currentUserId?: string;
+  participants?: { id: string; name: string; avatar_url?: string }[];
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: `day-${day.day}`,
@@ -322,21 +332,22 @@ function DroppableDay({
           {/* Avatar indicators for users on this day */}
           {usersOnThisDay.length > 0 && (
             <div className="flex -space-x-1">
-              {usersOnThisDay.slice(0, 3).map((user, index) => (
-                <div
-                  key={user.id}
-                  className={`w-5 h-5 rounded-full border-2 ${
-                    isActive ? 'border-white' : 'border-gray-100'
-                  } flex items-center justify-center text-xs font-medium`}
-                  style={{ 
-                    backgroundColor: `hsl(${(index * 137.5) % 360}, 70%, 50%)`,
-                    color: 'white'
-                  }}
-                  title={user.name}
-                >
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
-              ))}
+              {usersOnThisDay.slice(0, 3).map((user, index) => {
+                const participant = participants?.find(p => p.id === user.id);
+                return (
+                  <div
+                    key={user.id}
+                    className={`${isActive ? 'border-white' : 'border-gray-100'}`}
+                  >
+                    <Avatar
+                      name={user.name}
+                      imageUrl={participant?.avatar_url}
+                      size="sm"
+                      className="border-2"
+                    />
+                  </div>
+                );
+              })}
               {usersOnThisDay.length > 3 && (
                 <div className={`w-5 h-5 rounded-full border-2 ${
                   isActive ? 'border-white' : 'border-gray-100'
@@ -1086,6 +1097,8 @@ export default function TripPage() {
   const [generatingMore, setGeneratingMore] = useState(false);
   const [showInterestSelector, setShowInterestSelector] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [loadingActivityLogs, setLoadingActivityLogs] = useState(false);
   const [weatherData, setWeatherData] = useState<any[]>([]);
   const [loadingWeather, setLoadingWeather] = useState(false);
   const weatherFetchRef = useRef<string>(''); // Track last fetched weather key to prevent duplicates
@@ -1203,7 +1216,7 @@ export default function TripPage() {
           // Note: user might not be available yet, so we'll handle this in refreshParticipants
           const { data: profilesResult, error: profilesError } = await supabase
             .from('profiles')
-            .select('id, name')
+            .select('id, name, avatar_url')
             .in('id', participantIds);
 
           if (profilesError) {
@@ -1457,7 +1470,10 @@ export default function TripPage() {
         table: 'activities'
       }, (payload) => {
         const oldRow = payload.old as any;
-        if (oldRow?.trip_id !== tripId) return;
+        // Some Postgres publications don't include non-PK columns for DELETE events
+        // unless REPLICA IDENTITY FULL is set. If trip_id is missing, still remove by id.
+        if (oldRow?.trip_id && oldRow.trip_id !== tripId) return;
+        if (!oldRow?.id) return;
         setActivities(prev => prev.filter(a => a.id !== oldRow.id));
       })
       .subscribe();
@@ -1598,6 +1614,112 @@ export default function TripPage() {
   useEffect(() => {
     setRecommendations([]);
   }, [trip?.id]);
+
+  // Subscribe to profile changes to refresh participants when avatars are updated
+  useEffect(() => {
+    if (!trip?.id) return;
+
+    const profileChannel = supabase
+      .channel(`profiles:${trip.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=in.(${[trip.owner_id, ...(trip.collaborators || [])].join(',')})`
+        },
+        (payload) => {
+          console.log('Profile updated:', payload);
+          // Refresh participants when any profile is updated
+          refreshParticipants();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      profileChannel.unsubscribe();
+    };
+  }, [trip?.id, trip?.owner_id, trip?.collaborators]);
+
+  // Fetch activity logs when trip changes
+  const fetchActivityLogsData = async () => {
+    if (!trip?.id) return;
+    
+    setLoadingActivityLogs(true);
+    try {
+      const logs = await fetchActivityLogs(trip.id);
+      setActivityLogs(logs);
+    } catch (error) {
+      console.error('Error fetching activity logs:', error);
+      setActivityLogs([]);
+    } finally {
+      setLoadingActivityLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActivityLogsData();
+  }, [trip?.id]);
+
+  // Set up real-time subscription for activity logs
+  useEffect(() => {
+    if (!trip?.id || !user) return;
+
+    // Debounce function to prevent rapid successive calls
+    let debounceTimeout: NodeJS.Timeout;
+    const debouncedFetchActivityLogs = () => {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(() => {
+        fetchActivityLogsData();
+      }, 1000); // 1 second debounce
+    };
+
+    const channel = supabase
+      .channel(`activity_logs:${trip.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs',
+          filter: `trip_id=eq.${trip.id}`,
+        },
+        async (payload) => {
+          // Always refresh activity logs for realtime updates
+          debouncedFetchActivityLogs();
+
+          // Only show toast notifications for other users' actions
+          if (payload.new.user_id === user.id) return;
+
+          // Fetch the user name for the toast
+          const { data: userData } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', payload.new.user_id)
+            .single();
+
+          const userName = userData?.name || 'Someone';
+          const activityTitle = payload.new.title;
+
+          // Show toast notification
+          toast(`${userName} ${activityTitle.toLowerCase()}`, {
+            duration: 4000,
+            position: 'bottom-right',
+            style: {
+              background: '#363636',
+              color: '#fff',
+            },
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounceTimeout);
+      supabase.removeChannel(channel);
+    };
+  }, [trip?.id, user?.id]);
 
   // Refetch core trip data on window focus / visibility regain to avoid stale UI
   useEffect(() => {
@@ -1744,7 +1866,9 @@ export default function TripPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          activityIds: activityIds
+          activityIds: activityIds,
+          tripId: trip?.id,
+          userId: user?.id
         })
       });
 
@@ -2027,6 +2151,16 @@ export default function TripPage() {
     setShowEditExpenseModal(true);
   };
 
+  const handleExpenseUpdated = async (expenseData?: { title: string; amount: number; userId: string }) => {
+    // Refresh expenses data
+    await handleExpenseAdded();
+    
+    // Log the activity if data is provided
+    if (expenseData && trip && user) {
+      await ActivityLogger.expenseEdited(trip.id, user.id, expenseData.title, expenseData.amount);
+    }
+  };
+
   const handleDeleteExpense = async (expenseId: string) => {
     const expense = expenses.find(e => e.id === expenseId);
     const expenseTitle = expense?.description || 'this expense';
@@ -2042,6 +2176,11 @@ export default function TripPage() {
             .eq('id', expenseId);
 
           if (error) throw error;
+
+          // Log the activity
+          if (trip && user) {
+            await ActivityLogger.expenseDeleted(trip.id, user.id, expenseTitle);
+          }
 
           toast.success('Expense deleted successfully');
           await handleExpenseAdded();
@@ -2068,13 +2207,26 @@ export default function TripPage() {
         userPaid += expense.amount;
       }
 
-      const splitCount = expense.split_with === 'everyone' 
-        ? participants.length 
-        : (expense.split_with as string[]).length;
-      const shareAmount = expense.amount / splitCount;
-      
-      if (expense.split_with === 'everyone' || (expense.split_with as string[]).includes(user.id)) {
+      // Calculate user's share based on split type
+      if (expense.split_with === 'everyone') {
+        // Split equally among all participants
+        const shareAmount = expense.amount / participants.length;
         userShare += shareAmount;
+      } else if (Array.isArray(expense.split_with)) {
+        // Check if custom amounts are provided
+        if (expense.split_amounts && Object.keys(expense.split_amounts).length > 0) {
+          // Use custom amount for this user
+          const customAmount = expense.split_amounts[user.id];
+          if (customAmount) {
+            userShare += customAmount;
+          }
+        } else {
+          // Split equally among selected participants
+          if (expense.split_with.includes(user.id)) {
+            const shareAmount = expense.amount / expense.split_with.length;
+            userShare += shareAmount;
+          }
+        }
       }
     });
 
@@ -2085,7 +2237,7 @@ export default function TripPage() {
     });
   };
 
-  const handleTripUpdated = async () => {
+  const handleTripUpdated = async (updateType?: string) => {
     // Refresh trip data
     if (params.id) {
       try {
@@ -2102,6 +2254,11 @@ export default function TripPage() {
         console.warn('Failed to refresh trip:', error);
       }
     }
+
+    // Log the activity if update type is provided
+    if (updateType && trip && user) {
+      await ActivityLogger.tripUpdated(trip.id, user.id, updateType);
+    }
   };
 
   const handleInvitesSent = async () => {
@@ -2111,10 +2268,10 @@ export default function TripPage() {
 
   const handleInterestsUpdated = async () => {
     // Refresh trip data after interests are updated
-    await handleTripUpdated();
+    await handleTripUpdated('interests');
   };
 
-  const handleActivityAdded = async () => {
+  const handleActivityAdded = async (activityData?: { title: string; dayNumber: number }) => {
     // Refresh activities data
     if (params.id) {
       const { data: activitiesData, error } = await supabase
@@ -2127,6 +2284,11 @@ export default function TripPage() {
       if (!error) {
         setActivities(activitiesData || []);
       }
+    }
+
+    // Log the activity if data is provided
+    if (activityData && trip && user) {
+      await ActivityLogger.activityAdded(trip.id, user.id, activityData.title, activityData.dayNumber);
     }
   };
 
@@ -2165,7 +2327,7 @@ export default function TripPage() {
     }
   }, []);
 
-  const handleExpenseAdded = async () => {
+  const handleExpenseAdded = async (expenseData?: { title: string; amount: number; userId: string }) => {
     // Refresh expenses data
     if (params.id) {
       const { data: expensesData, error } = await supabase
@@ -2179,9 +2341,14 @@ export default function TripPage() {
         calculateExpenseSummary(expensesData || []);
       }
     }
+
+    // Log the activity if data is provided
+    if (expenseData && trip && user) {
+      await ActivityLogger.expenseAdded(trip.id, user.id, expenseData.title, expenseData.amount);
+    }
   };
 
-  const handleIdeaAdded = async () => {
+  const handleIdeaAdded = async (ideaData?: { title: string }) => {
     // Refresh ideas data
     if (params.id) {
       try {
@@ -2207,6 +2374,21 @@ export default function TripPage() {
       } catch (error) {
         console.warn('Failed to refresh ideas:', error);
       }
+    }
+
+    // Log the activity if data is provided
+    if (ideaData && trip && user) {
+      await ActivityLogger.ideaAdded(trip.id, user.id, ideaData.title);
+    }
+  };
+
+  const handleIdeaUpdated = async (ideaData?: { title: string }) => {
+    // Refresh ideas data
+    await handleIdeaAdded();
+    
+    // Log the activity if data is provided
+    if (ideaData && trip && user) {
+      await ActivityLogger.ideaEdited(trip.id, user.id, ideaData.title);
     }
   };
 
@@ -2316,11 +2498,17 @@ export default function TripPage() {
         
         const { data: profilesData, error } = await supabase
           .from('profiles')
-          .select('id, name')
+          .select('id, name, avatar_url')
           .in('id', participantIds);
 
         if (!error) {
-          setParticipants(profilesData || []);
+          console.log('Fetched participants with avatars:', profilesData);
+          // Add email placeholder for now - in a real app, you'd fetch this from auth.users
+          const participantsWithEmail = (profilesData || []).map(profile => ({
+            ...profile,
+            email: `${profile.name.toLowerCase().replace(/\s+/g, '')}@example.com` // Placeholder email
+          }));
+          setParticipants(participantsWithEmail);
         } else {
           console.error('Error fetching profiles:', error);
         }
@@ -2336,21 +2524,21 @@ export default function TripPage() {
       `Are you sure you want to archive "${trip?.title}"? It will be hidden from your active trips.`,
       async () => {
         try {
-          const { error } = await supabase
-            .from('trips')
-            .update({ archived: true })
-            .eq('id', trip?.id);
+      const { error } = await supabase
+        .from('trips')
+        .update({ archived: true })
+        .eq('id', trip?.id);
 
-          if (error) throw error;
+      if (error) throw error;
 
-          toast.success('Trip archived successfully!');
-          router.push('/dashboard');
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-          console.error('Archive error:', errorMessage);
-          toast.error(errorMessage);
+      toast.success('Trip archived successfully!');
+      router.push('/dashboard');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      console.error('Archive error:', errorMessage);
+      toast.error(errorMessage);
           throw error; // Re-throw to trigger error handling in showConfirmation
-        }
+    }
       },
       'warning',
       'Yes, archive it',
@@ -2364,19 +2552,19 @@ export default function TripPage() {
       `Are you sure you want to mark "${trip?.title}" as completed?`,
       async () => {
         try {
-          const { error } = await supabase
-            .from('trips')
-            .update({ completed: true })
-            .eq('id', trip?.id);
+      const { error } = await supabase
+        .from('trips')
+        .update({ completed: true })
+        .eq('id', trip?.id);
 
-          if (error) throw error;
+      if (error) throw error;
 
-          toast.success('Trip marked as completed!');
-          handleTripUpdated();
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-          console.error('Complete error:', errorMessage);
-          toast.error(errorMessage);
+      toast.success('Trip marked as completed!');
+          handleTripUpdated('completed');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      console.error('Complete error:', errorMessage);
+      toast.error(errorMessage);
           throw error; // Re-throw to trigger error handling in showConfirmation
         }
       },
@@ -2403,7 +2591,7 @@ export default function TripPage() {
           if (error) throw error;
 
           toast.success('Trip set as active!');
-          handleTripUpdated();
+          handleTripUpdated('activated');
         } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
           console.error('Activate error:', errorMessage);
@@ -2423,21 +2611,21 @@ export default function TripPage() {
       `Are you sure you want to delete "${trip?.title}"? This action cannot be undone and will delete all activities, expenses, and ideas.`,
       async () => {
         try {
-          const { error } = await supabase
-            .from('trips')
-            .delete()
-            .eq('id', trip?.id);
+      const { error } = await supabase
+        .from('trips')
+        .delete()
+        .eq('id', trip?.id);
 
-          if (error) throw error;
+      if (error) throw error;
 
-          toast.success('Trip deleted successfully!');
-          router.push('/dashboard');
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-          console.error('Delete error:', errorMessage);
-          toast.error(errorMessage);
+      toast.success('Trip deleted successfully!');
+      router.push('/dashboard');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      console.error('Delete error:', errorMessage);
+      toast.error(errorMessage);
           throw error; // Re-throw to trigger error handling in showConfirmation
-        }
+    }
       }
     );
   };
@@ -2509,21 +2697,21 @@ export default function TripPage() {
       'Delete Comment',
       'Are you sure you want to delete this comment? This action cannot be undone.',
       async () => {
-        try {
-          const { error } = await supabase
-            .from('idea_comments')
-            .delete()
-            .eq('id', commentId);
+    try {
+      const { error } = await supabase
+        .from('idea_comments')
+        .delete()
+        .eq('id', commentId);
 
-          if (error) throw error;
+      if (error) throw error;
 
-          toast.success('Comment deleted!');
-          handleCommentsUpdated();
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-          toast.error(errorMessage);
+      toast.success('Comment deleted!');
+      handleCommentsUpdated();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      toast.error(errorMessage);
           throw error; // Re-throw to trigger error handling in showConfirmation
-        }
+    }
       }
     );
   };
@@ -2536,24 +2724,29 @@ export default function TripPage() {
   const handleDeleteIdea = async (ideaId: string) => {
     const idea = ideas.find(i => i.id === ideaId);
     const ideaTitle = idea?.title || 'this idea';
-    
+
     showConfirmation(
       'Delete Idea',
       `Are you sure you want to delete "${ideaTitle}"? This action cannot be undone.`,
       async () => {
-        try {
-          const { error } = await supabase
-            .from('ideas')
-            .delete()
-            .eq('id', ideaId);
+    try {
+      const { error } = await supabase
+        .from('ideas')
+        .delete()
+        .eq('id', ideaId);
 
-          if (error) throw error;
+      if (error) throw error;
 
-          toast.success('Idea deleted successfully!');
-          handleIdeaAdded(); // Refresh ideas
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-          toast.error(errorMessage);
+          // Log the activity
+          if (trip && user) {
+            await ActivityLogger.ideaDeleted(trip.id, user.id, ideaTitle);
+          }
+
+      toast.success('Idea deleted successfully!');
+      handleIdeaAdded(); // Refresh ideas
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      toast.error(errorMessage);
           throw error; // Re-throw to trigger error handling in showConfirmation
         }
       }
@@ -2641,6 +2834,53 @@ export default function TripPage() {
     }
   };
 
+
+  // Function to mark settlement as paid from inline display
+  const handleMarkSettlementAsPaid = async (settlement: { fromId: string; fromName: string; toId: string; toName: string; amount: number }) => {
+    try {
+      const { error } = await supabase
+        .from('settlements')
+        .insert([
+          {
+            trip_id: params.id,
+            from_user_id: settlement.fromId,
+            to_user_id: settlement.toId,
+            amount: settlement.amount,
+            is_paid: true,
+            paid_at: new Date().toISOString()
+          }
+        ]);
+
+      if (error) throw error;
+
+      // Log the payment activity
+      if (user && trip) {
+        ActivityLogger.expenseSettled(
+          trip.id,
+          user.id,
+          settlement.amount,
+          `${settlement.fromName} has paid ${settlement.toName} $${settlement.amount.toFixed(2)}`
+        );
+      }
+
+      // Refresh settlements data
+      const { data: settlementsData, error: settlementsError } = await supabase
+        .from('settlements')
+        .select('*')
+        .eq('trip_id', params.id)
+        .order('created_at', { ascending: false });
+
+      if (!settlementsError) {
+        setSettlements(settlementsData || []);
+      }
+
+      toast.success(`Marked ${settlement.fromName} → ${settlement.toName} as paid`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      toast.error(`Failed to mark as paid: ${errorMessage}`);
+    }
+  };
+
   // Function to generate AI recommendations
   const generateRecommendations = async (browseInterests?: string[]) => {
     if (!trip) return;
@@ -2660,6 +2900,8 @@ export default function TripPage() {
         numberOfParticipants: participants.length,
         startDate: trip.start_date,
       };
+      
+      console.log('Sending trip data to API (main):', tripData);
 
       const response = await fetch('/api/enhanced-recommendations', {
         method: 'POST',
@@ -2674,7 +2916,9 @@ export default function TripPage() {
       }
 
       const data = await response.json();
-      setRecommendations(data.recommendations);
+      console.log('API Response:', data);
+      console.log('Recommendations received:', data.recommendations?.length || 0);
+      setRecommendations(data.recommendations || []);
       toast.success('Recommendations generated successfully!');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
@@ -2722,6 +2966,8 @@ export default function TripPage() {
         startDate: trip.start_date,
         excludePlaceIds
       };
+      
+      console.log('Sending trip data to API:', tripData);
 
       const response = await fetch('/api/enhanced-recommendations', {
         method: 'POST',
@@ -2945,24 +3191,33 @@ export default function TripPage() {
 
     // Calculate balances
     expenses.forEach(expense => {
-      const splitCount = expense.split_with === 'everyone' 
-        ? participants.length 
-        : (expense.split_with as string[]).length;
-      
-      const shareAmount = expense.amount / splitCount;
+      const splitWith = expense.split_with;
+      const splitAmounts = expense.split_amounts || {};
       
       // Add to paid by person
       balances[expense.paid_by] += expense.amount;
       
-      // Subtract from all participants
-      if (expense.split_with === 'everyone') {
+      // Determine how to split the expense
+      if (splitWith === 'everyone') {
+        // Split equally among all participants
+        const shareAmount = expense.amount / participants.length;
         participants.forEach(participant => {
           balances[participant.id] -= shareAmount;
         });
-      } else {
-        (expense.split_with as string[]).forEach(participantId => {
-          balances[participantId] -= shareAmount;
-        });
+      } else if (Array.isArray(splitWith)) {
+        // Check if custom amounts are provided
+        if (Object.keys(splitAmounts).length > 0) {
+          // Use custom amounts
+          Object.entries(splitAmounts).forEach(([userId, amount]) => {
+            balances[userId] -= amount;
+          });
+        } else {
+          // Split equally among selected participants
+          const shareAmount = expense.amount / splitWith.length;
+          splitWith.forEach(participantId => {
+            balances[participantId] -= shareAmount;
+          });
+        }
       }
     });
 
@@ -3035,6 +3290,16 @@ export default function TripPage() {
     setShowEditActivityModal(true);
   };
 
+  const handleActivityUpdated = async (activityData?: { title: string; dayNumber: number }) => {
+    // Refresh activities data
+    await handleActivityAdded();
+    
+    // Log the activity if data is provided
+    if (activityData && trip && user) {
+      await ActivityLogger.activityEdited(trip.id, user.id, activityData.title, activityData.dayNumber);
+    }
+  };
+
   const handleDeleteActivity = async (activityId: string) => {
     const activity = activities.find(a => a.id === activityId);
     const activityTitle = activity?.title || 'this activity';
@@ -3043,34 +3308,39 @@ export default function TripPage() {
       'Delete Activity',
       `Are you sure you want to delete "${activityTitle}"? This action cannot be undone.`,
       async () => {
-        try {
-          // First, get the activity to find its attachments
-          const { data: activityData } = await supabase
-            .from('activities')
-            .select('attachments')
-            .eq('id', activityId)
-            .single();
+    try {
+      // First, get the activity to find its attachments
+      const { data: activityData } = await supabase
+        .from('activities')
+        .select('attachments')
+        .eq('id', activityId)
+        .single();
 
-          // Delete files from storage if they exist
-          if (activityData?.attachments && activityData.attachments.length > 0) {
-            await deleteActivityFiles(activityData.attachments);
+      // Delete files from storage if they exist
+      if (activityData?.attachments && activityData.attachments.length > 0) {
+        await deleteActivityFiles(activityData.attachments);
+      }
+
+      // Delete the activity from database
+      const { error } = await supabase
+        .from('activities')
+        .delete()
+        .eq('id', activityId);
+
+      if (error) throw error;
+
+          // Log the activity
+          if (trip && user) {
+            await ActivityLogger.activityDeleted(trip.id, user.id, activityTitle, activity?.day_number || 1);
           }
 
-          // Delete the activity from database
-          const { error } = await supabase
-            .from('activities')
-            .delete()
-            .eq('id', activityId);
-
-          if (error) throw error;
-
-          toast.success('Activity deleted successfully!');
-          handleActivityAdded(); // Refresh activities
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-          toast.error(errorMessage);
+      toast.success('Activity deleted successfully!');
+      handleActivityAdded(); // Refresh activities
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      toast.error(errorMessage);
           throw error; // Re-throw to trigger error handling in showConfirmation
-        }
+    }
       }
     );
   };
@@ -3175,70 +3445,7 @@ export default function TripPage() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <motion.header
-          className="fixed top-4 inset-x-0 z-30 flex justify-center pointer-events-none"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-        >
-          <div className="pointer-events-auto mx-auto w-full max-w-[1400px] px-3">
-            <motion.div
-              className="px-4 py-2 rounded-full bg-white/60 backdrop-blur-md shadow-lg shadow-black/5 flex items-center justify-between"
-              whileHover={{ scale: 1.02 }}
-              transition={{ duration: 0.2 }}
-            >
-              <motion.div
-                className="flex items-center gap-2"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
-                <Image src="/assets/ryokoicon.png" alt="Ryoko logo" width={32} height={32} />
-              </motion.div>
-              <motion.nav
-                className="flex items-center gap-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.6 }}
-              >
-                <button 
-                  onClick={() => router.push('/dashboard')}
-                  className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Home className="w-5 h-5" />
-                </button>
-                <button 
-                  className="p-2 text-[#ff5a58] bg-gray-100 rounded-full transition-colors"
-                >
-                  <MapPin className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => router.push('/social')}
-                  className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Users className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => router.push('/bookmark')}
-                  className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Bookmark className="w-5 h-5" />
-                </button>
-              </motion.nav>
-              <motion.div
-                className="flex items-center gap-3"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
-              >
-                <div className="w-8 h-8 bg-[#ff5a58] rounded-full flex items-center justify-center">
-                  <span className="text-xs font-medium text-white">U</span>
-                </div>
-              </motion.div>
-            </motion.div>
-          </div>
-        </motion.header>
+        <Navbar />
 
         {/* Back Button */}
         <div className="pt-20 pb-4">
@@ -3301,10 +3508,10 @@ export default function TripPage() {
                       </button>
                       {/* Show different options based on trip status */}
                       {trip?.completed || trip?.archived ? (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                             handleActivateTrip();
                             setShowTripActionsMenu(false);
                           }}
@@ -3319,26 +3526,26 @@ export default function TripPage() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              handleCompleteTrip();
-                              setShowTripActionsMenu(false);
-                            }}
+                          handleCompleteTrip();
+                          setShowTripActionsMenu(false);
+                        }}
                             className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                          >
-                            <CheckCircle className="w-4 h-4" />
+                      >
+                        <CheckCircle className="w-4 h-4" />
                             Mark Complete
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleArchiveTrip();
-                              setShowTripActionsMenu(false);
-                            }}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleArchiveTrip();
+                          setShowTripActionsMenu(false);
+                        }}
                             className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                          >
-                            <Archive className="w-4 h-4" />
-                            Archive Trip
-                          </button>
+                      >
+                        <Archive className="w-4 h-4" />
+                        Archive Trip
+                      </button>
                         </>
                       )}
                       <hr className="my-1" />
@@ -3518,14 +3725,14 @@ export default function TripPage() {
                   return (
                     <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="relative">
-                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center shadow-sm">
-                          <span className="text-xs text-white font-medium">
-                            {tripOwner?.name?.charAt(0) || 'U'}
-                          </span>
-                        </div>
-                        {isOnline && (
-                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                        )}
+                      <Avatar 
+                        name={tripOwner?.name || 'Unknown'} 
+                        imageUrl={tripOwner?.avatar_url}
+                        size="md"
+                      />
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                          isOnline ? 'bg-green-500' : 'bg-gray-400'
+                        }`}></div>
                       </div>
                       <span className="text-sm text-gray-700 font-medium">
                         {tripOwner?.name || 'Trip Owner'}
@@ -3542,18 +3749,14 @@ export default function TripPage() {
                     return (
                       <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                         <div className="relative">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
-                            index === 0 ? 'bg-gradient-to-br from-green-500 to-green-600' : 
-                            index === 1 ? 'bg-gradient-to-br from-yellow-500 to-yellow-600' :
-                            'bg-gradient-to-br from-blue-500 to-blue-600'
-                          }`}>
-                            <span className="text-xs text-white font-medium">
-                              {collaborator?.name?.charAt(0) || 'U'}
-                            </span>
-                          </div>
-                          {isOnline && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                          )}
+                        <Avatar 
+                          name={collaborator?.name || 'Unknown'} 
+                          imageUrl={collaborator?.avatar_url}
+                          size="md"
+                        />
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                            isOnline ? 'bg-green-500' : 'bg-gray-400'
+                          }`}></div>
                         </div>
                         <span className="text-sm text-gray-700 font-medium">
                           {collaborator?.name || 'Unknown User'}
@@ -3611,38 +3814,39 @@ export default function TripPage() {
         {/* Navigation Tabs */}
         <div className="max-w-[1400px] mx-auto px-4 mb-6">
           <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-            {['Itinerary', 'Idea Board', 'Recommendations', 'Expenses', 'Gallery'].map((tab) => {
-              const tabKey = tab.toLowerCase().replace(' ', '');
+            {['Itinerary', 'Idea Board', 'Recommendations', 'Expenses', 'Gallery', 'Recent Activities'].map((tab) => {
+              const tabKey = tab.toLowerCase().replace(/\s+/g, '');
               const usersInTab = onlineUsers.filter(u => u.currentTab === tabKey && u.id !== user?.id);
               
               return (
-                <button
-                  key={tab}
+              <button
+                key={tab}
                   onClick={() => setActiveTab(tabKey)}
                   className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
                     activeTab === tabKey
-                      ? 'bg-[#ff5a58] text-white'
-                      : 'text-gray-600 hover:text-dark'
-                  }`}
-                >
+                    ? 'bg-[#ff5a58] text-white'
+                    : 'text-gray-600 hover:text-dark'
+                }`}
+              >
                   <span>{tab}</span>
                   {usersInTab.length > 0 && (
                     <div className="flex -space-x-1">
-                      {usersInTab.slice(0, 3).map((user, index) => (
-                        <div
-                          key={user.id}
-                          className={`w-5 h-5 rounded-full border-2 ${
-                            activeTab === tabKey ? 'border-white' : 'border-gray-100'
-                          } flex items-center justify-center text-xs font-medium`}
-                          style={{ 
-                            backgroundColor: `hsl(${(index * 137.5) % 360}, 70%, 50%)`,
-                            color: 'white'
-                          }}
-                          title={user.name}
-                        >
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
-                      ))}
+                      {usersInTab.slice(0, 3).map((user, index) => {
+                        const participant = participants.find(p => p.id === user.id);
+                        return (
+                          <div
+                            key={user.id}
+                            className={`${activeTab === tabKey ? 'border-white' : 'border-gray-100'}`}
+                          >
+                            <Avatar
+                              name={user.name}
+                              imageUrl={participant?.avatar_url}
+                              size="sm"
+                              className="border-2"
+                            />
+                          </div>
+                        );
+                      })}
                       {usersInTab.length > 3 && (
                         <div className={`w-5 h-5 rounded-full border-2 ${
                           activeTab === tabKey ? 'border-white' : 'border-gray-100'
@@ -3652,14 +3856,14 @@ export default function TripPage() {
                       )}
                     </div>
                   )}
-                </button>
+              </button>
               );
             })}
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="max-w-[1400px] mx-auto px-4 pb-8 relative">
+        <div className="max-w-[1400px] mx-auto px-4 pb-8 relative" data-main-content>
           {/* Live Cursors - show based on tab and day context */}
           {user && (
             <RealtimeCursors 
@@ -3691,8 +3895,8 @@ export default function TripPage() {
               >
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
                 {/* Left Sidebar - Days */}
-                <div className="lg:col-span-1">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-lg font-bold text-dark">Days</h3>
                       {loadingWeather && (
@@ -3702,8 +3906,8 @@ export default function TripPage() {
                         </div>
                       )}
                     </div>
-                    <p className="text-sm text-gray-500 mb-4">Select a day to view itinerary</p>
-                    <div className="space-y-2">
+                  <p className="text-sm text-gray-500 mb-4">Select a day to view itinerary</p>
+                  <div className="space-y-2">
                     {days.map((day, index) => (
                       <DroppableDay
                         key={index}
@@ -3715,15 +3919,16 @@ export default function TripPage() {
                         getWeatherIconComponent={getWeatherIconComponent}
                         onlineUsers={onlineUsers}
                         currentUserId={user?.id}
+                        participants={participants}
                       />
                     ))}
-                    </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Main Content Area */}
+            {/* Main Content Area */}
                 <div className="lg:col-span-3">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex justify-between items-center mb-6">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-5 h-5 text-gray-500" />
@@ -3735,7 +3940,7 @@ export default function TripPage() {
                         {/* Multi-select controls */}
                         {getActivitiesForDay(activeDay).length > 0 && (
                           <>
-                            <button
+                      <button 
                               onClick={() => {
                                 setIsMultiSelectMode(!isMultiSelectMode);
                                 if (isMultiSelectMode) {
@@ -3759,11 +3964,11 @@ export default function TripPage() {
                                   Select
                                 </>
                               )}
-                            </button>
+                      </button>
                             
                             {isMultiSelectMode && (
                               <>
-                                <button
+                                <button 
                                   onClick={selectAllActivitiesForDay}
                                   className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
                                 >
@@ -3771,13 +3976,13 @@ export default function TripPage() {
                                 </button>
                                 
                                 {selectedActivities.size > 0 && (
-                                  <button
+                                <button 
                                     onClick={handleBulkDelete}
                                     className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
+                                >
+                                  <Trash2 className="w-4 h-4" />
                                     Delete ({selectedActivities.size})
-                                  </button>
+                                </button>
                                 )}
                               </>
                             )}
@@ -3792,15 +3997,15 @@ export default function TripPage() {
                           Add Activities
                         </button>
                       </div>
-                    </div>
+                            </div>
 
                     <div className="space-y-4">
                       {isReordering && (
                         <div className="flex items-center justify-center py-4">
                           <Loader2 className="w-5 h-5 animate-spin text-blue-600 mr-2" />
                           <span className="text-sm text-gray-600">Updating activity order...</span>
-                        </div>
-                      )}
+                              </div>
+                            )}
                       {getActivitiesForDay(activeDay).length > 0 ? (
                         <>
                           <SortableContext
@@ -3817,8 +4022,8 @@ export default function TripPage() {
                               
                               return timePeriods.map((period) => {
                                 const periodActivities = groupedActivities[period.key as keyof typeof groupedActivities];
-                                
-                                return (
+                                  
+                                  return (
                                   <TimePeriodSection
                                     key={period.key}
                                     period={period}
@@ -3877,7 +4082,7 @@ export default function TripPage() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-1">
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  {activeTab === 'ideaboard' && (
+                {activeTab === 'ideaboard' && (
                     <TextSelectionAI 
                       context="ideas"
                       tripData={trip ? {
@@ -3889,340 +4094,332 @@ export default function TripPage() {
                       } : undefined}
                     >
                       <div className="flex justify-between items-center mb-6">
-                        <div>
-                          <h2 className="text-2xl font-bold text-dark">Collaborate on Trip Ideas and Vote on Activities</h2>
-                          <p className="text-gray-600 mt-1">Share inspiration and decide what to do together</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => setShowAddIdeaModal(true)}
-                            className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Add Idea
-                          </button>
-                        </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-dark">Collaborate on Trip Ideas and Vote on Activities</h2>
+                        <p className="text-gray-600 mt-1">Share inspiration and decide what to do together</p>
                       </div>
+                        <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowAddIdeaModal(true)}
+                            className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                            Add Idea
+                      </button>
+                        </div>
+                    </div>
 
-                      {/* Category Filter */}
+                    {/* Category Filter */}
                       <div className="flex gap-2 flex-wrap mb-6">
+                      <button
+                        onClick={() => setSelectedCategory('all')}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                          selectedCategory === 'all'
+                            ? 'bg-red-500 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        All
+                      </button>
+                      {['food', 'transportation', 'accommodation', 'activity', 'shopping', 'nature', 'history', 'culture', 'other'].map((category) => (
                         <button
-                          onClick={() => setSelectedCategory('all')}
-                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                            selectedCategory === 'all'
+                          key={category}
+                          onClick={() => setSelectedCategory(category)}
+                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors capitalize ${
+                            selectedCategory === category
                               ? 'bg-red-500 text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          All
+                          {category}
                         </button>
-                        {['food', 'transportation', 'accommodation', 'activity', 'shopping', 'nature', 'history', 'culture', 'other'].map((category) => (
-                          <button
-                            key={category}
-                            onClick={() => setSelectedCategory(category)}
-                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors capitalize ${
-                              selectedCategory === category
-                                ? 'bg-red-500 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            {category}
-                          </button>
-                        ))}
-                      </div>
+                      ))}
+                    </div>
 
-                      {/* Ideas Grid */}
-                      <div className="grid gap-6">
-                        {ideas
-                          .filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory))
-                          .map((idea) => {
-                            const addedByParticipant = participants.find(p => p.id === idea.added_by);
-                            const userVote = ideaVotes.find(vote => vote.idea_id === idea.id && vote.user_id === user?.id);
-                            const ideaCommentsList = ideaComments.filter(comment => comment.idea_id === idea.id);
+                    {/* Ideas Grid */}
+                    <div className="grid gap-6">
+                      {ideas
+                        .filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory))
+                        .map((idea) => {
+                          const addedByParticipant = participants.find(p => p.id === idea.added_by);
+                          const userVote = ideaVotes.find(vote => vote.idea_id === idea.id && vote.user_id === user?.id);
+                          const ideaCommentsList = ideaComments.filter(comment => comment.idea_id === idea.id);
 
-                            return (
-                              <div key={idea.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
-                                <div className="flex">
-                                  {/* Image */}
-                                  <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
-                                    {idea.link_image ? (
-                                      <img 
-                                        src={idea.link_image} 
-                                        alt={idea.title}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center">
-                                        <MapPin className="w-8 h-8 text-gray-400" />
-                                      </div>
-                                    )}
-                                  </div>
+                          return (
+                            <div key={idea.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
+                              <div className="flex">
+                                {/* Image */}
+                                <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
+                                  {idea.link_image ? (
+                                    <img 
+                                      src={idea.link_image} 
+                                      alt={idea.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <MapPin className="w-8 h-8 text-gray-400" />
+                                    </div>
+                                  )}
+                                </div>
 
-                                  {/* Content */}
-                                  <div className="flex-1 p-4">
-                                    <div className="flex items-start justify-between mb-2">
-                                      <div className="flex-1">
+                                {/* Content */}
+                                <div className="flex-1 p-4">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
                                         <LocationTooltip 
                                           locationText={idea.title} 
                                           onAskAI={() => handleDestinationAskAI(idea.title)}
                                         >
                                           <h3 className="text-lg font-semibold text-dark mb-1 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{idea.title}</h3>
                                         </LocationTooltip>
-                                        
-                                        {/* Tags */}
-                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                          {idea.tags.map((tag) => (
-                                            <span key={tag} className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                              tag === 'food' ? 'bg-green-100 text-green-800' :
-                                              tag === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
-                                              tag === 'accommodation' ? 'bg-blue-100 text-blue-800' :
-                                              tag === 'activity' ? 'bg-purple-100 text-purple-800' :
-                                              tag === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                              tag === 'nature' ? 'bg-emerald-100 text-emerald-800' :
-                                              tag === 'history' ? 'bg-amber-100 text-amber-800' :
-                                              tag === 'culture' ? 'bg-indigo-100 text-indigo-800' :
-                                              'bg-gray-100 text-dark-medium'
-                                            }`}>
-                                              {tag.charAt(0).toUpperCase() + tag.slice(1)}
-                                            </span>
-                                          ))}
-                                          {idea.link_url && (
-                                            <ExternalLink className="w-4 h-4 text-gray-400" />
+                                      
+                                      {/* Tags */}
+                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                        {idea.tags.map((tag) => (
+                                          <span key={tag} className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            tag === 'food' ? 'bg-green-100 text-green-800' :
+                                            tag === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
+                                            tag === 'accommodation' ? 'bg-blue-100 text-blue-800' :
+                                            tag === 'activity' ? 'bg-purple-100 text-purple-800' :
+                                            tag === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                            tag === 'nature' ? 'bg-emerald-100 text-emerald-800' :
+                                            tag === 'history' ? 'bg-amber-100 text-amber-800' :
+                                            tag === 'culture' ? 'bg-indigo-100 text-indigo-800' :
+                                            'bg-gray-100 text-dark-medium'
+                                          }`}>
+                                            {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                                          </span>
+                                        ))}
+                                        {idea.link_url && (
+                                          <ExternalLink className="w-4 h-4 text-gray-400" />
+                                        )}
+                                      </div>
+
+                                      {/* Description */}
+                                      {idea.description && (
+                                        <p className="text-sm text-gray-600 mb-3">{idea.description}</p>
+                                      )}
+
+                                      {/* Location */}
+                                      {idea.location && (
+                                          <div className="flex items-center gap-1 mb-3" data-location={idea.location}>
+                                          <MapPin className="w-4 h-4 text-gray-400" />
+                                          <span className="text-sm text-gray-600">{idea.location}</span>
+                                        </div>
+                                      )}
+
+                                      {/* Link Preview */}
+                                      {idea.link_url && (
+                                        <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                                          <a 
+                                            href={idea.link_url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                          >
+                                            {idea.link_title || idea.link_url}
+                                          </a>
+                                          {idea.link_description && (
+                                            <p className="text-xs text-gray-500 mt-1">{idea.link_description}</p>
                                           )}
                                         </div>
+                                      )}
 
-                                        {/* Description */}
-                                        {idea.description && (
-                                          <p className="text-sm text-gray-600 mb-3">{idea.description}</p>
-                                        )}
-
-                                        {/* Location */}
-                                        {idea.location && (
-                                          <div className="flex items-center gap-1 mb-3" data-location={idea.location}>
-                                            <MapPin className="w-4 h-4 text-gray-400" />
-                                            <span className="text-sm text-gray-600">{idea.location}</span>
-                                          </div>
-                                        )}
-
-                                        {/* Link Preview */}
-                                        {idea.link_url && (
-                                          <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-                                            <a 
-                                              href={idea.link_url} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer"
-                                              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                                            >
-                                              {idea.link_title || idea.link_url}
-                                            </a>
-                                            {idea.link_description && (
-                                              <p className="text-xs text-gray-500 mt-1">{idea.link_description}</p>
-                                            )}
-                                          </div>
-                                        )}
-
-                                        {/* Voting */}
-                                        <div className="flex items-center gap-4 mb-3">
+                                      {/* Voting */}
+                                      <div className="flex items-center gap-4 mb-3">
+                                        <button
+                                          onClick={() => handleVoteIdea(idea.id, 'upvote')}
+                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                                            userVote?.vote_type === 'upvote'
+                                              ? 'bg-red-100 text-red-600'
+                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                          }`}
+                                        >
+                                          <ThumbsUp className="w-4 h-4" />
+                                          <span className="text-sm font-medium">{idea.upvotes}</span>
+                                        </button>
+                                        <button
+                                          onClick={() => handleVoteIdea(idea.id, 'downvote')}
+                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                                            userVote?.vote_type === 'downvote'
+                                              ? 'bg-red-100 text-red-600'
+                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                          }`}
+                                        >
+                                          <ThumbsDown className="w-4 h-4" />
+                                          <span className="text-sm font-medium">{idea.downvotes}</span>
+                                        </button>
+                                        <div className="flex items-center gap-1 text-sm text-gray-500">
+                                          <MessageCircle className="w-4 h-4" />
                                           <button
-                                            onClick={() => handleVoteIdea(idea.id, 'upvote')}
-                                            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
-                                              userVote?.vote_type === 'upvote'
-                                                ? 'bg-red-100 text-red-600'
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                            }`}
+                                            onClick={() => handleToggleComments(idea.id)}
+                                            className="hover:text-gray-700 transition-colors"
                                           >
-                                            <ThumbsUp className="w-4 h-4" />
-                                            <span className="text-sm font-medium">{idea.upvotes}</span>
+                                            {ideaCommentsList.length}
                                           </button>
-                                          <button
-                                            onClick={() => handleVoteIdea(idea.id, 'downvote')}
-                                            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
-                                              userVote?.vote_type === 'downvote'
-                                                ? 'bg-red-100 text-red-600'
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                            }`}
-                                          >
-                                            <ThumbsDown className="w-4 h-4" />
-                                            <span className="text-sm font-medium">{idea.downvotes}</span>
-                                          </button>
-                                          <div className="flex items-center gap-1 text-sm text-gray-500">
-                                            <MessageCircle className="w-4 h-4" />
-                                            <button
-                                              onClick={() => handleToggleComments(idea.id)}
-                                              className="hover:text-gray-700 transition-colors"
-                                            >
-                                              {ideaCommentsList.length}
-                                            </button>
-                                          </div>
-                                        </div>
-
-                                        {/* Added By */}
-                                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                                          <span>Added By:</span>
-                                          <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
-                                              <span className="text-xs font-medium text-gray-600">
-                                                {addedByParticipant?.name?.charAt(0) || '?'}
-                                              </span>
-                                            </div>
-                                            <span>{addedByParticipant?.name || 'Unknown'}</span>
-                                          </div>
                                         </div>
                                       </div>
 
-                                      {/* Action Buttons */}
-                                      <div className="flex items-center gap-2 ml-4">
-                                        {/* Edit and Delete buttons */}
-                                        <button
-                                          onClick={() => handleEditIdea(idea)}
-                                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                          title="Edit idea"
-                                        >
-                                          <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteIdea(idea.id)}
-                                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                          title="Delete idea"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
-                                        
-                                        {/* Move to Itinerary Button */}
-                                        <button
-                                          onClick={() => handleMoveToItinerary(idea)}
-                                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                                        >
-                                          Move to Itinerary
-                                          <ArrowLeft className="w-4 h-4 rotate-180" />
-                                        </button>
+                                      {/* Added By */}
+                                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                                        <span>Added By:</span>
+                                        <div className="flex items-center gap-2">
+                                          <Avatar 
+                                            name={addedByParticipant?.name || 'Unknown'} 
+                                            imageUrl={addedByParticipant?.avatar_url}
+                                            size="sm"
+                                          />
+                                          <span>{addedByParticipant?.name || 'Unknown'}</span>
+                                        </div>
                                       </div>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-2 ml-4">
+                                      {/* Edit and Delete buttons */}
+                                      <button
+                                        onClick={() => handleEditIdea(idea)}
+                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        title="Edit idea"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteIdea(idea.id)}
+                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="Delete idea"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                      
+                                      {/* Move to Itinerary Button */}
+                                      <button
+                                        onClick={() => handleMoveToItinerary(idea)}
+                                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                                      >
+                                        Move to Itinerary
+                                        <ArrowLeft className="w-4 h-4 rotate-180" />
+                                      </button>
                                     </div>
                                   </div>
-
-                                  {/* Inline Comments Section */}
-                                  {expandedComments.has(idea.id) && (
-                                    <div className="border-t bg-gray-50 p-4">
-                                      {/* Comments List */}
-                                      <div className="space-y-3 mb-4">
-                                        {ideaCommentsList.length === 0 ? (
-                                          <p className="text-sm text-form text-center py-2">No comments yet. Be the first to comment!</p>
-                                        ) : (
-                                          ideaCommentsList.map((comment) => {
-                                            const commenter = participants.find(p => p.id === comment.user_id);
-                                            const isOwnComment = user?.id === comment.user_id;
-
-                                            return (
-                                              <div key={comment.id} className="flex gap-3">
-                                                <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                                                  <span className="text-xs font-medium text-gray-600">
-                                                    {commenter?.name?.charAt(0) || '?'}
-                                                  </span>
-                                                </div>
-                                                <div className="flex-1">
-                                                  <div className="bg-white rounded-lg p-3 shadow-sm">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                      <span className="font-medium text-sm text-dark">
-                                                        {commenter?.name || 'Unknown'}
-                                                      </span>
-                                                      <span className="text-xs text-gray-500">
-                                                        {new Date(comment.created_at).toLocaleDateString()}
-                                                      </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-700">{comment.content}</p>
-                                                  </div>
-                                                  {isOwnComment && (
-                                                    <button
-                                                      onClick={() => handleDeleteComment(comment.id)}
-                                                      className="text-xs text-red-600 hover:text-red-800 mt-1"
-                                                    >
-                                                      Delete
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            );
-                                          })
-                                        )}
-                                      </div>
-
-                                      {/* Add Comment */}
-                                      <div className="flex gap-3">
-                                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                                          <span className="text-xs font-medium text-gray-600">
-                                            {user?.email?.charAt(0) || '?'}
-                                          </span>
-                                        </div>
-                                        <div className="flex-1">
-                                          <textarea
-                                            value={newCommentText[idea.id] || ''}
-                                            onChange={(e) => setNewCommentText(prev => ({ ...prev, [idea.id]: e.target.value }))}
-                                            placeholder="Write a comment..."
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-sm"
-                                            rows={2}
-                                          />
-                                        </div>
-                                        <button
-                                          onClick={() => handleAddComment(idea.id)}
-                                          disabled={!newCommentText[idea.id]?.trim()}
-                                          className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
-                                        >
-                                          <MessageCircle className="w-3 h-3" />
-                                          Send
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
                                 </div>
+
+                                {/* Inline Comments Section */}
+                                {expandedComments.has(idea.id) && (
+                                  <div className="border-t bg-gray-50 p-4">
+                                    {/* Comments List */}
+                                    <div className="space-y-3 mb-4">
+                                      {ideaCommentsList.length === 0 ? (
+                                        <p className="text-sm text-form text-center py-2">No comments yet. Be the first to comment!</p>
+                                      ) : (
+                                        ideaCommentsList.map((comment) => {
+                                          const commenter = participants.find(p => p.id === comment.user_id);
+                                          const isOwnComment = user?.id === comment.user_id;
+
+                                          return (
+                                            <div key={comment.id} className="flex gap-3">
+                                              <Avatar 
+                                                name={commenter?.name || 'Unknown'} 
+                                                imageUrl={commenter?.avatar_url}
+                                                size="sm"
+                                                className="flex-shrink-0"
+                                              />
+                                              <div className="flex-1">
+                                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                                  <div className="flex items-center gap-2 mb-1">
+                                                    <span className="font-medium text-sm text-dark">
+                                                      {commenter?.name || 'Unknown'}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">
+                                                      {new Date(comment.created_at).toLocaleDateString()}
+                                                    </span>
+                                                  </div>
+                                                  <p className="text-sm text-gray-700">{comment.content}</p>
+                                                </div>
+                                                {isOwnComment && (
+                                                  <button
+                                                    onClick={() => handleDeleteComment(comment.id)}
+                                                    className="text-xs text-red-600 hover:text-red-800 mt-1"
+                                                  >
+                                                    Delete
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+
+                                    {/* Add Comment */}
+                                    <div className="flex gap-3">
+                                      <Avatar 
+                                        name={user?.email || 'Unknown'} 
+                                        imageUrl={participants.find(p => p.id === user?.id)?.avatar_url}
+                                        size="sm"
+                                        className="flex-shrink-0"
+                                      />
+                                      <div className="flex-1">
+                                        <textarea
+                                          value={newCommentText[idea.id] || ''}
+                                          onChange={(e) => setNewCommentText(prev => ({ ...prev, [idea.id]: e.target.value }))}
+                                          placeholder="Write a comment..."
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-sm"
+                                          rows={2}
+                                        />
+                                      </div>
+                                      <button
+                                        onClick={() => handleAddComment(idea.id)}
+                                        disabled={!newCommentText[idea.id]?.trim()}
+                                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
+                                      >
+                                        <MessageCircle className="w-3 h-3" />
+                                        Send
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            );
-                          })}
+                            </div>
+                          );
+                        })}
+                    </div>
+
+                    {/* Empty State */}
+                    {ideas.filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory)).length === 0 && (
+                      <div className="text-center py-12">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Bookmark className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <h3 className="text-lg font-medium text-dark mb-2">No ideas yet</h3>
+                        <p className="text-form mb-6">
+                          {selectedCategory === 'all' 
+                            ? 'Start adding ideas to collaborate on your trip!'
+                            : `No ${selectedCategory} ideas yet. Add some inspiration!`
+                          }
+                        </p>
+                        <button
+                          onClick={() => setShowAddIdeaModal(true)}
+                          className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                        >
+                          Add Your First Idea
+                        </button>
                       </div>
-
-                      {/* Empty State */}
-                      {ideas.filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory)).length === 0 && (
-                        <div className="text-center py-12">
-                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Bookmark className="w-8 h-8 text-gray-400" />
-                          </div>
-                          <h3 className="text-lg font-medium text-dark mb-2">No ideas yet</h3>
-                          <p className="text-form mb-6">
-                            {selectedCategory === 'all' 
-                              ? 'Start adding ideas to collaborate on your trip!'
-                              : `No ${selectedCategory} ideas yet. Add some inspiration!`
-                            }
-                          </p>
-                          <button
-                            onClick={() => setShowAddIdeaModal(true)}
-                            className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                          >
-                            Add Your First Idea
-                          </button>
-                        </div>
-                      )}
+                    )}
                     </TextSelectionAI>
-                  )}
+                )}
 
-                  {activeTab === 'recommendations' && (
-                    <TextSelectionAI 
-                      context="recommendations"
-                      tripData={trip ? {
-                        destination: trip.destination,
-                        interests: trip.interests || [],
-                        numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
-                        numberOfParticipants: participants.length,
-                        startDate: trip.start_date
-                      } : undefined}
-                    >
-                      <div className="space-y-6">
-                      {/* Header */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h2 className="text-2xl font-bold text-dark">AI Trip Recommendations</h2>
-                          <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
-                        </div>
+                {activeTab === 'recommendations' && (
+                  <div className="space-y-6">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold text-dark">AI Trip Recommendations</h2>
+                        <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
+                      </div>
                         <div className="flex items-center gap-3">
-                          <button
+                      <button
                             onClick={() => setShowInterestSelector(true)}
                             disabled={generatingRecommendations}
                             className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
@@ -4232,48 +4429,48 @@ export default function TripPage() {
                           </button>
                           <button
                             onClick={() => generateRecommendations()}
-                            disabled={generatingRecommendations}
-                            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
-                          >
-                            {generatingRecommendations ? (
-                              <>
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                Generating...
-                              </>
-                            ) : (
-                              <>
-                                <Sparkles className="w-5 h-5" />
-                                Generate Recommendations
-                              </>
-                            )}
-                          </button>
-                        </div>
+                        disabled={generatingRecommendations}
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                      >
+                        {generatingRecommendations ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-5 h-5" />
+                            Generate Recommendations
+                          </>
+                        )}
+                      </button>
                       </div>
+                    </div>
 
-                      {/* Loading State */}
-                      {generatingRecommendations && (
-                        <div className="text-center py-12">
-                          <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
-                          <p className="text-gray-600">Generating personalized recommendations...</p>
-                          <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
-                        </div>
-                      )}
+                    {/* Loading State */}
+                    {generatingRecommendations && (
+                  <div className="text-center py-12">
+                        <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
+                        <p className="text-gray-600">Generating personalized recommendations...</p>
+                        <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
+                    </div>
+                    )}
 
-                      {/* Recommendations Grid */}
-                      {!generatingRecommendations && recommendations.length > 0 && (
-                        <div className="grid gap-6">
-                          {recommendations.map((recommendation) => (
+                    {/* Recommendations Grid */}
+                    {!generatingRecommendations && recommendations.length > 0 && (
+                      <div className="grid gap-6">
+                        {recommendations.map((recommendation) => (
                             <div key={recommendation.id} className="border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
-                              <div className="flex">
-                                {/* Image */}
-                                <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
-                                  {recommendation.image_url ? (
-                                    <img 
-                                      src={recommendation.image_url} 
-                                      alt={recommendation.title}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
+                            <div className="flex">
+                              {/* Image */}
+                              <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
+                                {recommendation.image_url ? (
+                                  <img 
+                                    src={recommendation.image_url} 
+                                    alt={recommendation.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
                                     <div className="w-full h-full flex items-center justify-center relative">
                                       {/* Category Badge */}
                                       {recommendation.category && (
@@ -4287,52 +4484,52 @@ export default function TripPage() {
                                            '💡 Consider'}
                                         </div>
                                       )}
-                                      <span className="text-4xl">
-                                        {recommendation.activity_type === 'transportation' ? '🚗' :
-                                         recommendation.activity_type === 'accommodation' ? '🏨' :
-                                         recommendation.activity_type === 'activity' ? '🎯' :
-                                         recommendation.activity_type === 'food' ? '🍽️' :
-                                         recommendation.activity_type === 'shopping' ? '🛍️' :
-                                         recommendation.activity_type === 'nature' ? '🌿' :
-                                         recommendation.activity_type === 'history' ? '🏛️' :
+                                    <span className="text-4xl">
+                                      {recommendation.activity_type === 'transportation' ? '🚗' :
+                                       recommendation.activity_type === 'accommodation' ? '🏨' :
+                                       recommendation.activity_type === 'activity' ? '🎯' :
+                                       recommendation.activity_type === 'food' ? '🍽️' :
+                                       recommendation.activity_type === 'shopping' ? '🛍️' :
+                                       recommendation.activity_type === 'nature' ? '🌿' :
+                                       recommendation.activity_type === 'history' ? '🏛️' :
                                          recommendation.activity_type === 'culture' ? '🎭' :
                                          recommendation.activity_type === 'entertainment' ? '🎪' :
                                          recommendation.activity_type === 'sports' ? '⚽' :
                                          recommendation.activity_type === 'religion' ? '⛪' : '📍'}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
 
-                                {/* Content */}
-                                <div className="flex-1 p-4">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1">
+                              {/* Content */}
+                              <div className="flex-1 p-4">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
                                       <LocationTooltip 
                                         locationText={recommendation.title} 
                                         onAskAI={() => handleDestinationAskAI(recommendation.title)}
                                       >
                                         <h3 className="text-lg font-semibold text-dark mb-1 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{recommendation.title}</h3>
                                       </LocationTooltip>
+                                    
+                                    {/* Activity Type Badge and Rating */}
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                        recommendation.activity_type === 'transportation' ? 'bg-blue-100 text-blue-800' :
+                                        recommendation.activity_type === 'accommodation' ? 'bg-purple-100 text-purple-800' :
+                                        recommendation.activity_type === 'activity' ? 'bg-green-100 text-green-800' :
+                                        recommendation.activity_type === 'food' ? 'bg-orange-100 text-orange-800' :
+                                        recommendation.activity_type === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                        recommendation.activity_type === 'nature' ? 'bg-emerald-100 text-emerald-800' :
+                                        recommendation.activity_type === 'history' ? 'bg-amber-100 text-amber-800' :
+                                        recommendation.activity_type === 'culture' ? 'bg-indigo-100 text-indigo-800' :
+                                        'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {recommendation.activity_type}
+                                      </span>
                                       
-                                      {/* Activity Type Badge and Rating */}
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                          recommendation.activity_type === 'transportation' ? 'bg-blue-100 text-blue-800' :
-                                          recommendation.activity_type === 'accommodation' ? 'bg-purple-100 text-purple-800' :
-                                          recommendation.activity_type === 'activity' ? 'bg-green-100 text-green-800' :
-                                          recommendation.activity_type === 'food' ? 'bg-orange-100 text-orange-800' :
-                                          recommendation.activity_type === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                          recommendation.activity_type === 'nature' ? 'bg-emerald-100 text-emerald-800' :
-                                          recommendation.activity_type === 'history' ? 'bg-amber-100 text-amber-800' :
-                                          recommendation.activity_type === 'culture' ? 'bg-indigo-100 text-indigo-800' :
-                                          'bg-gray-100 text-gray-800'
-                                        }`}>
-                                          {recommendation.activity_type}
-                                        </span>
-                                        
                                         {/* Google Places Rating - Clickable */}
-                                        {recommendation.rating && (
+                                      {recommendation.rating && (
                                           <a
                                             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(recommendation.title + ' ' + recommendation.location)}`}
                                             target="_blank"
@@ -4340,21 +4537,21 @@ export default function TripPage() {
                                             className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
                                             title="View all reviews on Google Maps"
                                           >
-                                            <span className="text-yellow-500">⭐</span>
-                                            <span className="text-sm font-medium text-gray-700">
-                                              {recommendation.rating.toFixed(1)}
+                                          <span className="text-yellow-500">⭐</span>
+                                          <span className="text-sm font-medium text-gray-700">
+                                            {recommendation.rating.toFixed(1)}
+                                          </span>
+                                          {recommendation.user_ratings_total && (
+                                            <span className="text-xs text-gray-500">
+                                              ({recommendation.user_ratings_total.toLocaleString()} reviews)
                                             </span>
-                                            {recommendation.user_ratings_total && (
-                                              <span className="text-xs text-gray-500">
-                                                ({recommendation.user_ratings_total.toLocaleString()} reviews)
-                                              </span>
-                                            )}
+                                          )}
                                             <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
                                           </a>
-                                        )}
-                                      </div>
+                                      )}
+                                    </div>
 
-                                      <p className="text-gray-600 text-sm mb-3">{recommendation.description}</p>
+                                    <p className="text-gray-600 text-sm mb-3">{recommendation.description}</p>
                                       
                                       {/* Best For */}
                                       {recommendation.best_for && (
@@ -4399,91 +4596,91 @@ export default function TripPage() {
                                           <p className="text-gray-700 text-sm mt-1">{recommendation.practical_tips}</p>
                                         </div>
                                       )}
-                                      
-                                      {/* Enhanced Details */}
-                                      <div className="space-y-2">
-                                        {/* Location */}
+                                    
+                                    {/* Enhanced Details */}
+                                    <div className="space-y-2">
+                                      {/* Location */}
                                         <div className="flex items-center gap-1 text-sm text-gray-500" data-location={recommendation.location}>
-                                          <MapPin className="w-4 h-4" />
-                                          <span>{recommendation.location}</span>
+                                        <MapPin className="w-4 h-4" />
+                                        <span>{recommendation.location}</span>
+                                      </div>
+                                      
+                                      {/* Time and Opening Hours */}
+                                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                                        <div className="flex items-center gap-1">
+                                          <Clock className="w-4 h-4" />
+                                          <span>{recommendation.estimated_time}</span>
                                         </div>
                                         
-                                        {/* Time and Opening Hours */}
-                                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                                        {/* Opening Hours */}
+                                        {recommendation.opening_hours && recommendation.opening_hours.length > 0 && (
                                           <div className="flex items-center gap-1">
-                                            <Clock className="w-4 h-4" />
-                                            <span>{recommendation.estimated_time}</span>
-                                          </div>
-                                          
-                                          {/* Opening Hours */}
-                                          {recommendation.opening_hours && recommendation.opening_hours.length > 0 && (
-                                            <div className="flex items-center gap-1">
-                                              <span className="text-xs">🕒</span>
-                                              <span className="text-xs">
-                                                {recommendation.opening_hours[0]}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                        
-                                        {/* Contact Info */}
-                                        {(recommendation.website || recommendation.phone_number) && (
-                                          <div className="flex items-center gap-4 text-sm">
-                                            {recommendation.website && (
-                                              <a 
-                                                href={recommendation.website} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                                              >
-                                                <ExternalLink className="w-3 h-3" />
-                                                Website
-                                              </a>
-                                            )}
-                                            {recommendation.phone_number && (
-                                              <a 
-                                                href={`tel:${recommendation.phone_number}`}
-                                                className="text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
-                                              >
-                                                <span className="text-xs">📞</span>
-                                                Call
-                                              </a>
-                                            )}
+                                            <span className="text-xs">🕒</span>
+                                            <span className="text-xs">
+                                              {recommendation.opening_hours[0]}
+                                            </span>
                                           </div>
                                         )}
-                                        
-                                        {/* Learn More Link */}
-                                        <div className="flex items-center gap-1">
-                                          <ExternalLink className="w-4 h-4 text-gray-400" />
-                                          <a 
-                                            href={recommendation.relevant_link} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:text-blue-800 hover:underline text-sm"
-                                          >
-                                            Learn More
-                                          </a>
+                                      </div>
+                                      
+                                      {/* Contact Info */}
+                                      {(recommendation.website || recommendation.phone_number) && (
+                                        <div className="flex items-center gap-4 text-sm">
+                                          {recommendation.website && (
+                                            <a 
+                                              href={recommendation.website} 
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                            >
+                                              <ExternalLink className="w-3 h-3" />
+                                              Website
+                                            </a>
+                                          )}
+                                          {recommendation.phone_number && (
+                                            <a 
+                                              href={`tel:${recommendation.phone_number}`}
+                                              className="text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
+                                            >
+                                              <span className="text-xs">📞</span>
+                                              Call
+                                            </a>
+                                          )}
                                         </div>
+                                      )}
+                                      
+                                      {/* Learn More Link */}
+                                      <div className="flex items-center gap-1">
+                                        <ExternalLink className="w-4 h-4 text-gray-400" />
+                                        <a 
+                                          href={recommendation.relevant_link} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:text-blue-800 hover:underline text-sm"
+                                        >
+                                          Learn More
+                                        </a>
                                       </div>
                                     </div>
+                                  </div>
 
                                     {/* Action Buttons */}
                                     <div className="ml-4 flex flex-col gap-2">
-                                      <button
-                                        onClick={() => moveRecommendationToIdeas(recommendation)}
-                                        className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                      >
-                                        <Plus className="w-4 h-4" />
-                                        Add to Ideas
-                                      </button>
-                                    </div>
+                                    <button
+                                      onClick={() => moveRecommendationToIdeas(recommendation)}
+                                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                      Add to Ideas
+                    </button>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                       {/* Generate More Button */}
                       {!generatingRecommendations && recommendations.length > 0 && (
@@ -4505,19 +4702,19 @@ export default function TripPage() {
                               </>
                             )}
                           </button>
-                        </div>
-                      )}
+                      </div>
+                    )}
 
-                      {/* Empty State */}
-                      {!generatingRecommendations && recommendations.length === 0 && (
-                        <div className="text-center py-12">
-                          <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Sparkles className="w-8 h-8 text-white" />
-                          </div>
-                          <h3 className="text-lg font-semibold text-dark mb-2">No Recommendations Yet</h3>
-                          <p className="text-gray-500 mb-6">Generate AI-powered recommendations to get started!</p>
+                    {/* Empty State */}
+                    {!generatingRecommendations && recommendations.length === 0 && (
+                      <div className="text-center py-12">
+                        <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Sparkles className="w-8 h-8 text-white" />
                         </div>
-                      )}
+                        <h3 className="text-lg font-semibold text-dark mb-2">No Recommendations Yet</h3>
+                        <p className="text-gray-500 mb-6">Generate AI-powered recommendations to get started!</p>
+                      </div>
+                    )}
 
                       {/* Interest Selector Modal */}
                       {showInterestSelector && (
@@ -4615,173 +4812,275 @@ export default function TripPage() {
                           </motion.div>
                         </div>
                       )}
-                      </div>
-                    </TextSelectionAI>
-                  )}
+                  </div>
+                )}
 
-                  {activeTab === 'expenses' && (
-                    <div className="space-y-6">
-                      {/* Expense Summary Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-                              <p className="text-2xl font-bold text-dark">${expenseSummary.totalExpenses.toFixed(2)}</p>
-                            </div>
-                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                              <DollarSign className="w-6 h-6 text-blue-600" />
-                            </div>
+                {activeTab === 'expenses' && (
+                  <div className="space-y-6">
+                    {/* Expense Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600">Total Expenses</p>
+                            <p className="text-2xl font-bold text-dark">${expenseSummary.totalExpenses.toFixed(2)}</p>
                           </div>
-                        </div>
-
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-600">You've Paid</p>
-                              <p className="text-2xl font-bold text-dark">${expenseSummary.userPaid.toFixed(2)}</p>
-                            </div>
-                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                              <Calendar className="w-6 h-6 text-green-600" />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-600">Your Share</p>
-                              <p className="text-2xl font-bold text-dark">${expenseSummary.userShare.toFixed(2)}</p>
-                            </div>
-                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                              <Users className="w-6 h-6 text-purple-600" />
-                            </div>
+                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                            <DollarSign className="w-6 h-6 text-blue-600" />
                           </div>
                         </div>
                       </div>
 
-                      {/* Expense History */}
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                        <div className="p-6 border-b border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="text-lg font-semibold text-dark">Expense History</h3>
-                              <p className="text-sm text-gray-500">{expenses.length} expenses recorded</p>
-                            </div>
-                            <button
-                              onClick={() => setShowAddExpenseModal(true)}
-                              className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Add Expense
-                            </button>
+                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600">You've Paid</p>
+                            <p className="text-2xl font-bold text-dark">${expenseSummary.userPaid.toFixed(2)}</p>
+                          </div>
+                          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                            <Calendar className="w-6 h-6 text-green-600" />
                           </div>
                         </div>
+                      </div>
 
-                        <div className="p-6">
-                          {expenses.length > 0 ? (
-                            <div className="space-y-4">
-                              {expenses.map((expense) => {
-                                const paidByParticipant = participants.find(p => p.id === expense.paid_by);
-                                const splitCount = expense.split_with === 'everyone' 
-                                  ? participants.length 
-                                  : (expense.split_with as string[]).length;
-                                const shareAmount = expense.amount / splitCount;
+                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600">Your Share</p>
+                            <p className="text-2xl font-bold text-dark">${expenseSummary.userShare.toFixed(2)}</p>
+                          </div>
+                          <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                            <Users className="w-6 h-6 text-purple-600" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
+                    {/* Payment Settlement */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                      <div className="p-6 border-b border-gray-100">
+                        <div>
+                          <h3 className="text-lg font-semibold text-dark">Payment Settlement</h3>
+                          <p className="text-sm text-gray-500">Who should pay how much to whom</p>
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        {(() => {
+                          const calculatedSettlements = calculateSettlements();
+                          const unpaidSettlements = calculatedSettlements.filter(calculatedSettlement => {
+                            return !settlements.some(settlement => 
+                              settlement.from_user_id === calculatedSettlement.fromId &&
+                              settlement.to_user_id === calculatedSettlement.toId &&
+                              Math.abs(settlement.amount - calculatedSettlement.amount) < 0.01
+                            );
+                          });
+
+                          if (unpaidSettlements.length === 0) {
+                            return (
+                              <div className="text-center py-8">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                  <CheckCircle className="w-8 h-8 text-green-600" />
+                                </div>
+                                <h4 className="text-lg font-medium text-gray-900 mb-2">All Settled!</h4>
+                                <p className="text-gray-500">Everyone's expenses are balanced. No payments needed.</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-3">
+                              {unpaidSettlements.map((settlement, index) => {
+                                const fromParticipant = participants.find(p => p.id === settlement.fromId);
+                                const toParticipant = participants.find(p => p.id === settlement.toId);
+                                
                                 return (
-                                  <div key={expense.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
-                                    <div className="flex items-start justify-between">
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-2">
-                                          <h4 className="font-medium text-dark">{expense.title}</h4>
-                                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                            expense.category === 'food' ? 'bg-green-100 text-green-800' :
-                                            expense.category === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
-                                            expense.category === 'accommodation' ? 'bg-blue-100 text-blue-800' :
-                                            expense.category === 'activity' ? 'bg-purple-100 text-purple-800' :
-                                            expense.category === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                            'bg-gray-100 text-dark-medium'
-                                          }`}>
-                                            {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
-                                          </span>
+                                  <div
+                                    key={index}
+                                    className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                                          <DollarSign className="w-5 h-5 text-gray-600" />
                                         </div>
-                                        
-                                        {expense.description && (
-                                          <p className="text-sm text-gray-600 mb-2">{expense.description}</p>
-                                        )}
-                                        
-                                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                                          <div className="flex items-center gap-1">
-                                            <DollarSign className="w-4 h-4" />
-                                            <span className="font-medium">${expense.amount.toFixed(2)}</span>
-                                            <span>(${shareAmount.toFixed(2)} each)</span>
-                                          </div>
-                                          
-                                          <div className="flex items-center gap-1">
-                                            <Calendar className="w-4 h-4" />
-                                            <span>{new Date(expense.expense_date).toLocaleDateString('en-US', { 
-                                              month: 'long', 
-                                              day: 'numeric', 
-                                              year: 'numeric' 
-                                            })}</span>
-                                          </div>
-                                          
+                                        <div className="flex items-center gap-3">
                                           <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
-                                              <span className="text-xs font-medium text-gray-600">
-                                                {paidByParticipant?.name?.charAt(0) || '?'}
-                                              </span>
-                                            </div>
-                                            <span>Paid by {paidByParticipant?.name || 'Unknown'}</span>
+                                            <Avatar
+                                              name={fromParticipant?.name || 'Unknown'}
+                                              imageUrl={fromParticipant?.avatar_url}
+                                              size="sm"
+                                              showTooltip={true}
+                                            />
+                                            <span className="font-medium text-gray-900">
+                                              {fromParticipant?.name || 'Unknown'}
+                                            </span>
                                           </div>
-                                          
-                                          <div className="flex items-center gap-1">
-                                            <Users className="w-4 h-4" />
-                                            <span>Split with: {expense.split_with === 'everyone' ? 'Everyone' : 'Selected'}</span>
+                                          <span className="text-gray-400">→</span>
+                                          <div className="flex items-center gap-2">
+                                            <Avatar
+                                              name={toParticipant?.name || 'Unknown'}
+                                              imageUrl={toParticipant?.avatar_url}
+                                              size="sm"
+                                              showTooltip={true}
+                                            />
+                                            <span className="font-medium text-gray-900">
+                                              {toParticipant?.name || 'Unknown'}
+                                            </span>
                                           </div>
                                         </div>
                                       </div>
-                                      
-                                      {/* Edit and Delete buttons */}
-                                      <div className="flex items-center gap-2 ml-4">
-                                        <button
-                                          onClick={() => handleEditExpense(expense)}
-                                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                          title="Edit expense"
-                                        >
-                                          <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteExpense(expense.id)}
-                                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                          title="Delete expense"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
+                                      <div className="text-right">
+                                        <div className="text-lg font-semibold text-gray-900">
+                                          ${settlement.amount.toFixed(2)}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
                                 );
                               })}
                             </div>
-                          ) : (
-                            <div className="text-center py-12">
-                              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <DollarSign className="w-8 h-8 text-gray-400" />
-                              </div>
-                              <h3 className="text-lg font-medium text-dark mb-2">No expenses yet</h3>
-                              <p className="text-form mb-6">Start tracking your trip expenses to keep everyone in the loop.</p>
-                              <button
-                                onClick={() => setShowAddExpenseModal(true)}
-                                className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                              >
-                                Add First Expense
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                          );
+                        })()}
                       </div>
                     </div>
+
+                    {/* Expense History */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                      <div className="p-6 border-b border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-dark">Expense History</h3>
+                            <p className="text-sm text-gray-500">{expenses.length} expenses recorded</p>
+                          </div>
+                          <button
+                            onClick={() => setShowAddExpenseModal(true)}
+                            className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add Expense
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-6">
+                        {expenses.length > 0 ? (
+                          <div className="space-y-4">
+                            {expenses.map((expense) => {
+                              const paidByParticipant = participants.find(p => p.id === expense.paid_by);
+                                const addedByParticipant = participants.find(p => p.id === expense.added_by);
+                              const splitCount = expense.split_with === 'everyone' 
+                                ? participants.length 
+                                : (expense.split_with as string[]).length;
+                              const shareAmount = expense.amount / splitCount;
+                                const canEdit = user && (expense.added_by === user.id || trip?.owner_id === user.id);
+
+                              return (
+                                <div key={expense.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3 mb-2">
+                                        <h4 className="font-medium text-dark">{expense.title}</h4>
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                          expense.category === 'food' ? 'bg-green-100 text-green-800' :
+                                          expense.category === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
+                                          expense.category === 'accommodation' ? 'bg-blue-100 text-blue-800' :
+                                          expense.category === 'activity' ? 'bg-purple-100 text-purple-800' :
+                                          expense.category === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                          'bg-gray-100 text-dark-medium'
+                                        }`}>
+                                          {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
+                                        </span>
+                                      </div>
+                                      
+                                      {expense.description && (
+                                        <p className="text-sm text-gray-600 mb-2">{expense.description}</p>
+                                      )}
+                                      
+                                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                                        <div className="flex items-center gap-1">
+                                          <DollarSign className="w-4 h-4" />
+                                          <span className="font-medium">${expense.amount.toFixed(2)}</span>
+                                          <span>(${shareAmount.toFixed(2)} each)</span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-1">
+                                          <Calendar className="w-4 h-4" />
+                                          <span>{new Date(expense.expense_date).toLocaleDateString('en-US', { 
+                                            month: 'long', 
+                                            day: 'numeric', 
+                                            year: 'numeric' 
+                                          })}</span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2">
+                                          <Avatar 
+                                            name={paidByParticipant?.name || 'Unknown'} 
+                                            imageUrl={paidByParticipant?.avatar_url}
+                                            size="sm"
+                                          />
+                                          <span>Paid by {paidByParticipant?.name || 'Unknown'}</span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-1">
+                                          <Users className="w-4 h-4" />
+                                          <span>Split with: {expense.split_with === 'everyone' ? 'Everyone' : 'Selected'}</span>
+                                        </div>
+                                          
+                                          {addedByParticipant && (
+                                            <div className="flex items-center gap-2">
+                                              <Avatar 
+                                                name={addedByParticipant.name || 'Unknown'} 
+                                                imageUrl={addedByParticipant.avatar_url}
+                                                size="sm"
+                                              />
+                                              <span>Added by {addedByParticipant.name}</span>
+                                            </div>
+                                          )}
+                                      </div>
+                                    </div>
+                                    
+                                      {/* Edit and Delete buttons - only show if user can edit */}
+                                      {canEdit && (
+                                    <div className="flex items-center gap-2 ml-4">
+                                      <button
+                                        onClick={() => handleEditExpense(expense)}
+                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        title="Edit expense"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteExpense(expense.id)}
+                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="Delete expense"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                      )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-12">
+                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <DollarSign className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <h3 className="text-lg font-medium text-dark mb-2">No expenses yet</h3>
+                            <p className="text-form mb-6">Start tracking your trip expenses to keep everyone in the loop.</p>
+                            <button
+                              onClick={() => setShowAddExpenseModal(true)}
+                              className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                            >
+                              Add First Expense
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                        </div>
                   )}
 
                   {activeTab === 'gallery' && trip && user && (
@@ -4792,31 +5091,143 @@ export default function TripPage() {
                       participants={participants}
                     />
                   )}
-                </div>
+
+                  {activeTab === 'recentactivities' && (
+                    <div className="space-y-6">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                                      <div>
+                          <h2 className="text-2xl font-bold text-dark">Recent Activities</h2>
+                          <p className="text-gray-600 mt-1">Track all important changes and updates in this trip</p>
+                                      </div>
+                        {trip && user && trip.owner_id === user.id && (
+                          <button
+                            onClick={async () => {
+                              if (!trip || !user) return;
+                              
+                              const confirmed = window.confirm(
+                                'Are you sure you want to clear all activity history? This action cannot be undone.'
+                              );
+                              
+                              if (confirmed) {
+                                const success = await clearActivityHistory(trip.id, user.id);
+                                if (success) {
+                                  setActivityLogs([]);
+                                  toast.success('Activity history cleared');
+                                } else {
+                                  toast.error('Failed to clear activity history');
+                                }
+                              }
+                            }}
+                            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Clear History
+                          </button>
+                        )}
+                        </div>
+                        
+                      {/* Test Button */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                                  <div>
+                            <h3 className="font-medium text-blue-800 mb-1">Activity Logging Ready</h3>
+                            <p className="text-sm text-blue-700">
+                              The activity logging system is set up and ready to track your trip activities.
+                            </p>
+                                  </div>
+                                  <button 
+                              onClick={async () => {
+                                if (!trip || !user) {
+                                  toast.error('Trip or user not available');
+                                  return;
+                                }
+                                try {
+                                  console.log('Testing activity logging with trip ID:', trip.id, 'user ID:', user.id);
+                                  await ActivityLogger.activityAdded(trip.id, user.id, 'Test Activity', 1);
+                                  toast.success('Test activity logged!');
+                                  fetchActivityLogsData();
+                                } catch (error) {
+                                  console.error('Test activity error:', error);
+                                  toast.error('Failed to log test activity - check console for details');
+                                }
+                              }}
+                              className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Test Activity Logging
+                                  </button>
+                                </div>
+                              </div>
+
+                      {/* Activity Logs */}
+                      {loadingActivityLogs ? (
+                        <div className="text-center py-12">
+                          <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-600">Loading activity history...</p>
+                        </div>
+                      ) : activityLogs.length > 0 ? (
+                              <div className="space-y-4">
+                          {activityLogs.map((log) => (
+                            <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                              <div className="flex items-start gap-3">
+                                <Avatar 
+                                  name={log.user.name} 
+                                  imageUrl={participants.find(p => p.id === log.user_id)?.avatar_url}
+                                  size="md"
+                                  className="flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-medium text-dark">{log.user.name}</span>
+                                    <span className="text-sm text-gray-500">
+                                      {new Date(log.created_at).toLocaleString()}
+                                            </span>
+                                          </div>
+                                  <p className="text-gray-700 mb-1">{log.title}</p>
+                                  {log.description && (
+                                    <p className="text-sm text-gray-600">{log.description}</p>
+                                  )}
+                              </div>
+                              </div>
+                            </div>
+                          ))}
+                          </div>
+                      ) : (
+                        <div className="text-center py-12">
+                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Activity className="w-8 h-8 text-gray-400" />
+                        </div>
+                          <h3 className="text-lg font-medium text-dark mb-2">No activities yet</h3>
+                          <p className="text-gray-600">Activity history will appear here as you and your collaborators make changes to the trip.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
+          </div>
           )}
         </div>
 
         {/* Modals */}
         {showAddActivityModal && (
-          <AddActivityModal
-            open={showAddActivityModal}
-            onClose={() => setShowAddActivityModal(false)}
+        <AddActivityModal
+          open={showAddActivityModal}
+          onClose={() => setShowAddActivityModal(false)}
             tripId={trip?.id || ''}
-            dayNumber={activeDay}
-            onActivityAdded={handleActivityAdded}
-          />
+          dayNumber={activeDay}
+          onActivityAdded={handleActivityAdded}
+        />
         )}
 
         {showUpdateInterestsModal && trip && (
-          <UpdateInterestsModal
-            open={showUpdateInterestsModal}
-            onClose={() => setShowUpdateInterestsModal(false)}
-            tripId={trip.id}
+        <UpdateInterestsModal
+          open={showUpdateInterestsModal}
+          onClose={() => setShowUpdateInterestsModal(false)}
+          tripId={trip.id}
             currentInterests={trip.interests}
-            onInterestsUpdated={handleInterestsUpdated}
-          />
+          onInterestsUpdated={handleInterestsUpdated}
+        />
         )}
 
         {showEditActivityModal && selectedActivity && (
@@ -4827,7 +5238,7 @@ export default function TripPage() {
               setSelectedActivity(null);
             }}
             activity={selectedActivity}
-            onActivityUpdated={handleActivityAdded}
+            onActivityUpdated={handleActivityUpdated}
           />
         )}
 
@@ -4850,7 +5261,7 @@ export default function TripPage() {
             }}
             expense={selectedExpense}
             participants={participants}
-            onExpenseUpdated={handleExpenseAdded}
+            onExpenseUpdated={handleExpenseUpdated}
           />
         )}
 
@@ -4871,7 +5282,7 @@ export default function TripPage() {
               setSelectedIdea(null);
             }}
             idea={selectedIdea}
-            onIdeaUpdated={handleIdeaAdded}
+            onIdeaUpdated={handleIdeaUpdated}
           />
         )}
 
@@ -4905,8 +5316,14 @@ export default function TripPage() {
             tripId={trip.id}
             tripTitle={trip.title}
             onInvitesSent={handleInvitesSent}
+            existingParticipants={participants.map(p => ({
+              id: p.id,
+              email: p.email || '',
+              name: p.name
+            }))}
           />
         )}
+
 
         {showConfirmationDialog && confirmationConfig && (
           <ConfirmationDialog
@@ -4935,7 +5352,7 @@ export default function TripPage() {
             <h3 className="font-semibold text-gray-900">
               Ask AI about "{selectedDestination}"
             </h3>
-          </div>
+      </div>
           <button
             onClick={closeAIChatSidebar}
             className="p-1 hover:bg-gray-200 rounded-full transition-colors"
@@ -5123,6 +5540,8 @@ export default function TripPage() {
         )}
 
       </div>
+
+
     </ProtectedRoute>
   );
 }

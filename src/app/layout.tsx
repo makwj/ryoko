@@ -29,6 +29,7 @@ export default function RootLayout({
               borderRadius: '12px',
               padding: '16px',
               fontSize: '14px',
+              zIndex: 10000, // Higher than modal z-index (9999)
             },
             success: {
               iconTheme: {

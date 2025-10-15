@@ -6,11 +6,14 @@ import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import toast from "react-hot-toast";
 import { User } from "@supabase/supabase-js";
+import { useAuth } from "@/contexts/AuthContext";
 import { Home, MapPin, Users, Bookmark, Mail, Clock, CheckCircle, XCircle } from "lucide-react";
 import CreateTripModal from "@/components/CreateTripModal";
 import DestinationImage from "@/components/DestinationImage";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import Navbar from "@/components/Navbar";
+import AvatarStack from "@/components/ui/avatar-stack";
 
 interface Trip {
   id: string;
@@ -51,13 +54,14 @@ interface Invitation {
 }
 
 export default function Dashboard() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [showCreateTripModal, setShowCreateTripModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [invitationsLoading, setInvitationsLoading] = useState(true);
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  const [participantsByTrip, setParticipantsByTrip] = useState<Record<string, { id: string; name: string; avatar_url?: string }[]>>({});
   const router = useRouter();
 
   const fetchInvitations = async (user: User) => {
@@ -126,21 +130,19 @@ export default function Dashboard() {
     }
   };
 
+  // Fetch data when user is available
   useEffect(() => {
-    // Check current user session
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/');
-        return;
-      }
-      setUser(user);
-      return user;
-    };
+    if (authLoading) return; // Wait for auth to finish loading
+    
+    if (!user) {
+      router.push('/');
+      return;
+    }
 
     const fetchData = async () => {
-      const user = await getUser();
-      if (user) {
+      try {
+        setLoading(true);
+        
         // Fetch user's trips (both owned and collaborated)
         const { data: tripsData, error } = await supabase
           .from('trips')
@@ -153,39 +155,57 @@ export default function Dashboard() {
           toast.error('Failed to load trips');
         } else {
           setTrips(tripsData || []);
+          // After trips load, fetch participant profiles for avatar rendering
+          try {
+            const allIds = new Set<string>();
+            (tripsData || []).forEach((t) => {
+              if (t.owner_id) allIds.add(t.owner_id);
+              if (Array.isArray(t.collaborators)) {
+                t.collaborators.forEach((id: string) => allIds.add(id));
+              }
+            });
+            if (allIds.size > 0) {
+              const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, name, avatar_url')
+                .in('id', Array.from(allIds));
+              const profileMap: Record<string, { id: string; name: string; avatar_url?: string }> = {};
+              (profiles || []).forEach((p: any) => {
+                profileMap[p.id] = { id: p.id, name: p.name || 'Unknown', avatar_url: p.avatar_url || undefined };
+              });
+              const next: Record<string, { id: string; name: string; avatar_url?: string }[]> = {};
+              (tripsData || []).forEach((t) => {
+                const ids: string[] = [t.owner_id, ...(Array.isArray(t.collaborators) ? t.collaborators : [])].filter(Boolean);
+                // De-duplicate while preserving order (owner first)
+                const seen = new Set<string>();
+                const participants = ids.filter((id) => {
+                  if (seen.has(id)) return false;
+                  seen.add(id);
+                  return true;
+                }).map((id) => profileMap[id]).filter(Boolean);
+                next[t.id] = participants as { id: string; name: string; avatar_url?: string }[];
+              });
+              setParticipantsByTrip(next);
+            } else {
+              setParticipantsByTrip({});
+            }
+          } catch (e) {
+            console.warn('Failed to load participant profiles:', e);
+            setParticipantsByTrip({});
+          }
         }
 
         // Fetch user's invitations
         await fetchInvitations(user);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast.error('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchData();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_OUT') {
-          router.push('/');
-        } else if (session?.user) {
-          setUser(session.user);
-          // Refetch trips when user changes
-          const { data: tripsData, error } = await supabase
-            .from('trips')
-            .select('*')
-            .or(`owner_id.eq.${session.user.id},collaborators.cs.{${session.user.id}}`)
-            .order('created_at', { ascending: false });
-
-          if (!error) {
-            setTrips(tripsData || []);
-          }
-          
-          // Refetch invitations
-          await fetchInvitations(session.user);
-        }
-      }
-    );
 
     // Refetch on window focus/visibility return
     const handleFocus = async () => {
@@ -200,18 +220,19 @@ export default function Dashboard() {
         await fetchInvitations(user);
       }
     };
+    
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && user) handleFocus();
     };
+    
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      subscription.unsubscribe();
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [router]);
+  }, [user, authLoading, router]);
 
   // Realtime: listen for invitation changes (insert/update/delete) for this user's email
   useEffect(() => {
@@ -444,79 +465,7 @@ export default function Dashboard() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        {/* Header - floating frosted glass navbar */}
-        <motion.header
-          className="fixed top-4 inset-x-0 z-30 flex justify-center pointer-events-none"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-        >
-          <div className="pointer-events-auto mx-auto w-full max-w-[1200px] px-3">
-            <motion.div
-              className="px-4 py-2 rounded-full bg-white/60 backdrop-blur-md shadow-lg shadow-black/5 flex items-center justify-between"
-              whileHover={{ scale: 1.02 }}
-              transition={{ duration: 0.2 }}
-            >
-              <motion.div
-                className="flex items-center gap-2"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
-                <Image src="/assets/ryokolong.png" alt="Ryoko logo" width={120} height={40} />
-              </motion.div>
-              <motion.nav
-                className="flex items-center gap-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.6 }}
-              >
-                <button 
-                  onClick={() => router.push('/dashboard')}
-                  className="p-2 text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Home className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => router.push('/trips')}
-                  className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <MapPin className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => router.push('/social')}
-                  className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Users className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => router.push('/bookmark')}
-                  className="p-2 text-gray-400 hover:text-[#ff5a58] hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Bookmark className="w-5 h-5" />
-                </button>
-              </motion.nav>
-              <motion.div
-                className="flex items-center gap-3"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
-              >
-                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                  <span className="text-xs font-medium text-gray-600">
-                    {user?.user_metadata?.name?.charAt(0) || user?.email?.charAt(0) || "U"}
-                  </span>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="text-gray-600 hover:text-dark-medium text-sm font-medium transition-colors"
-                >
-                  Logout
-                </button>
-              </motion.div>
-            </motion.div>
-          </div>
-        </motion.header>
+        <Navbar />
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
@@ -605,7 +554,14 @@ export default function Dashboard() {
                             )}
                           </div>
                           <div className="flex items-center justify-between text-sm text-gray-500">
-                            <span>{trip.collaborators ? trip.collaborators.length + 1 : 1} Participants</span>
+                            <span className="flex items-center gap-2">
+                              <span className="text-gray-600">Participants:</span>
+                              <AvatarStack 
+                                participants={(participantsByTrip[trip.id] || []).map(p => ({ id: p.id, name: p.name, avatar_url: p.avatar_url }))}
+                                maxVisible={4}
+                                size="sm"
+                              />
+                            </span>
                             <span>
                               {trip.start_date && trip.end_date 
                                 ? `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`

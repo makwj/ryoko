@@ -19,7 +19,7 @@ interface AddActivityModalProps {
   onClose: () => void;
   tripId: string;
   dayNumber: number;
-  onActivityAdded: () => void;
+  onActivityAdded: (activity?: { title: string; dayNumber: number }) => void;
 }
 
 interface FileWithCustomName {
@@ -186,7 +186,7 @@ export default function AddActivityModal({
       if (error) throw error;
 
       toast.success('Activity added successfully!');
-      onActivityAdded();
+      onActivityAdded({ title: formData.title, dayNumber });
       onClose();
       
       // Reset form

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Calendar, DollarSign, Users, Tag } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
+import { ActivityLogger } from "@/lib/activityLogger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +28,7 @@ interface EditExpenseModalProps {
     expense_date: string;
   };
   participants: { id: string; name: string }[];
-  onExpenseUpdated: () => void;
+  onExpenseUpdated: (expenseData?: { title: string; amount: number; userId: string }) => void;
 }
 
 interface ExpenseFormData {
@@ -120,7 +121,11 @@ export default function EditExpenseModal({
       if (error) throw error;
 
       toast.success('Expense updated successfully!');
-      onExpenseUpdated();
+      onExpenseUpdated({ 
+        title: formData.title, 
+        amount: parseFloat(formData.amount), 
+        userId: formData.paidBy 
+      });
       onClose();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";

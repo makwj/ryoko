@@ -3,9 +3,9 @@
 
 -- Create profiles table to store additional user data
 CREATE TABLE profiles (
-  id UUID REFERENCES auth.users(id) PRIMARY KEY,
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   name TEXT,
-  email TEXT,
+  avatar_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -29,8 +29,8 @@ CREATE POLICY "Users can insert own profile" ON profiles
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, name, email)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'name', NEW.email);
+  INSERT INTO public.profiles (id, name)
+  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'name', NEW.email));
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -98,6 +98,7 @@ CREATE TABLE expenses (
   amount DECIMAL(10,2) NOT NULL,
   category TEXT CHECK (category IN ('food', 'transportation', 'accommodation', 'activity', 'shopping', 'other')) NOT NULL,
   paid_by UUID REFERENCES auth.users(id) NOT NULL,
+  added_by UUID REFERENCES auth.users(id) NOT NULL, -- Track who created the expense
   split_with JSONB NOT NULL, -- Array of user IDs or "everyone"
   split_amounts JSONB, -- Object with user_id: amount for custom splits
   expense_date DATE NOT NULL,
@@ -196,6 +197,18 @@ CREATE TABLE invitations (
   UNIQUE(trip_id, invitee_email)
 );
 
+-- Create activity_logs table for tracking trip activities
+CREATE TABLE activity_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  trip_id UUID NOT NULL, -- Will be validated by RLS policies instead of foreign key
+  user_id UUID NOT NULL, -- Will be validated by RLS policies instead of foreign key
+  activity_type TEXT NOT NULL, -- 'activity_added', 'activity_edited', 'activity_deleted', 'activity_moved', 'idea_added', 'idea_edited', 'idea_deleted', 'gallery_uploaded', 'expense_settled', etc.
+  title TEXT NOT NULL, -- Human-readable title like "Added activity to itinerary"
+  description TEXT, -- More detailed description
+  metadata JSONB, -- Additional data like activity_id, day_number, file_count, etc.
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Enable RLS for all tables
 ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
@@ -206,115 +219,116 @@ ALTER TABLE ideas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE idea_votes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE idea_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for activities table
-CREATE POLICY "Users can view activities for their trips" ON activities
+CREATE POLICY "Users can view activities for accessible trips" ON activities
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = activities.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can insert activities for their trips" ON activities
+CREATE POLICY "Users can insert activities for accessible trips" ON activities
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = activities.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can update activities for their trips" ON activities
+CREATE POLICY "Users can update activities for accessible trips" ON activities
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = activities.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can delete activities for their trips" ON activities
+CREATE POLICY "Users can delete activities for accessible trips" ON activities
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = activities.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
 -- Create policies for expenses table
-CREATE POLICY "Users can view expenses for their trips" ON expenses
+CREATE POLICY "Users can view expenses for accessible trips" ON expenses
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = expenses.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can insert expenses for their trips" ON expenses
+CREATE POLICY "Users can insert expenses for accessible trips" ON expenses
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = expenses.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can update expenses for their trips" ON expenses
+CREATE POLICY "Users can update expenses for accessible trips" ON expenses
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = expenses.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can delete expenses for their trips" ON expenses
+CREATE POLICY "Users can delete expenses for accessible trips" ON expenses
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = expenses.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
 -- Create policies for settlements table
-CREATE POLICY "Users can view settlements for their trips" ON settlements
+CREATE POLICY "Users can view settlements for accessible trips" ON settlements
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = settlements.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can insert settlements for their trips" ON settlements
+CREATE POLICY "Users can insert settlements for accessible trips" ON settlements
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = settlements.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can update settlements for their trips" ON settlements
+CREATE POLICY "Users can update settlements for accessible trips" ON settlements
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = settlements.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
-CREATE POLICY "Users can delete settlements for their trips" ON settlements
+CREATE POLICY "Users can delete settlements for accessible trips" ON settlements
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM trips 
       WHERE trips.id = settlements.trip_id 
-      AND trips.owner_id = auth.uid()
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
     )
   );
 
@@ -523,6 +537,10 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('trip-files', 'trip-files', true)
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
 -- Create storage policies for gallery images
 CREATE POLICY "Authenticated users can upload gallery images" ON storage.objects
 FOR INSERT WITH CHECK (
@@ -564,6 +582,28 @@ CREATE POLICY "Users can delete files for their trips" ON storage.objects
     auth.uid() IS NOT NULL
   );
 
+-- Create storage policies for avatars
+CREATE POLICY "Avatar images are publicly accessible" ON storage.objects
+  FOR SELECT USING (bucket_id = 'avatars');
+
+CREATE POLICY "Users can upload their own avatar" ON storage.objects
+  FOR INSERT WITH CHECK (
+    bucket_id = 'avatars' 
+    AND auth.uid() IS NOT NULL
+  );
+
+CREATE POLICY "Users can update their own avatar" ON storage.objects
+  FOR UPDATE USING (
+    bucket_id = 'avatars' 
+    AND auth.uid() IS NOT NULL
+  );
+
+CREATE POLICY "Users can delete their own avatar" ON storage.objects
+  FOR DELETE USING (
+    bucket_id = 'avatars' 
+    AND auth.uid() IS NOT NULL
+  );
+
 -- Create indexes for better performance
 CREATE INDEX idx_activities_trip_day ON activities(trip_id, day_number);
 CREATE INDEX idx_activities_order ON activities(trip_id, day_number, order_index);
@@ -591,6 +631,63 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_invitations_updated_at 
     BEFORE UPDATE ON invitations 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create indexes for activity_logs
+CREATE INDEX idx_activity_logs_trip_id ON activity_logs(trip_id);
+CREATE INDEX idx_activity_logs_created_at ON activity_logs(created_at DESC);
+CREATE INDEX idx_activity_logs_user_id ON activity_logs(user_id);
+
+-- RLS Policies for activity_logs
+-- Users can view activity logs for trips they have access to
+CREATE POLICY "Users can view activity logs for accessible trips" ON activity_logs
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM trips 
+      WHERE trips.id = activity_logs.trip_id 
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
+    )
+  );
+
+-- Users can insert activity logs for trips they have access to
+CREATE POLICY "Users can insert activity logs for accessible trips" ON activity_logs
+  FOR INSERT WITH CHECK (
+    user_id = auth.uid() AND
+    EXISTS (
+      SELECT 1 FROM trips 
+      WHERE trips.id = trip_id 
+      AND (trips.owner_id = auth.uid() OR trips.collaborators @> ARRAY[auth.uid()::text])
+    )
+  );
+
+-- Only trip owners can delete activity logs
+CREATE POLICY "Trip owners can delete activity logs" ON activity_logs
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM trips 
+      WHERE trips.id = activity_logs.trip_id 
+      AND trips.owner_id = auth.uid()
+    )
+  );
+
+-- Function to log activity (can be called from triggers or application code)
+CREATE OR REPLACE FUNCTION log_trip_activity(
+  p_trip_id UUID,
+  p_user_id UUID,
+  p_activity_type TEXT,
+  p_title TEXT,
+  p_description TEXT DEFAULT NULL,
+  p_metadata JSONB DEFAULT NULL
+) RETURNS UUID AS $$
+DECLARE
+  log_id UUID;
+BEGIN
+  INSERT INTO activity_logs (trip_id, user_id, activity_type, title, description, metadata)
+  VALUES (p_trip_id, p_user_id, p_activity_type, p_title, p_description, p_metadata)
+  RETURNING id INTO log_id;
+  
+  RETURN log_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 

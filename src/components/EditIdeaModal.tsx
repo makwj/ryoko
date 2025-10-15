@@ -22,7 +22,7 @@ interface EditIdeaModalProps {
     link_url?: string;
     tags: string[];
   };
-  onIdeaUpdated: () => void;
+  onIdeaUpdated: (ideaData?: { title: string }) => void;
 }
 
 interface IdeaFormData {
@@ -152,7 +152,7 @@ export default function EditIdeaModal({
       if (error) throw error;
 
       toast.success('Idea updated successfully!');
-      onIdeaUpdated();
+      onIdeaUpdated({ title: formData.title });
       onClose();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";

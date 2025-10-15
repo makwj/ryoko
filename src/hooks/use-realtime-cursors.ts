@@ -45,8 +45,12 @@ const EVENT_NAME = 'realtime-cursor-move'
 
 type CursorEventPayload = {
   position: {
-    x: number
-    y: number
+    xNorm: number
+    yNorm: number
+  }
+  canvas: {
+    scrollWidth: number
+    scrollHeight: number
   }
   user: {
     id: number
@@ -74,11 +78,31 @@ export const useRealtimeCursors = ({
   const callback = useCallback(
     (event: MouseEvent) => {
       const { clientX, clientY } = event
+      
+      // Store the last mouse event for scroll/resize rebroadcasting
+      ;(window as any).lastMouseEvent = event
+      
+      // Use the main content area as the shared canvas
+      const mainContent = document.querySelector('[data-main-content]') as HTMLElement
+      const canvas = mainContent || document.documentElement
+      const rect = canvas.getBoundingClientRect()
+      
+      // Calculate absolute canvas coordinates (including scroll)
+      const docX = canvas.scrollLeft + (clientX - rect.left)
+      const docY = canvas.scrollTop + (clientY - rect.top)
+      
+      // Normalize to [0..1] based on canvas scroll dimensions
+      const xNorm = Math.max(0, Math.min(1, docX / canvas.scrollWidth))
+      const yNorm = Math.max(0, Math.min(1, docY / canvas.scrollHeight))
 
       const payload: CursorEventPayload = {
         position: {
-          x: clientX,
-          y: clientY,
+          xNorm,
+          yNorm,
+        },
+        canvas: {
+          scrollWidth: canvas.scrollWidth,
+          scrollHeight: canvas.scrollHeight,
         },
         user: {
           id: userId,
@@ -163,9 +187,43 @@ export const useRealtimeCursors = ({
     // Add event listener for mousemove
     window.addEventListener('mousemove', handleMouseMove)
 
+    // Handle window resize to update viewport info (debounced)
+    let resizeTimeout: NodeJS.Timeout
+    const handleResize = () => {
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        // Trigger a cursor update with current position to broadcast new viewport size
+        const event = new MouseEvent('mousemove', {
+          clientX: window.innerWidth / 2,
+          clientY: window.innerHeight / 2,
+        })
+        handleMouseMove(event)
+      }, 100) // Debounce resize events
+    }
+
+    // Handle scroll to update cursor position (debounced)
+    let scrollTimeout: NodeJS.Timeout
+    const handleScroll = () => {
+      clearTimeout(scrollTimeout)
+      scrollTimeout = setTimeout(() => {
+        // Get current mouse position and rebroadcast with new scroll context
+        const lastMouseEvent = (window as any).lastMouseEvent
+        if (lastMouseEvent) {
+          handleMouseMove(lastMouseEvent)
+        }
+      }, 50) // Debounce scroll events
+    }
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('scroll', handleScroll)
+
     // Cleanup on unmount
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('scroll', handleScroll)
+      clearTimeout(resizeTimeout)
+      clearTimeout(scrollTimeout)
     }
   }, [handleMouseMove])
 

@@ -15,7 +15,7 @@ interface AddIdeaModalProps {
   open: boolean;
   onClose: () => void;
   tripId: string;
-  onIdeaAdded: () => void;
+  onIdeaAdded: (ideaData?: { title: string }) => void;
 }
 
 interface IdeaFormData {
@@ -133,7 +133,7 @@ export default function AddIdeaModal({
       if (error) throw error;
 
       toast.success('Idea added successfully!');
-      onIdeaAdded();
+      onIdeaAdded({ title: formData.title });
       onClose();
       
       // Reset form

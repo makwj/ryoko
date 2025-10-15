@@ -27,8 +27,9 @@ interface EditActivityModalProps {
     note?: string;
     link_url?: string;
     attachments?: (string | {url: string, customName: string})[];
+    day_number: number;
   };
-  onActivityUpdated: () => void;
+  onActivityUpdated: (activity?: { title: string; dayNumber: number }) => void;
 }
 
 interface FileWithCustomName {
@@ -268,7 +269,7 @@ export default function EditActivityModal({
       if (error) throw error;
 
       toast.success('Activity updated successfully!');
-      onActivityUpdated();
+      onActivityUpdated({ title: formData.title, dayNumber: activity.day_number });
       onClose();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";

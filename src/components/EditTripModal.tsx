@@ -23,7 +23,7 @@ interface EditTripModalProps {
     start_date?: string;
     end_date?: string;
   };
-  onTripUpdated: () => void;
+  onTripUpdated: (updateType?: string) => void;
 }
 
 interface TripFormData {
@@ -98,7 +98,7 @@ export default function EditTripModal({
       if (error) throw error;
 
       toast.success('Trip updated successfully!');
-      onTripUpdated();
+      onTripUpdated('details');
       onClose();
       
     } catch (error: unknown) {

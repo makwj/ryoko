@@ -16,11 +16,14 @@ interface InviteCollaboratorsModalProps {
   tripId: string;
   tripTitle: string;
   onInvitesSent: () => void;
+  existingParticipants?: { id: string; email: string; name: string }[];
 }
 
 interface InviteData {
   email: string;
   name?: string;
+  status: 'new' | 'existing' | 'duplicate';
+  existingName?: string;
 }
 
 export default function InviteCollaboratorsModal({
@@ -29,6 +32,7 @@ export default function InviteCollaboratorsModal({
   tripId,
   tripTitle,
   onInvitesSent,
+  existingParticipants = [],
 }: InviteCollaboratorsModalProps) {
   const [loading, setLoading] = useState(false);
   const [invites, setInvites] = useState<InviteData[]>([]);
@@ -62,16 +66,38 @@ export default function InviteCollaboratorsModal({
       return;
     }
 
-    // Check if email is already in the list
-    if (invites.some(invite => invite.email.toLowerCase() === currentEmail.toLowerCase())) {
-      setError("This email has already been added");
+    const emailLower = currentEmail.toLowerCase();
+
+    // Check if email is already in the invite list
+    if (invites.some(invite => invite.email.toLowerCase() === emailLower)) {
+      setError("This email has already been added to the invite list");
       return;
     }
 
-    setInvites(prev => [...prev, { email: currentEmail, name: currentName || undefined }]);
+    // Check if user is already a participant
+    const existingParticipant = existingParticipants.find(
+      p => p.email.toLowerCase() === emailLower
+    );
+
+    if (existingParticipant) {
+      setInvites(prev => [...prev, { 
+        email: currentEmail, 
+        name: currentName || undefined,
+        status: 'existing',
+        existingName: existingParticipant.name
+      }]);
+      setError(null);
+    } else {
+      setInvites(prev => [...prev, { 
+        email: currentEmail, 
+        name: currentName || undefined,
+        status: 'new'
+      }]);
+      setError(null);
+    }
+
     setCurrentEmail("");
     setCurrentName("");
-    setError(null);
   };
 
   const removeInvite = (index: number) => {
@@ -80,8 +106,17 @@ export default function InviteCollaboratorsModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (invites.length === 0) {
-      setError("Please add at least one collaborator to invite");
+    
+    // Filter out existing participants
+    const newInvites = invites.filter(invite => invite.status === 'new');
+    
+    if (newInvites.length === 0) {
+      const existingCount = invites.filter(invite => invite.status === 'existing').length;
+      if (existingCount > 0) {
+        setError("All selected users are already collaborators. Please add new email addresses to invite.");
+      } else {
+        setError("Please add at least one collaborator to invite");
+      }
       return;
     }
 
@@ -100,7 +135,7 @@ export default function InviteCollaboratorsModal({
       console.log('Token length:', session.access_token.length);
       console.log('Sending invitation for tripId:', tripId, 'tripTitle:', tripTitle);
       console.log('TripId type:', typeof tripId, 'TripId value:', tripId);
-      console.log('Invites to send:', invites);
+      console.log('New invites to send:', newInvites);
 
       const response = await fetch('/api/send-invitations', {
         method: 'POST',
@@ -111,7 +146,7 @@ export default function InviteCollaboratorsModal({
         body: JSON.stringify({
           tripId,
           tripTitle,
-          invites,
+          invites: newInvites,
         }),
       });
 
@@ -204,38 +239,44 @@ export default function InviteCollaboratorsModal({
                       </Button>
                     </div>
                   </div>
-
-                  <div>
-                    <Label className="text-xs font-medium text-[#666]">NAME (OPTIONAL)</Label>
-                    <Input
-                      type="text"
-                      value={currentName}
-                      onChange={(e) => setCurrentName(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      className="mt-1 w-full h-11"
-                      placeholder="Friend's name"
-                    />
-                  </div>
                 </div>
 
                 {/* Invites list */}
                 {invites.length > 0 && (
                   <div className="space-y-2">
-                    <h3 className="text-sm font-semibold text-gray-700">Invitations to Send ({invites.length})</h3>
+                    <h3 className="text-sm font-semibold text-gray-700">
+                      Collaborators ({invites.length})
+                    </h3>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {invites.map((invite, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg"
+                          className={`flex items-center justify-between p-3 border rounded-lg ${
+                            invite.status === 'existing' 
+                              ? 'bg-yellow-50 border-yellow-200' 
+                              : 'bg-white border-gray-200'
+                          }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-[#ff5a58] rounded-full flex items-center justify-center">
-                              <Mail className="w-4 h-4 text-white" />
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              invite.status === 'existing' 
+                                ? 'bg-yellow-500' 
+                                : 'bg-[#ff5a58]'
+                            }`}>
+                              {invite.status === 'existing' ? (
+                                <AlertCircle className="w-4 h-4 text-white" />
+                              ) : (
+                                <Mail className="w-4 h-4 text-white" />
+                              )}
                             </div>
                             <div>
                               <p className="text-sm font-medium text-dark">{invite.email}</p>
-                              {invite.name && (
-                                <p className="text-xs text-gray-500">{invite.name}</p>
+                              {invite.status === 'existing' ? (
+                                <p className="text-xs text-yellow-700">
+                                  Already a collaborator ({invite.existingName})
+                                </p>
+                              ) : (
+                                <p className="text-xs text-gray-500">New invitation</p>
                               )}
                             </div>
                           </div>
@@ -257,7 +298,7 @@ export default function InviteCollaboratorsModal({
                 {/* Submit button */}
                 <Button
                   type="submit"
-                  disabled={loading || invites.length === 0}
+                  disabled={loading || invites.filter(invite => invite.status === 'new').length === 0}
                   className="w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold"
                 >
                   {loading ? (
@@ -265,7 +306,7 @@ export default function InviteCollaboratorsModal({
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      Send {invites.length} Invitation{invites.length !== 1 ? 's' : ''}
+                      Send {invites.filter(invite => invite.status === 'new').length} Invitation{invites.filter(invite => invite.status === 'new').length !== 1 ? 's' : ''}
                     </>
                   )}
                 </Button>

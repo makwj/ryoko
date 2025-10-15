@@ -121,12 +121,15 @@ async function fetchPlaces(query: string, destination?: string): Promise<GoogleP
       searchQuery = `${query} in ${destination}`;
     }
     
+    console.log(`Fetching places for query: "${searchQuery}"`);
+    
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${process.env.GOOGLE_PLACES_API_KEY}`
     );
 
     if (response.ok) {
       const data: GooglePlaceResponse = await response.json();
+      console.log(`Google Places response for "${searchQuery}":`, data.results?.length || 0, 'results');
       if (data.results) {
         return data.results;
       } else {
@@ -252,8 +255,12 @@ export async function POST(request: NextRequest) {
       console.error('GOOGLE_GEMINI_API_KEY is not set');
       return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
     }
+    
+    console.log('API Keys configured - Places:', !!process.env.GOOGLE_PLACES_API_KEY, 'Gemini:', !!process.env.GOOGLE_GEMINI_API_KEY);
 
     const { tripData }: { tripData: TripData } = await request.json();
+    
+    console.log('Received trip data:', tripData);
     
     if (!tripData) {
       return NextResponse.json({ error: 'Trip data is required' }, { status: 400 });
@@ -272,11 +279,14 @@ export async function POST(request: NextRequest) {
     // Step 1: Generate search queries based on interests
     const placeTypes = getPlacesTypesFromInterests(interests);
     const placesQueries = [
-      ...placeTypes.map(type => `${type} in ${destination}`),
-      ...interests.map(interest => `best ${interest} ${destination}`),
-      ...interests.map(interest => `popular ${interest} ${destination}`),
-      `attractions ${destination}`,
-      `popular places ${destination}`
+      // Use more natural language queries
+      ...interests.map(interest => `best ${interest} in ${destination}`),
+      ...interests.map(interest => `popular ${interest} in ${destination}`),
+      ...interests.map(interest => `top ${interest} ${destination}`),
+      `tourist attractions in ${destination}`,
+      `popular places in ${destination}`,
+      `things to do in ${destination}`,
+      `must visit places in ${destination}`
     ];
 
     // Only include accommodation searches if accommodation is explicitly in interests
@@ -290,9 +300,11 @@ export async function POST(request: NextRequest) {
 
 
     // Step 2: Fetch places from Google Places API
+    console.log('Fetching places with queries:', placesQueries);
     const allPlaces = await Promise.all(
       placesQueries.map(query => fetchPlaces(query, destination))
     );
+    console.log('All places fetched:', allPlaces.map(places => places.length));
     
     // Flatten and deduplicate by place_id, excluding already shown places
     const uniquePlaces = new Map();
@@ -308,12 +320,15 @@ export async function POST(request: NextRequest) {
     });
     
     let initialPlaces = Array.from(uniquePlaces.values());
+    console.log('Unique places after deduplication:', initialPlaces.length);
     
     // Add randomization to get different results each time
     initialPlaces = initialPlaces.sort(() => Math.random() - 0.5);
 
     if (initialPlaces.length === 0) {
       console.warn('No places found for destination:', destination);
+      console.warn('Places queries used:', placesQueries);
+      console.warn('All places results:', allPlaces);
       return NextResponse.json({ 
         error: 'No places found for the specified destination',
         recommendations: []
@@ -404,8 +419,8 @@ CONSIDERATIONS:
 3. **Interests Match**: Prioritize places that align with: ${interests.join(', ')}
 4. **Quality Assurance**: Only recommend places with 4.0+ ratings and good reviews
 5. **Review-Based Insights**: Extract insights from actual user reviews provided
-
-For each recommendation, provide:
+    
+    For each recommendation, provide:
 1. **recommendation_reason**: Why this place matches the group based on reviews and ratings
 2. **best_for**: Extract from reviews - who reviewers say it's good for
 3. **timing_advice**: Use opening hours if available, otherwise say "Check opening hours"
