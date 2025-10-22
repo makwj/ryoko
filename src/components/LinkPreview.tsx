@@ -1,3 +1,12 @@
+/**
+ * LinkPreview Component
+ * 
+ * Displays rich previews of URLs shared in chat messages and trip content.
+ * Fetches metadata from URLs to show title, description, and thumbnail images.
+ * Includes loading states and error handling for failed preview generation.
+ * Used in the AI chat interface and trip planning content.
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";

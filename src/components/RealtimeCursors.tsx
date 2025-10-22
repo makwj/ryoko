@@ -1,3 +1,12 @@
+/**
+ * RealtimeCursors Component
+ * 
+ * Displays live cursors of other users collaborating on the same trip in real-time.
+ * Uses Supabase Realtime to track cursor positions and movements across users.
+ * Converts normalized coordinates to pixel positions for accurate cursor display.
+ * Provides visual feedback for collaborative editing sessions.
+ */
+
 'use client'
 
 import { Cursor } from '@/components/Cursor'

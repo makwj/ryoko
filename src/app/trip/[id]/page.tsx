@@ -8,7 +8,6 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { motion } from "framer-motion";
 import { RealtimeCursors } from "@/components/RealtimeCursors";
 import { 
-  Home, 
   MapPin, 
   Users, 
   Bookmark, 
@@ -53,7 +52,8 @@ import {
   Navigation,
   Star,
   Activity,
-  Calculator
+  Calculator,
+  Phone
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -77,6 +77,7 @@ import { extractFirstUrl, removeUrlsFromText } from "@/lib/linkUtils";
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { ActivityLogger, fetchActivityLogs, clearActivityHistory, ActivityLog } from "@/lib/activityLogger";
 import Avatar from "@/components/ui/avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Navbar from "@/components/Navbar";
 import {
   DndContext,
@@ -292,7 +293,7 @@ function DroppableDay({
     <button
       ref={setNodeRef}
       onClick={() => onDayClick(day.day)}
-      className={`w-full text-left p-3 rounded-lg transition-colors ${
+      className={`cursor-pointer w-full text-left p-3 rounded-lg transition-colors ${
         isActive
           ? 'bg-[#ff5a58] text-white'
           : isOver
@@ -314,7 +315,7 @@ function DroppableDay({
                   <div className="font-medium">
                     {weather.temperature.high}°/{weather.temperature.low}°F
                   </div>
-                  <div className="text-gray-500">{weather.condition}</div>
+                  <div>{weather.condition}</div>
                 </div>
               </>
             ) : (
@@ -359,7 +360,7 @@ function DroppableDay({
           )}
           {/* Activity count */}
           <div className={`w-6 h-6 text-white text-xs rounded-full flex items-center justify-center ${
-            isActive ? 'bg-white text-[#ff5a58]' : 'bg-red-500'
+            isActive ? 'bg-[#303030] text-[#303030]' : 'bg-red-500'
           }`}>
             {day.activities}
           </div>
@@ -401,7 +402,7 @@ function InsertDropZone({
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-[20px] transition-colors ${
+      className={`min-h-[5px] transition-colors ${
         dragOverId === id 
           ? 'bg-blue-100 border-2 border-blue-400 border-dashed rounded' 
           : ''
@@ -550,7 +551,7 @@ function SortableActivityItem({
     <motion.div
       ref={setNodeRef}
       style={style}
-      className={`bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 ${
+      className={`bg-white border rounded-lg px-8 py-4 shadow-sm hover:shadow-md transition-all duration-200 ${
         isMultiSelectMode && isSelected 
           ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
           : 'border-gray-200 hover:border-gray-300'
@@ -559,7 +560,7 @@ function SortableActivityItem({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {/* Drag Handle */}
           <div
@@ -568,7 +569,7 @@ function SortableActivityItem({
             className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-2 rounded hover:bg-gray-100 transition-colors touch-none"
             style={{ touchAction: 'none' }}
           >
-            <GripVertical className="w-4 h-4" />
+            <GripVertical className="w-4 h-4 cursor-pointer" />
           </div>
           
           {/* Selection Checkbox - Only show in multi-select mode */}
@@ -588,36 +589,51 @@ function SortableActivityItem({
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(activity.activity_type)} whitespace-nowrap`}>
             {activity.activity_type.charAt(0).toUpperCase() + activity.activity_type.slice(1)}
           </span>
-          <LocationTooltip 
+        </div>
+        <div className="flex items-center gap-1">
+          
+          <Popover>
+            <PopoverTrigger asChild>
+              <button 
+                className="cursor-pointer text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                title="More options"
+              >
+                <MoreVertical className="w-4 h-4 cursor-pointer" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2" align="end">
+              <div className="space-y-1">
+                <button
+                  onClick={() => onEdit(activity)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit Activity
+                </button>
+                <button
+                  onClick={() => onDelete(activity.id)}
+                  className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Activity
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+      <LocationTooltip 
             locationText={activity.title} 
             onAskAI={() => onAskAI(activity.title)}
           >
-            <h3 className="font-semibold text-dark truncate hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{activity.title}</h3>
+            <h3 className="font-semibold text-xl text-dark truncate hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{activity.title}</h3>
           </LocationTooltip>
-        </div>
-        <div className="flex items-center gap-1">
-          <button 
-            onClick={() => onEdit(activity)}
-            className="text-gray-400 hover:text-blue-600 p-1 rounded-full hover:bg-blue-50 transition-colors"
-            title="Edit activity"
-          >
-            <Edit className="w-4 h-4" />
-          </button>
-          <button 
-            onClick={() => onDelete(activity.id)}
-            className="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition-colors"
-            title="Delete activity"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
       {activity.description && (
         <p className="text-gray-600 text-sm mb-3">{activity.description}</p>
       )}
 
       <div className="flex items-center gap-4 mb-3">
+        
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Clock className="w-4 h-4" />
           <span className="capitalize">{activity.time_period}</span>
@@ -1088,6 +1104,7 @@ export default function TripPage() {
   const [user, setUser] = useState<{ id: string; email?: string; name?: string } | null>(null);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [recommendations, setRecommendations] = useState<TripRecommendation[]>([]);
+  const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1095,29 +1112,12 @@ export default function TripPage() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [generatingRecommendations, setGeneratingRecommendations] = useState(false);
   const [generatingMore, setGeneratingMore] = useState(false);
-  const [showInterestSelector, setShowInterestSelector] = useState(false);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loadingActivityLogs, setLoadingActivityLogs] = useState(false);
   const [weatherData, setWeatherData] = useState<any[]>([]);
   const [loadingWeather, setLoadingWeather] = useState(false);
   const weatherFetchRef = useRef<string>(''); // Track last fetched weather key to prevent duplicates
 
-  // Available interest categories for browsing
-  const availableInterests = [
-    { value: 'adventure', label: 'Adventure', icon: '🏔️', description: 'Thrilling activities and outdoor adventures' },
-    { value: 'music', label: 'Music', icon: '🎵', description: 'Concerts, music venues, and musical experiences' },
-    { value: 'relaxation', label: 'Relaxation', icon: '🧘', description: 'Spas, wellness, and peaceful activities' },
-    { value: 'nightlife', label: 'Nightlife', icon: '🌃', description: 'Bars, clubs, and evening entertainment' },
-    { value: 'photography', label: 'Photography', icon: '📸', description: 'Scenic spots and photo opportunities' },
-    { value: 'architecture', label: 'Architecture', icon: '🏛️', description: 'Historic buildings and modern structures' },
-    { value: 'local-culture', label: 'Local Culture', icon: '🎭', description: 'Traditional experiences and local customs' },
-    { value: 'sports', label: 'Sports', icon: '⚽', description: 'Sports events and athletic activities' },
-    { value: 'accommodation', label: 'Accommodation', icon: '🏨', description: 'Hotels, hostels, and lodging options' },
-    { value: 'nature', label: 'Nature', icon: '🌿', description: 'Parks, gardens, and natural attractions' },
-    { value: 'art', label: 'Art', icon: '🎨', description: 'Museums, galleries, and artistic experiences' },
-    { value: 'food-culture', label: 'Food Culture', icon: '🍜', description: 'Culinary experiences and local cuisine' }
-  ];
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -1389,6 +1389,8 @@ export default function TripPage() {
         try {
           // If the current user was removed from collaborators, notify and redirect
           const newRow = payload.new as any;
+          const oldRow = payload.old as any;
+          
           if (user && newRow) {
             const isOwner = newRow.owner_id === user.id;
             const isCollaborator = Array.isArray(newRow.collaborators) && newRow.collaborators.includes(user.id);
@@ -1398,8 +1400,19 @@ export default function TripPage() {
               return;
             }
           }
-          await reloadTripAndParticipants();
-          toast.success('A collaborator has joined the trip');
+          
+          // Check if collaborators actually changed
+          const oldCollaborators = Array.isArray(oldRow?.collaborators) ? oldRow.collaborators : [];
+          const newCollaborators = Array.isArray(newRow?.collaborators) ? newRow.collaborators : [];
+          
+          // Only reload participants and show message if collaborators actually changed
+          if (JSON.stringify(oldCollaborators.sort()) !== JSON.stringify(newCollaborators.sort())) {
+            await reloadTripAndParticipants();
+            toast.success('Trip collaborators updated');
+          } else {
+            // For other trip updates (title, description, etc.), just update the trip data without reloading participants
+            setTrip(newRow);
+          }
         } catch (e) {
           console.error('Failed to refresh participants after update:', e);
         }
@@ -2928,25 +2941,6 @@ export default function TripPage() {
     }
   };
 
-  // Function to generate recommendations with selected interests
-  const generateRecommendationsWithInterests = async () => {
-    if (selectedInterests.length === 0) {
-      toast.error('Please select at least one interest category');
-      return;
-    }
-    
-    setShowInterestSelector(false);
-    await generateRecommendations(selectedInterests);
-  };
-
-  // Function to toggle interest selection
-  const toggleInterest = (interest: string) => {
-    setSelectedInterests(prev => 
-      prev.includes(interest) 
-        ? prev.filter(i => i !== interest)
-        : [...prev, interest]
-    );
-  };
 
   // Function to generate more recommendations
   const generateMoreRecommendations = async () => {
@@ -3480,9 +3474,9 @@ export default function TripPage() {
                       }
                       setShowTripActionsMenu(!showTripActionsMenu);
                     }}
-                    className="p-2 rounded-full bg-white/90 hover:bg-white shadow-sm transition-colors"
+                    className="cursor-pointer p-2 rounded-full bg-white/90 hover:bg-white shadow-sm transition-colors"
                   >
-                    <MoreVertical className="w-4 h-4 text-gray-600" />
+                    <MoreVertical className="w-4 h-4 text-gray-600 hover:text-gray-800 cursor-pointer" />
                   </button>
                   
                   {showTripActionsMenu && typeof window !== 'undefined' && createPortal(
@@ -3501,7 +3495,7 @@ export default function TripPage() {
                           setShowEditTripModal(true);
                           setShowTripActionsMenu(false);
                         }}
-                        className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        className="cursor-pointer w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Edit className="w-4 h-4" />
                         Edit Details
@@ -3515,7 +3509,7 @@ export default function TripPage() {
                             handleActivateTrip();
                             setShowTripActionsMenu(false);
                           }}
-                          className="w-full px-3 py-1.5 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                          className="cursor-pointer w-full px-3 py-1.5 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
                         >
                           <Play className="w-4 h-4" />
                           Set as Active
@@ -3529,7 +3523,7 @@ export default function TripPage() {
                           handleCompleteTrip();
                           setShowTripActionsMenu(false);
                         }}
-                            className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                            className="cursor-pointer w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <CheckCircle className="w-4 h-4" />
                             Mark Complete
@@ -3541,7 +3535,7 @@ export default function TripPage() {
                           handleArchiveTrip();
                           setShowTripActionsMenu(false);
                         }}
-                            className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                            className="cursor-pointer w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Archive className="w-4 h-4" />
                         Archive Trip
@@ -3557,7 +3551,7 @@ export default function TripPage() {
                           setShowTripActionsMenu(false);
                         }}
                         disabled={uploadingImage}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                        className="cursor-pointer w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
                       >
                         {uploadingImage ? (
                           <>
@@ -3593,7 +3587,7 @@ export default function TripPage() {
                           handleDeleteTrip();
                           setShowTripActionsMenu(false);
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        className="cursor-pointer w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                       >
                         <AlertTriangle className="w-4 h-4" />
                         Delete Trip
@@ -3638,7 +3632,7 @@ export default function TripPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 mb-2">
-                    <Pin className="w-4 h-4 drop-shadow-sm" />
+                    <MapPin className="w-4 h-4 drop-shadow-sm" />
                     <span className="text-sm drop-shadow-sm">{trip.destination || 'No destination set'}</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -3665,7 +3659,7 @@ export default function TripPage() {
                 <h3 className="text-lg font-bold text-dark">Group Interests</h3>
                 <button 
                   onClick={() => setShowUpdateInterestsModal(true)}
-                  className="text-sm text-gray-500 hover:text-[#ff5a58] transition-colors font-medium"
+                  className="cursor-pointer text-sm text-gray-500 hover:text-[#ff5a58] transition-colors font-medium"
                 >
                   Update Interests
                 </button>
@@ -3675,7 +3669,7 @@ export default function TripPage() {
                   trip.interests.map((interest, index) => (
                     <span
                       key={index}
-                      className="px-3 py-1 bg-gradient-to-r from-[#ff5a58]/10 to-[#ff5a58]/20 text-[#ff5a58] rounded-full text-sm font-medium border border-[#ff5a58]/20"
+                      className="px-4 py-2 bg-[#ff5a58] text-[#ff5a58] text-white rounded-full text-sm font-medium border-none"
                     >
                       {interest}
                     </span>
@@ -3697,7 +3691,7 @@ export default function TripPage() {
                   onClick={() => {
                     setShowInviteCollaboratorsModal(true);
                   }}
-                  className="text-sm text-gray-500 hover:text-[#ff5a58] transition-colors font-medium"
+                  className="cursor-pointer text-sm text-gray-500 hover:text-[#ff5a58] transition-colors font-medium"
                 >
                   Invite Participants
                 </button>
@@ -3715,7 +3709,7 @@ export default function TripPage() {
                           <span className="text-xs text-white font-medium">L</span>
                         </div>
                         <span className="text-sm text-gray-700 font-medium">Loading...</span>
-                        <span className="px-2 py-1 bg-gradient-to-r from-red-100 to-red-200 text-red-800 text-xs rounded-full font-medium border border-red-200">Creator</span>
+                        <span className="px-2 py-1  text-red-800 text-xs rounded-full font-medium border border-red-200">Creator</span>
                       </div>
                     );
                   }
@@ -3737,7 +3731,7 @@ export default function TripPage() {
                       <span className="text-sm text-gray-700 font-medium">
                         {tripOwner?.name || 'Trip Owner'}
                       </span>
-                      <span className="px-2 py-1 bg-gradient-to-r from-red-100 to-red-200 text-red-800 text-xs rounded-full font-medium border border-red-200">Creator</span>
+                      <span className="px-2 py-1 text-gray-400 bg-gray-200 text-xs rounded-full font-medium border-none">Creator</span>
                     </div>
                   );
                 })()}
@@ -3773,11 +3767,36 @@ export default function TripPage() {
                                   try {
                                     const current = Array.isArray(trip.collaborators) ? trip.collaborators : [];
                                     const updated = current.filter((id: string) => id !== collaboratorId);
+                                    
+                                    // Update trip collaborators
                                     const { error } = await supabase
                                       .from('trips')
                                       .update({ collaborators: updated })
                                       .eq('id', trip.id);
                                     if (error) throw error;
+
+                                    // Also clean up invitation records to prevent constraint violations when re-inviting
+                                    // We'll call an API endpoint that can properly handle this with admin privileges
+                                    try {
+                                      const response = await fetch('/api/remove-collaborator', {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+                                        },
+                                        body: JSON.stringify({
+                                          tripId: trip.id,
+                                          collaboratorId: collaboratorId
+                                        })
+                                      });
+                                      
+                                      if (!response.ok) {
+                                        console.warn('Failed to clean up invitation records');
+                                      }
+                                    } catch (cleanupError) {
+                                      console.warn('Could not clean up invitation records:', cleanupError);
+                                    }
+
                                     toast.success('Collaborator removed');
                                     // Optimistically update
                                     setTrip({ ...(trip as any), collaborators: updated } as any);
@@ -3822,7 +3841,7 @@ export default function TripPage() {
               <button
                 key={tab}
                   onClick={() => setActiveTab(tabKey)}
-                  className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+                  className={`cursor-pointer relative px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
                     activeTab === tabKey
                     ? 'bg-[#ff5a58] text-white'
                     : 'text-gray-600 hover:text-dark'
@@ -3927,13 +3946,18 @@ export default function TripPage() {
               </div>
 
             {/* Main Content Area */}
-                <div className="lg:col-span-3">
+            <div className="lg:col-span-3">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex justify-between items-center mb-6">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-gray-500" />
-                        <h2 className="text-xl font-bold text-dark">
-                          Day {activeDay} {currentDay && formatDate(currentDay.date.toISOString())} {currentDay && getDayName(currentDay.date.toISOString())}
+                      <div className="flex items-center gap-2 items-center justify-center">
+                        <Calendar className="w-5 h-5 text-[#ff5a58]" />
+                        <h2 className="text-xl font-bold text-[#ff5a58]">
+                          Day {activeDay}
+                          {currentDay && (
+                            <span className="text-sm text-gray-500 ml-2">
+                              {getDayName(currentDay.date.toISOString())}, {formatDate(currentDay.date.toISOString())}
+                            </span>
+                          )}
                         </h2>
                       </div>
                       <div className="flex items-center gap-2">
@@ -3991,13 +4015,13 @@ export default function TripPage() {
                         
                         <button 
                           onClick={() => setShowAddActivityModal(true)}
-                          className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                          className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
                           Add Activities
                         </button>
                       </div>
-                            </div>
+                    </div>
 
                     <div className="space-y-4">
                       {isReordering && (
@@ -4047,17 +4071,8 @@ export default function TripPage() {
                         </>
                       ) : (
                         <div className="text-center py-12">
-                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Plus className="w-8 h-8 text-gray-400" />
-                          </div>
                           <h3 className="text-lg font-medium text-dark mb-2">No activities yet</h3>
                           <p className="text-form mb-6">Add your first activity to start planning your day!</p>
-                          <button 
-                            onClick={() => setShowAddActivityModal(true)}
-                            className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                          >
-                            Add Activity
-                          </button>
                         </div>
                       )}
                     </div>
@@ -4068,7 +4083,7 @@ export default function TripPage() {
                 {activeId ? (
                   <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-lg opacity-90 transform rotate-3">
                     <div className="flex items-center gap-3">
-                      <GripVertical className="w-4 h-4 text-gray-400" />
+                      <GripVertical className="w-4 h-4 text-gray-400 cursor-pointer" />
                       <span className="font-semibold text-dark">
                         {activities.find(a => a.id === activeId)?.title}
                       </span>
@@ -4101,7 +4116,7 @@ export default function TripPage() {
                         <div className="flex items-center gap-2">
                       <button
                         onClick={() => setShowAddIdeaModal(true)}
-                            className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                            className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
                             Add Idea
@@ -4113,7 +4128,7 @@ export default function TripPage() {
                       <div className="flex gap-2 flex-wrap mb-6">
                       <button
                         onClick={() => setSelectedCategory('all')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                        className={`cursor-pointer px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                           selectedCategory === 'all'
                             ? 'bg-red-500 text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -4125,7 +4140,7 @@ export default function TripPage() {
                         <button
                           key={category}
                           onClick={() => setSelectedCategory(category)}
-                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors capitalize ${
+                          className={`cursor-pointer px-4 py-2 rounded-full text-sm font-medium transition-colors capitalize ${
                             selectedCategory === category
                               ? 'bg-red-500 text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -4148,20 +4163,16 @@ export default function TripPage() {
                           return (
                             <div key={idea.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
                               <div className="flex">
-                                {/* Image */}
-                                <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
-                                  {idea.link_image ? (
+                                {/* Image - Only show if there's an image */}
+                                {idea.link_image && (
+                                  <div className="w-[300px] bg-gray-100 flex-shrink-0">
                                     <img 
                                       src={idea.link_image} 
                                       alt={idea.title}
                                       className="w-full h-full object-cover"
                                     />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <MapPin className="w-8 h-8 text-gray-400" />
-                                    </div>
-                                  )}
-                                </div>
+                                  </div>
+                                )}
 
                                 {/* Content */}
                                 <div className="flex-1 p-4">
@@ -4203,7 +4214,7 @@ export default function TripPage() {
 
                                       {/* Location */}
                                       {idea.location && (
-                                          <div className="flex items-center gap-1 mb-3" data-location={idea.location}>
+                                          <div className="flex items-center gap-1 mb-3 bg-gray-100 text-gray-700 px-2 py-1 rounded-lg text-sm w-fit px-4" data-location={idea.location}>
                                           <MapPin className="w-4 h-4 text-gray-400" />
                                           <span className="text-sm text-gray-600">{idea.location}</span>
                                         </div>
@@ -4232,8 +4243,8 @@ export default function TripPage() {
                                           onClick={() => handleVoteIdea(idea.id, 'upvote')}
                                           className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
                                             userVote?.vote_type === 'upvote'
-                                              ? 'bg-red-100 text-red-600'
-                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                              ? 'bg-[#ff5a58] text-white cursor-pointer'
+                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
                                           }`}
                                         >
                                           <ThumbsUp className="w-4 h-4" />
@@ -4243,8 +4254,8 @@ export default function TripPage() {
                                           onClick={() => handleVoteIdea(idea.id, 'downvote')}
                                           className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
                                             userVote?.vote_type === 'downvote'
-                                              ? 'bg-red-100 text-red-600'
-                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                              ? 'bg-[#ff5a58] text-white cursor-pointer'
+                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
                                           }`}
                                         >
                                           <ThumbsDown className="w-4 h-4" />
@@ -4261,46 +4272,61 @@ export default function TripPage() {
                                         </div>
                                       </div>
 
-                                      {/* Added By */}
-                                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                                        <span>Added By:</span>
+                                      <div className="flex items-center justify-between text-sm text-gray-500">
                                         <div className="flex items-center gap-2">
-                                          <Avatar 
-                                            name={addedByParticipant?.name || 'Unknown'} 
-                                            imageUrl={addedByParticipant?.avatar_url}
-                                            size="sm"
-                                          />
-                                          <span>{addedByParticipant?.name || 'Unknown'}</span>
+                                          <span>Added By:</span>
+                                          <div className="flex items-center gap-2">
+                                            <Avatar 
+                                              name={addedByParticipant?.name || 'Unknown'} 
+                                              imageUrl={addedByParticipant?.avatar_url}
+                                              size="sm"
+                                            />
+                                            <span>{addedByParticipant?.name || 'Unknown'}</span>
+                                          </div>
                                         </div>
+                                        
+                                        {/* Move to Itinerary Button */}
+                                        <button
+                                          onClick={() => handleMoveToItinerary(idea)}
+                                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+                                        >
+                                          Move to Itinerary
+                                          <ArrowLeft className="w-3 h-3 rotate-180" />
+                                        </button>
                                       </div>
                                     </div>
 
                                     {/* Action Buttons */}
                                     <div className="flex items-center gap-2 ml-4">
-                                      {/* Edit and Delete buttons */}
-                                      <button
-                                        onClick={() => handleEditIdea(idea)}
-                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                        title="Edit idea"
-                                      >
-                                        <Edit className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteIdea(idea.id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        title="Delete idea"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                      
-                                      {/* Move to Itinerary Button */}
-                                      <button
-                                        onClick={() => handleMoveToItinerary(idea)}
-                                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                                      >
-                                        Move to Itinerary
-                                        <ArrowLeft className="w-4 h-4 rotate-180" />
-                                      </button>
+                                      {/* Dropdown Menu */}
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button
+                                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                            title="More options"
+                                          >
+                                            <MoreVertical className="w-4 h-4 cursor-pointer" />
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-48 p-2" align="end">
+                                          <div className="space-y-1">
+                                            <button
+                                              onClick={() => handleEditIdea(idea)}
+                                              className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                                            >
+                                              <Edit className="w-4 h-4" />
+                                              Edit Idea
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteIdea(idea.id)}
+                                              className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                              Delete Idea
+                                            </button>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
                                     </div>
                                   </div>
                                 </div>
@@ -4389,9 +4415,6 @@ export default function TripPage() {
                     {/* Empty State */}
                     {ideas.filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory)).length === 0 && (
                       <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Bookmark className="w-8 h-8 text-gray-400" />
-                        </div>
                         <h3 className="text-lg font-medium text-dark mb-2">No ideas yet</h3>
                         <p className="text-form mb-6">
                           {selectedCategory === 'all' 
@@ -4399,12 +4422,6 @@ export default function TripPage() {
                             : `No ${selectedCategory} ideas yet. Add some inspiration!`
                           }
                         </p>
-                        <button
-                          onClick={() => setShowAddIdeaModal(true)}
-                          className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                        >
-                          Add Your First Idea
-                        </button>
                       </div>
                     )}
                     </TextSelectionAI>
@@ -4418,19 +4435,10 @@ export default function TripPage() {
                         <h2 className="text-2xl font-bold text-dark">AI Trip Recommendations</h2>
                         <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
                       </div>
-                        <div className="flex items-center gap-3">
                       <button
-                            onClick={() => setShowInterestSelector(true)}
-                            disabled={generatingRecommendations}
-                            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
-                          >
-                            <span className="text-lg">🔍</span>
-                            Browse Other Interests
-                          </button>
-                          <button
-                            onClick={() => generateRecommendations()}
+                        onClick={() => generateRecommendations()}
                         disabled={generatingRecommendations}
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                        className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white text-sm px-6 py-3 rounded-lg font-medium transition-all duration-200 transform disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                       >
                         {generatingRecommendations ? (
                           <>
@@ -4439,18 +4447,16 @@ export default function TripPage() {
                           </>
                         ) : (
                           <>
-                            <Sparkles className="w-5 h-5" />
                             Generate Recommendations
                           </>
                         )}
                       </button>
-                      </div>
                     </div>
 
                     {/* Loading State */}
                     {generatingRecommendations && (
                   <div className="text-center py-12">
-                        <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
+                        <Loader2 className="w-8 h-8 animate-spin text-[#ff5a58] mx-auto mb-4" />
                         <p className="text-gray-600">Generating personalized recommendations...</p>
                         <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
                     </div>
@@ -4461,45 +4467,17 @@ export default function TripPage() {
                       <div className="grid gap-6">
                         {recommendations.map((recommendation) => (
                             <div key={recommendation.id} className="border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
-                            <div className="flex">
-                              {/* Image */}
-                              <div className="w-48 h-32 bg-gray-100 flex-shrink-0">
-                                {recommendation.image_url ? (
+                            <div className="flex px-4 py-2 items-center">
+                              {/* Image - Only show if there's an image */}
+                              {recommendation.image_url && (
+                                <div className="w-32 h-32 bg-gray-100 flex-shrink-0">
                                   <img 
                                     src={recommendation.image_url} 
                                     alt={recommendation.title}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover rounded-xl"
                                   />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center relative">
-                                      {/* Category Badge */}
-                                      {recommendation.category && (
-                                        <div className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium ${
-                                          recommendation.category === 'Must-Visit' ? 'bg-red-100 text-red-800' :
-                                          recommendation.category === 'Recommended' ? 'bg-green-100 text-green-800' :
-                                          'bg-blue-100 text-blue-800'
-                                        }`}>
-                                          {recommendation.category === 'Must-Visit' ? '⭐ Must-Visit' :
-                                           recommendation.category === 'Recommended' ? '✓ Recommended' :
-                                           '💡 Consider'}
-                                        </div>
-                                      )}
-                                    <span className="text-4xl">
-                                      {recommendation.activity_type === 'transportation' ? '🚗' :
-                                       recommendation.activity_type === 'accommodation' ? '🏨' :
-                                       recommendation.activity_type === 'activity' ? '🎯' :
-                                       recommendation.activity_type === 'food' ? '🍽️' :
-                                       recommendation.activity_type === 'shopping' ? '🛍️' :
-                                       recommendation.activity_type === 'nature' ? '🌿' :
-                                       recommendation.activity_type === 'history' ? '🏛️' :
-                                         recommendation.activity_type === 'culture' ? '🎭' :
-                                         recommendation.activity_type === 'entertainment' ? '🎪' :
-                                         recommendation.activity_type === 'sports' ? '⚽' :
-                                         recommendation.activity_type === 'religion' ? '⛪' : '📍'}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
+                                </div>
+                              )}
 
                               {/* Content */}
                               <div className="flex-1 p-4">
@@ -4514,19 +4492,23 @@ export default function TripPage() {
                                     
                                     {/* Activity Type Badge and Rating */}
                                     <div className="flex items-center gap-2 mb-2">
-                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                        recommendation.activity_type === 'transportation' ? 'bg-blue-100 text-blue-800' :
-                                        recommendation.activity_type === 'accommodation' ? 'bg-purple-100 text-purple-800' :
-                                        recommendation.activity_type === 'activity' ? 'bg-green-100 text-green-800' :
-                                        recommendation.activity_type === 'food' ? 'bg-orange-100 text-orange-800' :
-                                        recommendation.activity_type === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                        recommendation.activity_type === 'nature' ? 'bg-emerald-100 text-emerald-800' :
-                                        recommendation.activity_type === 'history' ? 'bg-amber-100 text-amber-800' :
-                                        recommendation.activity_type === 'culture' ? 'bg-indigo-100 text-indigo-800' :
-                                        'bg-gray-100 text-gray-800'
-                                      }`}>
-                                        {recommendation.activity_type}
-                                      </span>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        {recommendation.activity_type.split(',').map((type, index) => (
+                                          <span key={index} className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            type.trim() === 'transportation' ? 'bg-blue-100 text-blue-800' :
+                                            type.trim() === 'accommodation' ? 'bg-purple-100 text-purple-800' :
+                                            type.trim() === 'activity' ? 'bg-green-100 text-green-800' :
+                                            type.trim() === 'food' ? 'bg-orange-100 text-orange-800' :
+                                            type.trim() === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                            type.trim() === 'nature' ? 'bg-emerald-100 text-emerald-800' :
+                                            type.trim() === 'history' ? 'bg-amber-100 text-amber-800' :
+                                            type.trim() === 'culture' ? 'bg-indigo-100 text-indigo-800' :
+                                            'bg-gray-100 text-gray-800'
+                                          }`}>
+                                            {type.trim()}
+                                          </span>
+                                        ))}
+                                      </div>
                                       
                                         {/* Google Places Rating - Clickable */}
                                       {recommendation.rating && (
@@ -4537,7 +4519,7 @@ export default function TripPage() {
                                             className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
                                             title="View all reviews on Google Maps"
                                           >
-                                          <span className="text-yellow-500">⭐</span>
+                                          <Star className="w-3 h-3 text-yellow-500" />
                                           <span className="text-sm font-medium text-gray-700">
                                             {recommendation.rating.toFixed(1)}
                                           </span>
@@ -4550,12 +4532,110 @@ export default function TripPage() {
                                           </a>
                                       )}
                                     </div>
+                                  </div>
 
-                                    <p className="text-gray-600 text-sm mb-3">{recommendation.description}</p>
-                                      
+                                  {/* Action Button */}
+                                  <div className="ml-4">
+                                    <button
+                                      onClick={() => moveRecommendationToIdeas(recommendation)}
+                                      className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                    >
+                                      <Plus className="w-4 h-4 cursor-pointer" />
+                                      Add to Ideas
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Description - Full width underneath */}
+                                <div className="w-full">
+                                  <p className="text-gray-600 text-sm">{recommendation.description}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Enhanced Details */}
+                            <div className="px-4 pb-4">
+                              <div className="space-y-2">
+                                {/* Location */}
+                                <div className="flex items-center gap-1 text-sm text-gray-500" data-location={recommendation.location}>
+                                  <MapPin className="w-4 h-4" />
+                                  <span>{recommendation.location}</span>
+                                </div>
+                                
+                                {/* Time and Opening Hours */}
+                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                  <div className="flex items-center gap-1">
+                                  <span className="text-xs">Estimated Time:</span>
+                                    <span>{recommendation.estimated_time}</span>
+                                  </div>
+                                  
+                                  {/* Opening Hours */}
+                                  {recommendation.opening_hours && recommendation.opening_hours.length > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs">Opening Hours:</span>
+                                      <span className="text-xs">
+                                        {recommendation.opening_hours[0]}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Contact Info */}
+                                <div className="flex items-center gap-4 text-sm">
+                                  {/* Learn More Link */}
+                                  <div className="flex items-center gap-1">
+                                    <ExternalLink className="w-4 h-4 text-gray-400" />
+                                    <a 
+                                      href={recommendation.relevant_link} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      Learn More
+                                    </a>
+                                  </div>
+                                  
+                                  {/* Phone Number */}
+                                  {recommendation.phone_number && (
+                                    <div className="flex items-center gap-1">
+                                      <Phone className="w-4 h-4 text-gray-400" />
+                                      <a 
+                                        href={`tel:${recommendation.phone_number}`}
+                                        className="text-green-600 hover:text-green-800 hover:underline"
+                                      >
+                                        {recommendation.phone_number}
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Accordion for Additional Details */}
+                              {(recommendation.best_for || recommendation.timing_advice || recommendation.group_suitability || recommendation.practical_tips) && (
+                                <div className="mt-4 border-t pt-3">
+                                  <button
+                                    onClick={() => {
+                                      const newExpanded = new Set(expandedRecommendations);
+                                      if (newExpanded.has(recommendation.id)) {
+                                        newExpanded.delete(recommendation.id);
+                                      } else {
+                                        newExpanded.add(recommendation.id);
+                                      }
+                                      setExpandedRecommendations(newExpanded);
+                                    }}
+                                    className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors cursor-pointer w-full text-left"
+                                  >
+                                    <span className="font-medium">Additional Details</span>
+                                    <span className={`ml-auto transition-transform ${expandedRecommendations.has(recommendation.id) ? 'rotate-180' : 'rotate-0'}`}>
+                                      ▼
+                                    </span>
+                                  </button>
+                                  
+                                  {expandedRecommendations.has(recommendation.id) && (
+                                    <div className="mt-3 space-y-3">
                                       {/* Best For */}
                                       {recommendation.best_for && (
-                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                                           <div className="flex items-start gap-2">
                                             <span className="text-green-500 text-sm">🎯</span>
                                             <p className="text-green-800 text-sm font-medium">Best for:</p>
@@ -4566,7 +4646,7 @@ export default function TripPage() {
                                       
                                       {/* Timing Advice */}
                                       {recommendation.timing_advice && (
-                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                                           <div className="flex items-start gap-2">
                                             <span className="text-amber-500 text-sm">⏰</span>
                                             <p className="text-amber-800 text-sm font-medium">Timing advice:</p>
@@ -4577,7 +4657,7 @@ export default function TripPage() {
                                       
                                       {/* Group Suitability */}
                                       {recommendation.group_suitability && (
-                                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-3">
+                                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
                                           <div className="flex items-start gap-2">
                                             <span className="text-purple-500 text-sm">👥</span>
                                             <p className="text-purple-800 text-sm font-medium">Group suitability:</p>
@@ -4588,7 +4668,7 @@ export default function TripPage() {
                                       
                                       {/* Practical Tips */}
                                       {recommendation.practical_tips && (
-                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                                           <div className="flex items-start gap-2">
                                             <span className="text-gray-500 text-sm">💡</span>
                                             <p className="text-gray-800 text-sm font-medium">Practical tips:</p>
@@ -4596,86 +4676,10 @@ export default function TripPage() {
                                           <p className="text-gray-700 text-sm mt-1">{recommendation.practical_tips}</p>
                                         </div>
                                       )}
-                                    
-                                    {/* Enhanced Details */}
-                                    <div className="space-y-2">
-                                      {/* Location */}
-                                        <div className="flex items-center gap-1 text-sm text-gray-500" data-location={recommendation.location}>
-                                        <MapPin className="w-4 h-4" />
-                                        <span>{recommendation.location}</span>
-                                      </div>
-                                      
-                                      {/* Time and Opening Hours */}
-                                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                                        <div className="flex items-center gap-1">
-                                          <Clock className="w-4 h-4" />
-                                          <span>{recommendation.estimated_time}</span>
-                                        </div>
-                                        
-                                        {/* Opening Hours */}
-                                        {recommendation.opening_hours && recommendation.opening_hours.length > 0 && (
-                                          <div className="flex items-center gap-1">
-                                            <span className="text-xs">🕒</span>
-                                            <span className="text-xs">
-                                              {recommendation.opening_hours[0]}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Contact Info */}
-                                      {(recommendation.website || recommendation.phone_number) && (
-                                        <div className="flex items-center gap-4 text-sm">
-                                          {recommendation.website && (
-                                            <a 
-                                              href={recommendation.website} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer"
-                                              className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                                            >
-                                              <ExternalLink className="w-3 h-3" />
-                                              Website
-                                            </a>
-                                          )}
-                                          {recommendation.phone_number && (
-                                            <a 
-                                              href={`tel:${recommendation.phone_number}`}
-                                              className="text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
-                                            >
-                                              <span className="text-xs">📞</span>
-                                              Call
-                                            </a>
-                                          )}
-                                        </div>
-                                      )}
-                                      
-                                      {/* Learn More Link */}
-                                      <div className="flex items-center gap-1">
-                                        <ExternalLink className="w-4 h-4 text-gray-400" />
-                                        <a 
-                                          href={recommendation.relevant_link} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="text-blue-600 hover:text-blue-800 hover:underline text-sm"
-                                        >
-                                          Learn More
-                                        </a>
-                                      </div>
                                     </div>
-                                  </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="ml-4 flex flex-col gap-2">
-                                    <button
-                                      onClick={() => moveRecommendationToIdeas(recommendation)}
-                                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                      Add to Ideas
-                    </button>
-                                  </div>
+                                  )}
                                 </div>
-                              </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -4688,7 +4692,7 @@ export default function TripPage() {
                           <button
                             onClick={generateMoreRecommendations}
                             disabled={generatingMore}
-                            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all duration-200 shadow-lg hover:shadow-xl"
+                            className="cursor-pointer px-6 py-3 bg-[#ff5a58] hover:bg-[#ff4a47] text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all duration-200 shadow-lg hover:shadow-xl"
                           >
                             {generatingMore ? (
                               <>
@@ -4697,7 +4701,6 @@ export default function TripPage() {
                               </>
                             ) : (
                               <>
-                                <Plus className="w-4 h-4" />
                                 Generate More Recommendations
                               </>
                             )}
@@ -4708,125 +4711,23 @@ export default function TripPage() {
                     {/* Empty State */}
                     {!generatingRecommendations && recommendations.length === 0 && (
                       <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Sparkles className="w-8 h-8 text-white" />
-                        </div>
                         <h3 className="text-lg font-semibold text-dark mb-2">No Recommendations Yet</h3>
                         <p className="text-gray-500 mb-6">Generate AI-powered recommendations to get started!</p>
                       </div>
                     )}
 
-                      {/* Interest Selector Modal */}
-                      {showInterestSelector && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
-                          >
-                            <div className="p-6 border-b border-gray-200">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h3 className="text-xl font-bold text-dark">Browse Other Interests</h3>
-                                  <p className="text-gray-600 mt-1">Select interest categories to explore different types of activities</p>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    setShowInterestSelector(false);
-                                    setSelectedInterests([]);
-                                  }}
-                                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                >
-                                  <X className="w-5 h-5 text-gray-500" />
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="p-6 max-h-[60vh] overflow-y-auto">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {availableInterests.map((interest) => (
-                                  <div
-                                    key={interest.value}
-                                    onClick={() => toggleInterest(interest.value)}
-                                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                                      selectedInterests.includes(interest.value)
-                                        ? 'border-purple-500 bg-purple-50'
-                                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-2xl">{interest.icon}</span>
-                                      <div className="flex-1">
-                                        <h4 className="font-semibold text-dark">{interest.label}</h4>
-                                        <p className="text-sm text-gray-600">{interest.description}</p>
-                                      </div>
-                                      {selectedInterests.includes(interest.value) && (
-                                        <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-                                          <Check className="w-4 h-4 text-white" />
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="p-6 border-t border-gray-200 flex items-center justify-between">
-                              <div className="text-sm text-gray-600">
-                                {selectedInterests.length > 0 ? (
-                                  <span>Selected: {selectedInterests.length} interest{selectedInterests.length !== 1 ? 's' : ''}</span>
-                                ) : (
-                                  <span>Select at least one interest category</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <button
-                                  onClick={() => {
-                                    setShowInterestSelector(false);
-                                    setSelectedInterests([]);
-                                  }}
-                                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={generateRecommendationsWithInterests}
-                                  disabled={selectedInterests.length === 0 || generatingRecommendations}
-                                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                >
-                                  {generatingRecommendations ? (
-                                    <>
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                      Generating...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles className="w-4 h-4" />
-                                      Generate Recommendations
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </motion.div>
-                        </div>
-                      )}
                   </div>
                 )}
 
                 {activeTab === 'expenses' && (
                   <div className="space-y-6">
                     {/* Expense Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-[800px]">
                       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-gray-600">Total Expenses</p>
                             <p className="text-2xl font-bold text-dark">${expenseSummary.totalExpenses.toFixed(2)}</p>
-                          </div>
-                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <DollarSign className="w-6 h-6 text-blue-600" />
                           </div>
                         </div>
                       </div>
@@ -4837,9 +4738,6 @@ export default function TripPage() {
                             <p className="text-sm font-medium text-gray-600">You've Paid</p>
                             <p className="text-2xl font-bold text-dark">${expenseSummary.userPaid.toFixed(2)}</p>
                           </div>
-                          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <Calendar className="w-6 h-6 text-green-600" />
-                          </div>
                         </div>
                       </div>
 
@@ -4849,103 +4747,15 @@ export default function TripPage() {
                             <p className="text-sm font-medium text-gray-600">Your Share</p>
                             <p className="text-2xl font-bold text-dark">${expenseSummary.userShare.toFixed(2)}</p>
                           </div>
-                          <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                            <Users className="w-6 h-6 text-purple-600" />
-                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Payment Settlement */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                      <div className="p-6 border-b border-gray-100">
-                        <div>
-                          <h3 className="text-lg font-semibold text-dark">Payment Settlement</h3>
-                          <p className="text-sm text-gray-500">Who should pay how much to whom</p>
-                        </div>
-                      </div>
-                      <div className="p-6">
-                        {(() => {
-                          const calculatedSettlements = calculateSettlements();
-                          const unpaidSettlements = calculatedSettlements.filter(calculatedSettlement => {
-                            return !settlements.some(settlement => 
-                              settlement.from_user_id === calculatedSettlement.fromId &&
-                              settlement.to_user_id === calculatedSettlement.toId &&
-                              Math.abs(settlement.amount - calculatedSettlement.amount) < 0.01
-                            );
-                          });
-
-                          if (unpaidSettlements.length === 0) {
-                            return (
-                              <div className="text-center py-8">
-                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                  <CheckCircle className="w-8 h-8 text-green-600" />
-                                </div>
-                                <h4 className="text-lg font-medium text-gray-900 mb-2">All Settled!</h4>
-                                <p className="text-gray-500">Everyone's expenses are balanced. No payments needed.</p>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div className="space-y-3">
-                              {unpaidSettlements.map((settlement, index) => {
-                                const fromParticipant = participants.find(p => p.id === settlement.fromId);
-                                const toParticipant = participants.find(p => p.id === settlement.toId);
-                                
-                                return (
-                                  <div
-                                    key={index}
-                                    className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                                          <DollarSign className="w-5 h-5 text-gray-600" />
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                          <div className="flex items-center gap-2">
-                                            <Avatar
-                                              name={fromParticipant?.name || 'Unknown'}
-                                              imageUrl={fromParticipant?.avatar_url}
-                                              size="sm"
-                                              showTooltip={true}
-                                            />
-                                            <span className="font-medium text-gray-900">
-                                              {fromParticipant?.name || 'Unknown'}
-                                            </span>
-                                          </div>
-                                          <span className="text-gray-400">→</span>
-                                          <div className="flex items-center gap-2">
-                                            <Avatar
-                                              name={toParticipant?.name || 'Unknown'}
-                                              imageUrl={toParticipant?.avatar_url}
-                                              size="sm"
-                                              showTooltip={true}
-                                            />
-                                            <span className="font-medium text-gray-900">
-                                              {toParticipant?.name || 'Unknown'}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <div className="text-lg font-semibold text-gray-900">
-                                          ${settlement.amount.toFixed(2)}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Expense History */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                    {/* Main Content: Expense History (70%) and Payment Settlement (30%) */}
+                    <div className="flex flex-col lg:flex-row gap-6">
+                      {/* Expense History - 70% width on large screens, full width on smaller */}
+                      <div className="w-full lg:w-[70%]">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
                       <div className="p-6 border-b border-gray-100">
                         <div className="flex items-center justify-between">
                           <div>
@@ -4954,10 +4764,11 @@ export default function TripPage() {
                           </div>
                           <button
                             onClick={() => setShowAddExpenseModal(true)}
-                            className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                            className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
                           >
-                            <Plus className="w-4 h-4" />
                             Add Expense
+                            <Plus className="w-4 h-4" />
+
                           </button>
                         </div>
                       </div>
@@ -4975,8 +4786,39 @@ export default function TripPage() {
                                 const canEdit = user && (expense.added_by === user.id || trip?.owner_id === user.id);
 
                               return (
-                                <div key={expense.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
-                                  <div className="flex items-start justify-between">
+                                <div key={expense.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow relative">
+                                  {/* Dropdown menu - Top right corner */}
+                                  {canEdit && (
+                                    <div className="absolute top-4 right-4">
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                                            <MoreVertical className="w-4 h-4" />
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-48 p-1" align="end">
+                                          <div className="space-y-1">
+                                            <button
+                                              onClick={() => handleEditExpense(expense)}
+                                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                                            >
+                                              <Edit className="w-4 h-4" />
+                                              Edit Expense
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteExpense(expense.id)}
+                                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                              Delete Expense
+                                            </button>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                  )}
+
+                                  <div className="flex items-center justify-between pr-12">
                                     <div className="flex-1">
                                       <div className="flex items-center gap-3 mb-2">
                                         <h4 className="font-medium text-dark">{expense.title}</h4>
@@ -4997,12 +4839,6 @@ export default function TripPage() {
                                       )}
                                       
                                       <div className="flex items-center gap-4 text-sm text-gray-500">
-                                        <div className="flex items-center gap-1">
-                                          <DollarSign className="w-4 h-4" />
-                                          <span className="font-medium">${expense.amount.toFixed(2)}</span>
-                                          <span>(${shareAmount.toFixed(2)} each)</span>
-                                        </div>
-                                        
                                         <div className="flex items-center gap-1">
                                           <Calendar className="w-4 h-4" />
                                           <span>{new Date(expense.expense_date).toLocaleDateString('en-US', { 
@@ -5025,39 +4861,15 @@ export default function TripPage() {
                                           <Users className="w-4 h-4" />
                                           <span>Split with: {expense.split_with === 'everyone' ? 'Everyone' : 'Selected'}</span>
                                         </div>
-                                          
-                                          {addedByParticipant && (
-                                            <div className="flex items-center gap-2">
-                                              <Avatar 
-                                                name={addedByParticipant.name || 'Unknown'} 
-                                                imageUrl={addedByParticipant.avatar_url}
-                                                size="sm"
-                                              />
-                                              <span>Added by {addedByParticipant.name}</span>
-                                            </div>
-                                          )}
                                       </div>
                                     </div>
-                                    
-                                      {/* Edit and Delete buttons - only show if user can edit */}
-                                      {canEdit && (
-                                    <div className="flex items-center gap-2 ml-4">
-                                      <button
-                                        onClick={() => handleEditExpense(expense)}
-                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                        title="Edit expense"
-                                      >
-                                        <Edit className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteExpense(expense.id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        title="Delete expense"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
+
+                                    {/* Total Price - Far right, vertically centered */}
+                                    <div className="text-right">
+                                      <div className="text-2xl font-bold text-dark">
+                                        ${expense.amount.toFixed(2)}
+                                      </div>
                                     </div>
-                                      )}
                                   </div>
                                 </div>
                               );
@@ -5080,8 +4892,100 @@ export default function TripPage() {
                         )}
                       </div>
                     </div>
+                      </div>
+
+                      {/* Payment Settlement - 30% width on large screens, full width on smaller */}
+                      <div className="w-full lg:w-[30%]">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                          <div className="p-6 border-b border-gray-100">
+                            <div>
+                              <h3 className="text-lg font-semibold text-dark">Payment Settlement</h3>
+                              <p className="text-sm text-gray-500">Who should pay how much to whom</p>
+                            </div>
+                          </div>
+                          <div className="p-6">
+                            {(() => {
+                              const calculatedSettlements = calculateSettlements();
+                              const unpaidSettlements = calculatedSettlements.filter(calculatedSettlement => {
+                                return !settlements.some(settlement => 
+                                  settlement.from_user_id === calculatedSettlement.fromId &&
+                                  settlement.to_user_id === calculatedSettlement.toId &&
+                                  Math.abs(settlement.amount - calculatedSettlement.amount) < 0.01
+                                );
+                              });
+
+                              if (unpaidSettlements.length === 0) {
+                                return (
+                                  <div className="text-center py-8">
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                      <CheckCircle className="w-8 h-8 text-green-600" />
+                                    </div>
+                                    <h4 className="text-lg font-medium text-gray-900 mb-2">All Settled!</h4>
+                                    <p className="text-gray-500">Everyone's expenses are balanced. No payments needed.</p>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="space-y-3">
+                                  {unpaidSettlements.map((settlement, index) => {
+                                    const fromParticipant = participants.find(p => p.id === settlement.fromId);
+                                    const toParticipant = participants.find(p => p.id === settlement.toId);
+                                    
+                                    return (
+                                      <div
+                                        key={index}
+                                        className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                                              <DollarSign className="w-5 h-5 text-gray-600" />
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                              <div className="flex items-center gap-2">
+                                                <Avatar
+                                                  name={fromParticipant?.name || 'Unknown'}
+                                                  imageUrl={fromParticipant?.avatar_url}
+                                                  size="sm"
+                                                  showTooltip={true}
+                                                />
+                                                <span className="font-medium text-gray-900">
+                                                  {fromParticipant?.name || 'Unknown'}
+                                                </span>
+                                              </div>
+                                              <span className="text-gray-400">→</span>
+                                              <div className="flex items-center gap-2">
+                                                <Avatar
+                                                  name={toParticipant?.name || 'Unknown'}
+                                                  imageUrl={toParticipant?.avatar_url}
+                                                  size="sm"
+                                                  showTooltip={true}
+                                                />
+                                                <span className="font-medium text-gray-900">
+                                                  {toParticipant?.name || 'Unknown'}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className="text-lg font-semibold text-gray-900">
+                                              ${settlement.amount.toFixed(2)}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
-                  )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                   {activeTab === 'gallery' && trip && user && (
                     <Gallery
@@ -5127,37 +5031,6 @@ export default function TripPage() {
                         )}
                         </div>
                         
-                      {/* Test Button */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                                  <div>
-                            <h3 className="font-medium text-blue-800 mb-1">Activity Logging Ready</h3>
-                            <p className="text-sm text-blue-700">
-                              The activity logging system is set up and ready to track your trip activities.
-                            </p>
-                                  </div>
-                                  <button 
-                              onClick={async () => {
-                                if (!trip || !user) {
-                                  toast.error('Trip or user not available');
-                                  return;
-                                }
-                                try {
-                                  console.log('Testing activity logging with trip ID:', trip.id, 'user ID:', user.id);
-                                  await ActivityLogger.activityAdded(trip.id, user.id, 'Test Activity', 1);
-                                  toast.success('Test activity logged!');
-                                  fetchActivityLogsData();
-                                } catch (error) {
-                                  console.error('Test activity error:', error);
-                                  toast.error('Failed to log test activity - check console for details');
-                                }
-                              }}
-                              className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                            >
-                              Test Activity Logging
-                                  </button>
-                                </div>
-                              </div>
 
                       {/* Activity Logs */}
                       {loadingActivityLogs ? (

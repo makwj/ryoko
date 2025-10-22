@@ -1,3 +1,12 @@
+/**
+ * DestinationImage Component
+ * 
+ * Displays destination-specific images with fallback gradients.
+ * Automatically fetches relevant images for trip destinations.
+ * Provides consistent image display across the application with error handling.
+ * Includes customizable styling and fallback options for missing images.
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";

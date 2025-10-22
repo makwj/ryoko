@@ -50,8 +50,29 @@ export async function POST(request: NextRequest) {
 
     if (rows.length === 0) return NextResponse.json({ error: 'No valid invites' }, { status: 400 });
 
+    // Clean up any existing invitation records for these emails to prevent constraint violations
+    const emailsToClean = rows.map(row => row.invitee_email);
+    const { error: cleanupError } = await supabase
+      .from('invitations')
+      .delete()
+      .eq('trip_id', tripId)
+      .in('invitee_email', emailsToClean);
+    
+    if (cleanupError) {
+      console.warn('Failed to clean up existing invitations:', cleanupError);
+      // Continue anyway - the insert might still work
+    }
+
     const { error } = await supabase.from('invitations').insert(rows);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      // If it's still a constraint violation, provide a more helpful error message
+      if (error.message.includes('duplicate key value violates unique constraint')) {
+        return NextResponse.json({ 
+          error: 'Some invitations already exist. Please try again or contact support if the issue persists.' 
+        }, { status: 400 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
 
     return NextResponse.json({ sentCount: rows.length, tripId, tripTitle: tripTitle || null });
   } catch (e: unknown) {

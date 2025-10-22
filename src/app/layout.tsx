@@ -1,3 +1,12 @@
+/**
+ * Root Layout Component
+ * 
+ * The main layout wrapper for the entire application.
+ * Provides global providers including AuthProvider for authentication state.
+ * Configures global metadata, CSS, and toast notifications.
+ * Wraps all pages with authentication context and global styling.
+ */
+
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";

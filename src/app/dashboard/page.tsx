@@ -7,13 +7,13 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import toast from "react-hot-toast";
 import { User } from "@supabase/supabase-js";
 import { useAuth } from "@/contexts/AuthContext";
-import { Home, MapPin, Users, Bookmark, Mail, Clock, CheckCircle, XCircle } from "lucide-react";
+import { MapPin, Clock, CheckCircle, XCircle, Calendar } from "lucide-react";
 import CreateTripModal from "@/components/CreateTripModal";
 import DestinationImage from "@/components/DestinationImage";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import AvatarStack from "@/components/ui/avatar-stack";
+import Avatar from "@/components/ui/avatar";
 
 interface Trip {
   id: string;
@@ -51,6 +51,11 @@ interface Invitation {
       email: string;
     };
   };
+  inviter: {
+    id: string;
+    name: string;
+    avatar_url?: string;
+  };
 }
 
 export default function Dashboard() {
@@ -68,31 +73,21 @@ export default function Dashboard() {
     try {
       setInvitationsLoading(true);
       
-      // Get user's email from profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('id', user.id)
-        .single();
+      // Get user's email from auth.users (not profiles table)
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
 
-      console.log('Profile fetch result:', { profile, profileError });
+      console.log('Auth user fetch result:', { authUser, userError });
 
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
-        setInvitationsLoading(false);
-        return;
-      }
-
-      if (!profile?.email) {
-        console.log('No email found for user:', user.id);
+      if (userError || !authUser?.email) {
+        console.error('Error fetching user email:', userError);
         setInvitationsLoading(false);
         return;
       }
 
       // Save profile email for realtime filter
-      setProfileEmail(String(profile.email).toLowerCase());
+      setProfileEmail(String(authUser.email).toLowerCase());
 
-      // Fetch pending invitations with joined trip details in one roundtrip
+      // First, fetch basic invitations with trip details
       const { data: invitationsData, error } = await supabase
         .from('invitations')
         .select(`
@@ -101,7 +96,7 @@ export default function Dashboard() {
             id, title, destination, start_date, end_date, description, owner_id
           )
         `)
-        .eq('invitee_email', profile.email)
+        .eq('invitee_email', authUser.email)
         .eq('status', 'pending')
         .gt('expires_at', new Date().toISOString())
         .order('invited_at', { ascending: false });
@@ -121,8 +116,38 @@ export default function Dashboard() {
       }
 
       console.log('Successfully fetched invitations:', (invitationsData || []).length);
-      // invitationsData already includes trips via join alias
-      setInvitations((invitationsData as any) || []);
+      
+      if (invitationsData && invitationsData.length > 0) {
+        // Fetch inviter profiles for each invitation
+        const invitationsWithInviters = await Promise.all(
+          invitationsData.map(async (invitation) => {
+            try {
+              const { data: inviterProfile } = await supabase
+                .from('profiles')
+                .select('id, name, avatar_url')
+                .eq('id', invitation.inviter_id)
+                .single();
+              
+              return {
+                ...invitation,
+                inviter: inviterProfile || { id: invitation.inviter_id, name: 'Unknown User', avatar_url: null }
+              };
+            } catch (inviterError) {
+              console.warn('Failed to fetch inviter profile:', inviterError);
+              return {
+                ...invitation,
+                inviter: { id: invitation.inviter_id, name: 'Unknown User', avatar_url: null }
+              };
+            }
+          })
+        );
+        
+        console.log('Setting invitations with inviters:', invitationsWithInviters);
+        setInvitations(invitationsWithInviters as any);
+      } else {
+        console.log('No invitations data received');
+        setInvitations([]);
+      }
     } catch (error) {
       console.error('Error fetching invitations:', error);
     } finally {
@@ -249,13 +274,25 @@ export default function Dashboard() {
         if (!newRow?.invitee_email) return;
         if (String(newRow.invitee_email).toLowerCase() !== profileEmail) return;
         try {
-          // Fetch the trip details for this single invite and merge into state immediately
+          // Fetch the trip details for this single invite
           const { data: trip } = await supabase
             .from('trips')
             .select('id, title, destination, start_date, end_date, description, owner_id')
             .eq('id', newRow.trip_id)
             .single();
-          const inviteWithTrip: any = { ...newRow, trips: trip };
+          
+          // Fetch inviter profile
+          const { data: inviter } = await supabase
+            .from('profiles')
+            .select('id, name, avatar_url')
+            .eq('id', newRow.inviter_id)
+            .single();
+          
+          const inviteWithTrip: any = { 
+            ...newRow, 
+            trips: trip, 
+            inviter: inviter || { id: newRow.inviter_id, name: 'Unknown User', avatar_url: null }
+          };
           setInvitations(prev => [inviteWithTrip, ...prev.filter(i => i.id !== newRow.id)]);
           setInvitationsLoading(false);
           toast.success('You received a new trip invitation');
@@ -468,48 +505,27 @@ export default function Dashboard() {
         <Navbar />
 
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
+        <main className="max-w-[1400px] mx-auto px-4 pt-24 pb-20">
           {/* Trips Sections */}
           <section className="mb-12">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-dark">Active Trips</h2>
               <button 
                 onClick={() => setShowCreateTripModal(true)}
-                className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="ml-auto bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-xl cursor-pointer text-sm font-medium transition-colors"
               >
                 Create New Trip +
               </button>
             </div>
             
             {loading ? (
-              <div className="grid md:grid-cols-3 gap-6">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse">
-                    {/* Image placeholder */}
-                    <div className="h-48 bg-gray-200" />
-
-                    {/* Card body skeleton matching design */}
-                    <div className="p-4 space-y-3">
-                      {/* Destination row with icon */}
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-gray-200" />
-                        <div className="h-4 bg-gray-200 rounded w-32" />
-                      </div>
-
-                      {/* Title and badge */}
-                      <div className="flex items-center justify-between">
-                        <div className="h-5 bg-gray-200 rounded w-40" />
-                        <div className="h-5 bg-gray-200 rounded-full w-16" />
-                      </div>
-
-                      {/* Meta row: participants and dates */}
-                      <div className="flex items-center justify-between">
-                        <div className="h-4 bg-gray-200 rounded w-24" />
-                        <div className="h-4 bg-gray-200 rounded w-28" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-center py-24">
+                <div className="flex items-center gap-3 text-gray-600">
+                  <svg className="animate-spin h-5 w-5 text-[#ff5a58]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                  </svg>
+                  <span className="text-sm">Fetching your details...</span>
+                </div>
               </div>
             ) : (
               (() => {
@@ -541,9 +557,9 @@ export default function Dashboard() {
                           fallbackClassName={`bg-gradient-to-br ${getGradientClass(index)}`}
                         />
                         <div className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <MapPin className="w-4 h-4 text-[#ff5a58]" />
-                            <span className="text-sm text-gray-600">{trip.destination || 'No destination'}</span>
+                          <div className="flex items-center gap-2 mb-2 bg-[#0B486B] w-fit text-white px-2 py-2 rounded-xl">
+                            <MapPin className="w-4 h-4 text-white" />
+                            <span className="text-sm text-white">{trip.destination || 'No destination'}</span>
                           </div>
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="font-semibold text-dark">{trip.title}</h3>
@@ -553,7 +569,7 @@ export default function Dashboard() {
                               <span className="px-2 py-1 bg-gray-500 text-white text-xs rounded-full">Collaborator</span>
                             )}
                           </div>
-                          <div className="flex items-center justify-between text-sm text-gray-500">
+                          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between text-sm text-gray-500 gap-2">
                             <span className="flex items-center gap-2">
                               <span className="text-gray-600">Participants:</span>
                               <AvatarStack 
@@ -562,7 +578,8 @@ export default function Dashboard() {
                                 size="sm"
                               />
                             </span>
-                            <span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4 text-gray-600" />
                               {trip.start_date && trip.end_date 
                                 ? `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`
                                 : 'No dates set'
@@ -578,12 +595,10 @@ export default function Dashboard() {
                 return (
                   <div className="space-y-12">
                     {/* Active */}
+                    <h2 className="text-2xl font-bold text-dark mb-6">Active Trips</h2>
                     {activeTrips.length > 0 ? renderGrid(activeTrips) : (
                       <div className="text-center py-12">
-                        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <MapPin className="w-12 h-12 text-gray-400" />
-                        </div>
-                        <h3 className="text-lg font-medium text-dark mb-2">No active trips</h3>
+                        <h3 className="text-lg font-medium text-dark mb-2">No active trips yet</h3>
                         <p className="text-form mb-6">Create a new trip to get started!</p>
                       </div>
                     )}
@@ -610,28 +625,10 @@ export default function Dashboard() {
           </section>
 
 
-          {/* Your Invitations Section - Only show if there are invitations or loading */}
-          {(invitationsLoading || invitations.length > 0) && (
-            <section className="mb-12">
-              <h2 className="text-2xl font-bold text-dark mb-6">Your Invitations</h2>
-              
-              {invitationsLoading ? (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse">
-                      <div className="h-32 bg-gray-300"></div>
-                      <div className="p-4">
-                        <div className="h-4 bg-gray-300 rounded mb-2"></div>
-                        <div className="h-6 bg-gray-300 rounded mb-2"></div>
-                        <div className="flex justify-between">
-                          <div className="h-4 bg-gray-300 rounded w-20"></div>
-                          <div className="h-4 bg-gray-300 rounded w-24"></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : invitations.length > 0 ? (
+          {/* Your Invitations Section - Render after load; no skeletons */}
+          {invitations.length > 0 && (
+            <section className="mb-12">              
+                <h2 className="text-2xl font-bold text-dark mb-6">Your Invitations</h2>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {invitations.map((invitation, index) => (
                     <motion.div
@@ -643,38 +640,43 @@ export default function Dashboard() {
                     >
                       <DestinationImage 
                         destination={invitation.trips.destination || ''}
-                        className="h-32"
+                        className="h-48"
                         fallbackClassName={`bg-gradient-to-br ${getGradientClass(index)}`}
                       />
                       <div className="p-4">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-6 h-6 bg-[#ff5a58] rounded-full flex items-center justify-center">
-                            <span className="text-xs text-white font-medium">
-                              {invitation.invitee_name?.charAt(0) || invitation.invitee_email?.charAt(0) || 'U'}
-                            </span>
-                          </div>
+                          <Avatar 
+                            name={invitation.inviter?.name || 'Unknown User'} 
+                            imageUrl={invitation.inviter?.avatar_url}
+                            size="sm"
+                            className="w-6 h-6"
+                          />
                           <span className="text-sm text-gray-600">
-                            You were invited to join
+                            <span className="font-medium">{invitation.inviter?.name || 'Someone'}</span> invited you to join
                           </span>
                         </div>
                         
                         {invitation.trips.destination && (
-                          <div className="flex items-center gap-2 mb-2">
-                            <MapPin className="w-4 h-4 text-[#ff5a58]" />
-                            <span className="text-sm text-gray-600">{invitation.trips.destination}</span>
+                          <div className="flex items-center gap-2 mb-2 bg-[#0B486B] w-fit text-white px-2 py-2 rounded-xl">
+                            <MapPin className="w-4 h-4 text-white" />
+                            <span className="text-sm text-">{invitation.trips.destination}</span>
                           </div>
                         )}
                         
                         <h3 className="font-semibold text-dark mb-2">{invitation.trips.title}</h3>
                         
                         <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-600" />
                           <span>
                             {invitation.trips.start_date && invitation.trips.end_date 
                               ? `${formatDate(invitation.trips.start_date)} - ${formatDate(invitation.trips.end_date)}`
                               : 'No dates set'
                             }
                           </span>
-                          <div className="flex items-center gap-1 text-orange-600">
+                          </div>
+
+                          <div className="flex items-center gap-1 bg-orange-600 text-white px-2 py-2 rounded-xl">
                             <Clock className="w-3 h-3" />
                             <span className="text-xs">{formatTimeRemaining(invitation.expires_at)}</span>
                           </div>
@@ -686,9 +688,8 @@ export default function Dashboard() {
                               console.log('Decline button clicked, invitation:', invitation);
                               handleInvitationResponse(invitation.id, 'decline');
                             }}
-                            className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            className="cursor-pointer flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                           >
-                            <XCircle className="w-4 h-4" />
                             Decline
                           </button>
                           <button 
@@ -696,9 +697,8 @@ export default function Dashboard() {
                               console.log('Accept button clicked, invitation:', invitation);
                               handleInvitationResponse(invitation.id, 'accept');
                             }}
-                            className="flex-1 bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            className="cursor-pointer flex-1 bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                           >
-                            <CheckCircle className="w-4 h-4" />
                             Accept
                           </button>
                         </div>
@@ -706,7 +706,6 @@ export default function Dashboard() {
                     </motion.div>
                   ))}
                 </div>
-              ) : null}
             </section>
           )}
         </main>

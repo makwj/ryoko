@@ -1,3 +1,12 @@
+/**
+ * AuthModal Component
+ * 
+ * Modal dialog for user authentication (login and registration).
+ * Handles user signup with email verification and login with error handling.
+ * Features form validation, password confirmation, and automatic mode switching.
+ * Integrates with Supabase Auth for secure authentication.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -172,7 +181,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-3xl overflow-hidden p-0">
+      <DialogContent className="w-full max-w-3xl overflow-hidden p-0 border-0 bg-transparent">
         <div className="grid md:grid-cols-[1fr_1.3fr]">
           {/* Left visual panel */}
           <div className="relative hidden md:block">
@@ -182,9 +191,9 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
           </div>
 
           {/* Right form panel */}
-          <div className="px-8 py-10">
+          <div className="px-8 py-10 bg-[#EEEEEE]">
             <div className="mx-auto max-w-md">
-              <div className="flex flex-col items-center mb-6">
+              <div className="flex flex-col items-center">
                 <Image src="/assets/ryokosquare.png" alt="Ryoko logo" className="h-40 w-40" width={160} height={160} />
               </div>
 
@@ -204,8 +213,8 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
                         type="text"
                         value={formData.name}
                         onChange={(e) => handleInputChange("name", e.target.value)}
-                        className="mt-1 w-full h-11"
-                        placeholder="John Doe"
+                        className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
+                        placeholder="Ryoko"
                         required
                       />
                     </div>
@@ -216,8 +225,8 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange("email", e.target.value)}
-                      className="mt-1 w-full h-11"
-                      placeholder="johndoe@email.com"
+                      className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
+                      placeholder="ryoko@email.com"
                       required
                     />
                   </div>
@@ -227,7 +236,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
                       type="password"
                       value={formData.password}
                       onChange={(e) => handleInputChange("password", e.target.value)}
-                      className="mt-1 w-full h-11"
+                      className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                       placeholder="••••••••"
                       required
                     />
@@ -239,7 +248,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
                         type="password"
                         value={formData.confirmPassword}
                         onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                        className="mt-1 w-full h-11"
+                        className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                         placeholder="••••••••"
                         required
                       />
@@ -248,7 +257,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
 
                   {mode === "login" && (
                     <div className="flex justify-end -mt-1">
-                      <Button variant="ghost" className="text-xs text-[#777] hover:text-[#1a1a1a] p-0 h-auto" type="button">
+                      <Button className="bg-transparent text-xs text-[#777] hover:bg-transparent cursor-pointer p-0 h-auto" type="button">
                         Forgot Password?
                       </Button>
                     </div>
@@ -257,7 +266,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold"
+                    className="cursor-pointer w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold"
                   >
                     {loading ? "Loading..." : primaryCta}
                     <span className="ml-2">›</span>

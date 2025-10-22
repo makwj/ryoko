@@ -1,3 +1,12 @@
+/**
+ * Weather API Route
+ * 
+ * Provides weather forecast data for trip destinations and dates.
+ * Integrates with WeatherAPI to fetch current and forecast weather information.
+ * Returns structured weather data including temperature, conditions, and descriptions.
+ * Used by the trip planning interface to show weather information for planned dates.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 
 interface WeatherData {

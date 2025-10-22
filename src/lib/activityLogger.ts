@@ -1,3 +1,12 @@
+/**
+ * Activity Logger Utility
+ * 
+ * Provides functions for logging user activities and interactions within trips.
+ * Tracks user actions like creating activities, editing trips, uploading photos, etc.
+ * Stores activity logs in the database for analytics and user behavior tracking.
+ * Includes functions for creating, retrieving, and managing activity logs.
+ */
+
 // Utility functions for logging trip activities
 
 export interface ActivityLogData {

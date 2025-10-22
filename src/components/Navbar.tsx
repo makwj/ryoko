@@ -1,3 +1,12 @@
+/**
+ * Navbar Component
+ * 
+ * The main navigation bar for authenticated users.
+ * Features the Ryoko logo, navigation links (Dashboard, Trips, Bookmarks, Social),
+ * and user profile dropdown. Includes animated hover effects and active state indicators.
+ * Fetches user profile data and handles profile updates.
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -94,10 +103,9 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, delay: 0.2 }}
     >
-      <div className="pointer-events-auto mx-auto w-full max-w-[1200px] px-3">
+      <div className="pointer-events-auto mx-auto w-full max-w-[1400px] px-4">
         <motion.div
-          className="px-4 py-2 rounded-full bg-white/60 backdrop-blur-md shadow-lg shadow-black/5 flex items-center justify-between"
-          whileHover={{ scale: 1.02 }}
+          className="relative px-4 py-2 rounded-full bg-white shadow-lg shadow-black/5 flex items-center justify-between"
           transition={{ duration: 0.2 }}
         >
           <motion.div
@@ -107,17 +115,30 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
             transition={{ duration: 0.5, delay: 0.4 }}
           >
             <Link href="/dashboard">
-              <Image src="/assets/ryokolong.png" alt="Ryoko logo" width={120} height={40} />
+              <Image 
+                src="/assets/ryokolong.png" 
+                alt="Ryoko logo" 
+                width={120} 
+                height={40} 
+                className="hidden sm:block"
+              />
+              <Image 
+                src="/assets/ryokoicon.png" 
+                alt="Ryoko logo" 
+                width={40} 
+                height={40} 
+                className="block sm:hidden"
+              />
             </Link>
           </motion.div>
           
           <motion.nav
-            className="flex items-center gap-6"
+            className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.6 }}
           >
-            {user && (
+            {user ? (
               <>
                 <Link
                   href="/dashboard"
@@ -160,12 +181,25 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                   Social
                 </Link>
               </>
-            )}
-            
-            {showProfile && user && !loading && (
-              <ProfileDropdown user={user} onProfileUpdated={handleProfileUpdated} />
+            ) : (
+              // Placeholder div to maintain consistent spacing when not authenticated
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-4"></div>
+                <div className="w-12 h-4"></div>
+                <div className="w-20 h-4"></div>
+                <div className="w-12 h-4"></div>
+              </div>
             )}
           </motion.nav>
+
+          {showProfile ? (
+            user && !loading ? (
+              <ProfileDropdown user={user} onProfileUpdated={handleProfileUpdated} />
+            ) : (
+              // Placeholder div to maintain consistent spacing when loading or not authenticated
+              <div className="w-8 h-8"></div>
+            )
+          ) : null}
         </motion.div>
       </div>
     </motion.header>

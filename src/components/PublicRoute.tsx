@@ -1,3 +1,9 @@
+/**
+ * A route wrapper for public pages that don't require authentication
+ * Shows loading state while checking authentication status, then renders children
+ * Used for landing page
+ */
+
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";

@@ -1,3 +1,11 @@
+/**
+ * Loading Component
+ * 
+ * Animated loading screen with Lottie animation.
+ * Displays during authentication checks and page transitions.
+ * Features a centered animation with consistent styling across the application.
+ */
+
 import React from 'react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 

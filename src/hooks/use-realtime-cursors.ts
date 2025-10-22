@@ -1,11 +1,19 @@
+/**
+ * useRealtimeCursors Hook
+ * 
+ * Custom React hook for managing real-time cursor tracking in collaborative sessions.
+ * Uses Supabase Realtime to track cursor positions and movements across users.
+ * Includes throttling to prevent excessive updates and coordinate normalization.
+ * Provides cursor data for the RealtimeCursors component to display live cursors.
+ */
+
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/**
- * Throttle a callback to a certain delay, It will only call the callback if the delay has passed, with the arguments
- * from the last call
- */
+// Throttle a callback to a certain delay, It will only call the callback if the delay has passed,
+// with the arguments from the last call
+// This is used to prevent the cursor from being updated too frequently
 const useThrottleCallback = <Params extends unknown[], Return>(
   callback: (...args: Params) => Return,
   delay: number
@@ -37,12 +45,16 @@ const useThrottleCallback = <Params extends unknown[], Return>(
   )
 }
 
+// Generate a random color for the cursor
 const generateRandomColor = () => `hsl(${Math.floor(Math.random() * 360)}, 100%, 70%)`
 
+// Generate a random number for the cursor
 const generateRandomNumber = () => Math.floor(Math.random() * 100)
 
+// The event name for the cursor move
 const EVENT_NAME = 'realtime-cursor-move'
 
+// The payload for the cursor move event
 type CursorEventPayload = {
   position: {
     xNorm: number
@@ -60,6 +72,7 @@ type CursorEventPayload = {
   timestamp: number
 }
 
+// The hook for the realtime cursors
 export const useRealtimeCursors = ({
   roomName,
   username,
@@ -121,6 +134,7 @@ export const useRealtimeCursors = ({
     [color, userId, username]
   )
 
+  // The callback for the mouse move event
   const handleMouseMove = useThrottleCallback(callback, throttleMs)
 
   useEffect(() => {

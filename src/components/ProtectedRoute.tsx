@@ -1,3 +1,11 @@
+/**
+ * ProtectedRoute Component
+ * 
+ * A route wrapper that protects pages requiring authentication.
+ * Redirects unauthenticated users to the home page and shows loading state
+ * while checking authentication status. Only renders children if user is authenticated.
+ */
+
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";

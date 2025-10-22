@@ -1,3 +1,12 @@
+/**
+ * LocationAutocomplete Component
+ * 
+ * Location search component with autocomplete functionality using Google Places API.
+ * Provides real-time location suggestions as users type destination names.
+ * Features debounced search, suggestion highlighting, and keyboard navigation.
+ * Used in trip creation and editing for destination selection.
+ */
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";

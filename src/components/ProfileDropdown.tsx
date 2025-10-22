@@ -1,3 +1,12 @@
+/**
+ * ProfileDropdown Component
+ * 
+ * User profile dropdown menu in the navigation bar.
+ * Displays user avatar, name, and provides access to profile settings.
+ * Includes profile editing modal with avatar upload and name updates.
+ * Handles user logout and profile management functionality.
+ */
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -7,6 +16,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Avatar from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,7 +117,7 @@ export default function ProfileDropdown({ user, onProfileUpdated }: ProfileDropd
             <div className="py-1">
               <button
                 onClick={handleEditProfile}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                className="cursor-pointer w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <User className="w-4 h-4" />
                 Edit Profile
@@ -115,7 +125,7 @@ export default function ProfileDropdown({ user, onProfileUpdated }: ProfileDropd
               
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="cursor-pointer w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
               >
                 <LogOut className="w-4 h-4" />
                 Logout
@@ -268,7 +278,7 @@ function EditProfileModal({ open, user, onClose, onProfileUpdated }: EditProfile
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md bg-[#EEEEEE] rounded-2xl">
         <DialogHeader>
           <DialogTitle>Edit Profile</DialogTitle>
           <DialogDescription>
@@ -285,34 +295,39 @@ function EditProfileModal({ open, user, onClose, onProfileUpdated }: EditProfile
                 imageUrl={avatarPreview || undefined}
                 size="xl"
               />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute -bottom-2 -right-2 bg-blue-500 text-white rounded-full p-2 hover:bg-blue-600 transition-colors"
-                disabled={uploading}
-                title="Change profile picture"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                disabled={uploading}
-              >
-                Change picture
-              </button>
-              {(user.avatar_url || avatarPreview) && (
-                <button
-                  onClick={handleRemoveAvatar}
-                  className="text-sm text-red-600 hover:text-red-700 transition-colors"
-                  disabled={uploading}
-                >
-                  Remove picture
-                </button>
-              )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="cursor-pointer absolute -bottom-2 -right-2 bg-[#0B486B] text-white rounded-full p-2 hover:bg-[#072B3F] transition-colors"
+                    disabled={uploading}
+                    title="Edit picture"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-44 p-1">
+                  <div className="flex flex-col">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="cursor-pointer text-left px-3 py-2 text-sm rounded hover:bg-gray-100"
+                      disabled={uploading}
+                    >
+                      Change picture
+                    </button>
+                    {(user.avatar_url || avatarPreview) && (
+                      <button
+                        onClick={handleRemoveAvatar}
+                        className="cursor-pointer text-left px-3 py-2 text-sm text-red-600 rounded hover:bg-red-50"
+                        disabled={uploading}
+                      >
+                        Remove picture
+                      </button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <input
               ref={fileInputRef}
@@ -354,7 +369,7 @@ function EditProfileModal({ open, user, onClose, onProfileUpdated }: EditProfile
           <Button
             onClick={onClose}
             variant="outline"
-            className="flex-1"
+            className="flex-1 cursor-pointer"
             disabled={loading}
           >
             Cancel
@@ -362,7 +377,7 @@ function EditProfileModal({ open, user, onClose, onProfileUpdated }: EditProfile
           <Button
             onClick={handleSubmit}
             disabled={loading || uploading || !formData.name.trim()}
-            className="flex-1"
+            className="flex-1 bg-[#FF5757] hover:bg-[#FF4747] text-white cursor-pointer"
           >
             {loading || uploading ? (
               <div className="flex items-center justify-center gap-2">

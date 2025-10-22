@@ -1,3 +1,12 @@
+/**
+ * Gallery Upload API Route
+ * 
+ * Handles image uploads to Supabase Storage for the trip gallery system.
+ * Validates file types and sizes, generates unique filenames, and stores metadata.
+ * Uses Supabase service role for secure file uploads with proper error handling.
+ * Returns upload URLs and metadata for the frontend gallery display.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 

@@ -196,10 +196,7 @@ export default function InviteCollaboratorsModal({
       <DialogContent className="w-full max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex flex-col items-center mb-6">
-            <div className="w-16 h-16 bg-[#ff5a58] rounded-full flex items-center justify-center mb-4">
-              <UserPlus className="w-8 h-8 text-white" />
-            </div>
-            <div className="text-2xl font-extrabold text-center mb-2">Invite Collaborators</div>
+            <div className="text-2xl font-extrabold text-center mb-2">Invite Participants</div>
             <p className="text-gray-600 text-center text-sm">
               Invite friends to collaborate on <span className="font-semibold">"{tripTitle}"</span>
             </p>
@@ -215,9 +212,7 @@ export default function InviteCollaboratorsModal({
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Add new invite section */}
-                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-700">Add Collaborator</h3>
-                  
+                <div className="bg-gray-50 rounded-xl p-4 space-y-3">                  
                   <div>
                     <Label className="text-xs font-medium text-[#666]">EMAIL ADDRESS</Label>
                     <div className="flex gap-2 mt-1">
@@ -227,14 +222,13 @@ export default function InviteCollaboratorsModal({
                         onChange={(e) => setCurrentEmail(e.target.value)}
                         onKeyPress={handleKeyPress}
                         className="flex-1 h-11"
-                        placeholder="friend@example.com"
+                        placeholder="ryoko@email.com"
                       />
                       <Button
                         type="button"
                         onClick={addInvite}
-                        className="px-4 h-11 bg-[#ff5a58] text-white hover:bg-[#ff4a47]"
+                        className="cursor-pointer px-4 h-11 bg-[#ff5a58] text-white hover:bg-[#ff4a47]"
                       >
-                        <Mail className="w-4 h-4 mr-2" />
                         Add
                       </Button>
                     </div>
@@ -299,13 +293,12 @@ export default function InviteCollaboratorsModal({
                 <Button
                   type="submit"
                   disabled={loading || invites.filter(invite => invite.status === 'new').length === 0}
-                  className="w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold"
+                  className="cursor-pointer w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold"
                 >
                   {loading ? (
                     "Sending Invitations..."
                   ) : (
                     <>
-                      <CheckCircle className="w-4 h-4 mr-2" />
                       Send {invites.filter(invite => invite.status === 'new').length} Invitation{invites.filter(invite => invite.status === 'new').length !== 1 ? 's' : ''}
                     </>
                   )}

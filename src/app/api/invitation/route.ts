@@ -1,3 +1,12 @@
+/**
+ * Invitation API Route
+ * 
+ * Handles trip invitation responses (accept/decline) from invited users.
+ * Validates user authentication and updates invitation status in the database.
+ * Manages collaborator addition to trips when invitations are accepted.
+ * Provides secure invitation handling with proper authorization checks.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 

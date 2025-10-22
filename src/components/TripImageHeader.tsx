@@ -1,3 +1,12 @@
+/**
+ * TripImageHeader Component
+ * 
+ * Displays a header image for a trip with dynamic destination-based imagery.
+ * Automatically fetches and displays relevant images for the trip destination.
+ * Provides image upload functionality for custom trip headers.
+ * Includes fallback gradients and placeholder images when no image is available.
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";

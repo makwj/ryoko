@@ -1,3 +1,11 @@
+/**
+ * CustomCursor Component
+ * 
+ * Enhanced cursor display component with visual effects and styling.
+ * Features cursor trail effects, custom styling, and improved visual feedback.
+ * Used by the RealtimeCursors system for better user experience during collaboration.
+ */
+
 "use client";
 
 import { MousePointer2 } from "lucide-react";

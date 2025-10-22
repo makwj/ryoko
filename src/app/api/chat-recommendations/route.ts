@@ -1,3 +1,12 @@
+/**
+ * Chat Recommendations API Route
+ * 
+ * AI chat interface for trip planning assistance using Google Gemini.
+ * Provides contextual responses to user questions about trip planning.
+ * Validates places with Google Places API when users ask about specific locations.
+ * Returns conversational AI responses with place validation and recommendations.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 

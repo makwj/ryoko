@@ -1,11 +1,18 @@
+/**
+ * UpdateInterestsModal Component
+ * 
+ * A modal dialog that allows users to update the interests/preferences for a trip.
+ * This affects the AI recommendation system to provide more personalized suggestions.
+ * Users can select from predefined interest categories like Adventure, Food, Culture, etc.
+ * The selected interests are saved to the database and used for enhanced recommendations.
+ */
+
 "use client";
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { motion } from "framer-motion";
-import { X } from "lucide-react";
 import toast from "react-hot-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 interface UpdateInterestsModalProps {
@@ -62,22 +69,21 @@ export default function UpdateInterestsModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-2xl">
+      <DialogContent className="w-full max-w-xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-dark">Update Group Interests</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-dark">Update Group Interests</DialogTitle>
+          <DialogDescription className="text-sm">
+            Get personalized recommendations from our smart recommendation system
+          </DialogDescription>
         </DialogHeader>
         
-        <p className="text-gray-600 text-sm mb-8">
-          Get personalized recommendations from our smart recommendation system
-        </p>
-        
-        <div className="grid grid-cols-3 gap-3 mb-8">
+        <div className="grid grid-cols-4 gap-2 mb-6">
           {interestCategories.map((interest) => (
             <Button
               key={interest}
               onClick={() => toggleInterest(interest)}
               variant={selectedInterests.includes(interest) ? "default" : "outline"}
-              className={`h-12 px-3 text-sm font-medium ${
+              className={`h-10 px-2 text-xs font-medium cursor-pointer ${
                 selectedInterests.includes(interest)
                   ? 'bg-[#ff5a58] text-white hover:bg-[#ff4a47]'
                   : 'hover:bg-gray-200'
@@ -93,14 +99,14 @@ export default function UpdateInterestsModal({
           <Button
             onClick={onClose}
             variant="outline"
-            className="flex-1 h-12"
+            className="flex-1 h-10 cursor-pointer"
           >
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 h-12 bg-[#ff5a58] hover:bg-[#ff4a47] text-white"
+            className="flex-1 h-10 bg-[#ff5a58] hover:bg-[#ff4a47] text-white cursor-pointer"
           >
             {loading ? "Updating..." : "Update Interests"}
           </Button>

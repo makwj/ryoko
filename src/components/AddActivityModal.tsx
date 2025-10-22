@@ -2,7 +2,6 @@
 
 import { useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { motion } from "framer-motion";
 import { X, Clock, MapPin, FileText, Plus, Upload, Trash2, Edit3, Sunrise, Sun, Moon, ExternalLink } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { hasUrls } from "@/lib/linkUtils";
 
 interface AddActivityModalProps {
   open: boolean;
@@ -215,23 +213,24 @@ export default function AddActivityModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Activity - Day {dayNumber}</DialogTitle>
+          <DialogTitle className="text-lg text-center">Adding an activity for Day {dayNumber}</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
             
-            <div className="space-y-4">
+            <div className="space-y-6">
               {/* Activity Title */}
-              <div>
-                <Label htmlFor="title" className="text-sm font-medium text-gray-700">
-                  Activity Title *
+              <div className="space-y-3">
+                <Label htmlFor="title" className="text-sm font-medium text-gray-700 block">
+                  Activity Title
                 </Label>
                 <Input
                   id="title"
                   type="text"
                   value={formData.title}
                   onChange={(e) => handleInputChange("title", e.target.value)}
-                  placeholder="e.g., Visit Colosseum"
+                  placeholder="What are you doing today?"
+                  className="focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                   required
                 />
               </div>
@@ -242,7 +241,7 @@ export default function AddActivityModal({
                   Activity Type
                 </Label>
                 <Select value={formData.activity_type} onValueChange={(value) => handleInputChange("activity_type", value)}>
-                  <SelectTrigger id="activity-type">
+                  <SelectTrigger id="activity-type" className="cursor-pointer focus-visible:ring-[#ff5a58] focus-visible:ring-1">
                     <SelectValue placeholder="Select activity type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -267,7 +266,7 @@ export default function AddActivityModal({
                     value={formData.time_period}
                     onValueChange={(value) => handleInputChange("time_period", value)}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full cursor-pointer focus-visible:ring-[#ff5a58] focus-visible:ring-2">
                       <SelectValue placeholder="Select time period" />
                     </SelectTrigger>
                     <SelectContent>
@@ -293,7 +292,7 @@ export default function AddActivityModal({
                       type="text"
                       value={formData.location}
                       onChange={(e) => handleInputChange("location", e.target.value)}
-                      className="pl-10"
+                      className="pl-10 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                       placeholder="e.g., Colosseum, Rome"
                     />
                   </div>
@@ -309,7 +308,7 @@ export default function AddActivityModal({
                   id="description"
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  className="h-24 resize-none"
+                  className="h-24 resize-none focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                   placeholder="Add details about this activity..."
                   rows={3}
                 />
@@ -326,7 +325,7 @@ export default function AddActivityModal({
                     id="note"
                     value={formData.note}
                     onChange={(e) => handleInputChange("note", e.target.value)}
-                    className="h-20 pl-10 resize-none"
+                    className="h-20 pl-10 resize-none focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                     placeholder="Add any important notes..."
                     rows={2}
                   />
@@ -345,7 +344,7 @@ export default function AddActivityModal({
                     type="url"
                     value={formData.link_url}
                     onChange={(e) => handleInputChange("link_url", e.target.value)}
-                    className="pl-10"
+                    className="pl-10 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                     placeholder="https://example.com"
                   />
                 </div>
@@ -374,7 +373,7 @@ export default function AddActivityModal({
                     <Button
                       onClick={() => fileInputRef.current?.click()}
                       variant="outline"
-                      className="flex-1 h-12"
+                      className="flex-1 h-12 cursor-pointer"
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       Upload Files
@@ -390,7 +389,7 @@ export default function AddActivityModal({
                               type="text"
                               value={fileWithName.customName}
                               onChange={(e) => updateFileName(index, e.target.value)}
-                              className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 truncate h-auto p-0"
+                              className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 truncate h-auto p-0 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                               placeholder={fileWithName.file.name}
                             />
                             <span className="text-xs text-gray-400">
@@ -402,7 +401,7 @@ export default function AddActivityModal({
                               onClick={() => removeFile(index)}
                               variant="ghost"
                               size="sm"
-                              className="text-gray-400 hover:text-red-500 p-1 h-auto"
+                              className="text-gray-400 hover:text-red-500 p-1 h-auto cursor-pointer"
                               title="Remove file"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -421,14 +420,14 @@ export default function AddActivityModal({
               <Button
                 onClick={onClose}
                 variant="outline"
-                className="flex-1 h-12"
+                className="flex-1 h-12 cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={loading || !formData.title.trim()}
-                className="flex-1 h-12 bg-[#ff5a58] hover:bg-[#ff4a47] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium"
+                className="flex-1 h-12 bg-[#ff5a58] hover:bg-[#ff4a47] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium cursor-pointer"
               >
                 {loading ? (
                   <>

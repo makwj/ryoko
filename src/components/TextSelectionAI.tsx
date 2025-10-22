@@ -1,3 +1,12 @@
+/**
+ * TextSelectionAI Component
+ * 
+ * An AI-powered chat interface that appears when users select text in the trip planning interface.
+ * Provides contextual assistance and recommendations based on selected content.
+ * Integrates with Google Gemini API to offer intelligent suggestions for activities, places, and planning.
+ * Features a floating chat bubble with conversation history and real-time AI responses.
+ */
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -293,28 +302,6 @@ export default function TextSelectionAI({
       <div ref={containerRef} className="relative">
         {children}
       </div>
-
-      {/* Floating Tooltip */}
-      {showTooltip && hoveredLocation && (
-        <div
-          ref={tooltipRef}
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg p-2 pointer-events-auto"
-          style={{
-            position: 'fixed',
-            zIndex: 9999
-          }}
-          onMouseEnter={(e) => e.stopPropagation()}
-          onMouseLeave={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={handleAskAIClick}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-medium transition-colors"
-          >
-            <MessageCircle className="w-4 h-4" />
-            Ask AI
-          </button>
-        </div>
-      )}
 
       {/* AI Chat Sidebar */}
       {showSidebar && hoveredLocation && (

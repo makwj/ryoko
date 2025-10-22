@@ -159,14 +159,14 @@ export default function AddIdeaModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add an Idea</DialogTitle>
+          <DialogTitle className="text-lg text-center">Add an Idea</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-6">
           {/* Title */}
           <div>
             <Label htmlFor="title" className="text-sm font-medium text-gray-700">
-              Idea Title *
+              Idea Title
             </Label>
             <Input
               id="title"
@@ -253,8 +253,7 @@ export default function AddIdeaModal({
           {/* Tags */}
           <div>
             <Label className="text-sm font-medium text-gray-700">
-              <Tag className="w-4 h-4 inline mr-1" />
-              Tags *
+               Add Tags (optional)
             </Label>
             <div className="grid grid-cols-3 gap-2">
               {ideaCategories.map((category) => (
@@ -262,14 +261,13 @@ export default function AddIdeaModal({
                   key={category.value}
                   onClick={() => handleTagToggle(category.value)}
                   variant={formData.tags.includes(category.value) ? 'default' : 'outline'}
-                  className={`p-3 ${
+                  className={`cursor-pointer py-2 px-4 rounded-full text-sm font-medium ${
                     formData.tags.includes(category.value)
-                      ? 'border-red-500 bg-red-50 text-red-700 hover:bg-red-100'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'bg-[#ff5a58] text-white cursor-pointer'
+                      : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200 cursor-pointer'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <Tag className="w-4 h-4" />
                     <span className="text-sm font-medium">{category.label}</span>
                   </div>
                 </Button>
@@ -292,7 +290,7 @@ export default function AddIdeaModal({
           <Button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="cursor-pointer flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Adding...' : 'Add Idea'}
           </Button>

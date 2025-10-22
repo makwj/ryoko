@@ -18,7 +18,12 @@ export default function LocationTooltip({ children, locationText, onAskAI }: Loc
         <TooltipTrigger asChild>
           {children}
         </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={8} className="p-0">
+        <TooltipContent 
+          side="top" 
+          sideOffset={8} 
+          className="p-0 z-[100]"
+          align="start"
+        >
           <Button 
             variant="ghost" 
             size="sm" 

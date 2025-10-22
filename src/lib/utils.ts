@@ -1,6 +1,12 @@
+/**
+ * Utility functions for merging class names with Tailwind CSS, array manipulation, 
+ * and other common utilities.
+ */
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+// Merge classes into a single string using clsx and tailwind-merge
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }

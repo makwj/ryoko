@@ -1,9 +1,21 @@
+/**
+ * Enhanced Recommendations API Route
+ * 
+ * AI-powered trip recommendation system using Google Gemini and Google Places API.
+ * Generates personalized recommendations based on destination, interests, trip duration,
+ * and participant count. Fetches real place data from Google Places and uses AI to
+ * curate and rank recommendations. Returns structured data for activities, attractions,
+ * and accommodations with detailed information and images.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Types for Google Places API responses
 interface GooglePlaceResponse {
   results: GooglePlaceResult[];
+  error_message?: string;
+  status?: string;
 }
 
 interface GooglePlaceResult {
@@ -36,6 +48,8 @@ interface GooglePlaceDetails {
     price_level?: number;
     place_id: string;
   };
+  error_message?: string;
+  status?: string;
 }
 
 interface CuratedPlace {
@@ -61,6 +75,82 @@ interface TripData {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
+
+// Utility function for exponential backoff retries
+async function retryRequest<T>(
+  fn: () => Promise<T>, 
+  retries = 3, 
+  delay = 2000,
+  context = 'API request'
+): Promise<T> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isRetryableError = err.message?.includes('503') || 
+                              err.status === 503 || 
+                              err.message?.includes('overloaded') ||
+                              err.message?.includes('Service Unavailable') ||
+                              err.message?.includes('rate limit') ||
+                              err.message?.includes('quota exceeded');
+      
+      if (attempt < retries && isRetryableError) {
+        const waitTime = delay * Math.pow(2, attempt - 1); // Exponential backoff
+        console.warn(`${context} failed (attempt ${attempt}/${retries}): ${err.message}. Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        console.error(`${context} failed after ${attempt} attempts:`, err.message);
+        throw err;
+      }
+    }
+  }
+  throw new Error(`${context} failed after ${retries} attempts`);
+}
+
+// Function to generate content with retry and fallback
+async function generateContentWithFallback(prompt: string): Promise<string> {
+  try {
+    // Primary model with retry
+    const primaryModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    
+    const result = await retryRequest(
+      () => primaryModel.generateContent(prompt),
+      3,
+      2000,
+      'Gemini 2.5 Flash generation'
+    );
+    
+    const response = await result.response;
+    return response.text();
+    
+  } catch (primaryError: any) {
+    console.warn('Primary model failed, trying fallback model:', primaryError.message);
+    
+    try {
+      // Fallback to gemini-pro
+      const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+      
+      const result = await retryRequest(
+        () => fallbackModel.generateContent(prompt),
+        2,
+        3000,
+        'Gemini Pro fallback generation'
+      );
+      
+      const response = await result.response;
+      return response.text();
+      
+    } catch (fallbackError: any) {
+      console.error('Both primary and fallback models failed:', {
+        primary: primaryError.message,
+        fallback: fallbackError.message
+      });
+      
+      // If both models fail, throw a more descriptive error
+      throw new Error(`AI generation failed: Primary model (${primaryError.message}), Fallback model (${fallbackError.message})`);
+    }
+  }
+}
 
 // Interest to Google Places Type Mapping
 const INTEREST_MAPPING: { [key: string]: string[] } = {
@@ -94,25 +184,42 @@ function getPlacesTypesFromInterests(interests: string[]): string[] {
   return [...new Set(types)];
 }
 
-// Helper function to get comprehensive Google Places data
+// Helper function to get comprehensive Google Places data with retry
 async function getPlacesDetails(placeId: string): Promise<GooglePlaceDetails | null> {
   try {
     const fields = 'name,formatted_address,rating,user_ratings_total,opening_hours,photos,website,formatted_phone_number,types,reviews,price_level,place_id';
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${process.env.GOOGLE_PLACES_API_KEY}`
+    
+    const result = await retryRequest(
+      async () => {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${process.env.GOOGLE_PLACES_API_KEY}`
+        );
+        
+        if (!response.ok) {
+          throw new Error(`Google Places API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error_message) {
+          throw new Error(`Google Places API error: ${data.error_message}`);
+        }
+        
+        return data;
+      },
+      2, // 2 retries for Places API
+      1000, // 1 second base delay
+      `Google Places details for ${placeId}`
     );
-
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    }
+    
+    return result;
   } catch (error) {
     console.error('Error fetching place details:', error);
+    return null;
   }
-  return null;
 }
 
-// Helper function to fetch places from Google Places API
+// Helper function to fetch places from Google Places API with retry
 async function fetchPlaces(query: string, destination?: string): Promise<GooglePlaceResult[]> {
   try {
     // Ensure the query includes the destination for better location targeting
@@ -123,21 +230,35 @@ async function fetchPlaces(query: string, destination?: string): Promise<GoogleP
     
     console.log(`Fetching places for query: "${searchQuery}"`);
     
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${process.env.GOOGLE_PLACES_API_KEY}`
-    );
+    const result = await retryRequest(
+      async () => {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${process.env.GOOGLE_PLACES_API_KEY}`
+        );
 
-    if (response.ok) {
-      const data: GooglePlaceResponse = await response.json();
-      console.log(`Google Places response for "${searchQuery}":`, data.results?.length || 0, 'results');
-      if (data.results) {
-        return data.results;
-      } else {
-        console.warn('No results found for query:', query);
-        return [];
-      }
+        if (!response.ok) {
+          throw new Error(`Google Places API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data: GooglePlaceResponse = await response.json();
+        
+        if (data.error_message) {
+          throw new Error(`Google Places API error: ${data.error_message}`);
+        }
+        
+        return data;
+      },
+      2, // 2 retries for Places API
+      1000, // 1 second base delay
+      `Google Places search for "${searchQuery}"`
+    );
+    
+    console.log(`Google Places response for "${searchQuery}":`, result.results?.length || 0, 'results');
+    
+    if (result.results) {
+      return result.results;
     } else {
-      console.error('Google Places API error:', response.status, response.statusText);
+      console.warn('No results found for query:', query);
       return [];
     }
   } catch (error) {
@@ -463,10 +584,8 @@ ABSOLUTE REQUIREMENTS:
 - Include 8-12 recommendations total
     `;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(curationPrompt);
-    const response = await result.response;
-    const text = response.text();
+    // Use the new retry and fallback mechanism
+    const text = await generateContentWithFallback(curationPrompt);
 
     if (!text) {
       throw new Error('Empty response from Gemini curation');
@@ -638,15 +757,49 @@ ABSOLUTE REQUIREMENTS:
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating enhanced recommendations:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // Determine error type and appropriate response
+    let statusCode = 500;
+    let errorMessage = 'Failed to generate recommendations';
+    let errorDetails = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Handle specific error types
+    if (error.message?.includes('503') || error.message?.includes('overloaded')) {
+      statusCode = 503;
+      errorMessage = 'AI service is temporarily overloaded. Please try again in a few moments.';
+      errorDetails = 'The AI model is currently experiencing high traffic. Please retry your request.';
+    } else if (error.message?.includes('quota exceeded') || error.message?.includes('rate limit')) {
+      statusCode = 429;
+      errorMessage = 'API quota exceeded. Please try again later.';
+      errorDetails = 'The API has reached its usage limit. Please wait before making another request.';
+    } else if (error.message?.includes('API key')) {
+      statusCode = 500;
+      errorMessage = 'Service configuration error';
+      errorDetails = 'There is an issue with the service configuration.';
+    } else if (error.message?.includes('No places found')) {
+      statusCode = 200; // This is actually a valid response, just no results
+      errorMessage = 'No recommendations found';
+      errorDetails = 'No places were found for the specified destination and criteria.';
+    }
+    
     return NextResponse.json(
       { 
-        error: 'Failed to generate recommendations',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage,
+        details: errorDetails,
+        status: statusCode,
+        timestamp: new Date().toISOString(),
+        // Include helpful information for debugging
+        ...(process.env.NODE_ENV === 'development' && {
+          debug: {
+            originalError: error.message,
+            stack: error.stack
+          }
+        })
       },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 }

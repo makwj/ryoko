@@ -1,3 +1,12 @@
+/**
+ * Landing Page Component
+ * 
+ * The main landing page featuring the Ryoko brand and value proposition.
+ * Includes animated hero section, feature showcase, stats, and call-to-action.
+ * Handles user authentication flow with login/register modals.
+ * Features smooth animations, responsive design, and email verification handling.
+ */
+
 "use client";
 import { motion } from "framer-motion";
 import Image from "next/image";
@@ -107,8 +116,15 @@ export default function Home() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  
+  // Redirect logged-in users to dashboard
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
   
   const handleAuthModeChange = (mode: "login" | "register") => {
     setAuthMode(mode);
@@ -127,6 +143,11 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // Show loading while checking auth or redirecting
+  if (authLoading || (user && !isLoading)) {
+    return <Loading />;
+  }
 
   // Check for email verification success
   useEffect(() => {
@@ -177,7 +198,6 @@ export default function Home() {
             <div className="pointer-events-auto mx-auto w-full max-w-[1200px] px-3">
               <motion.div
                 className="px-4 py-2 rounded-full bg-white/60 backdrop-blur-md  shadow-lg shadow-black/5 flex items-center justify-between"
-                whileHover={{ scale: 1.02 }}
                 transition={{ duration: 0.2 }}
               >
                 <motion.div
@@ -302,18 +322,18 @@ export default function Home() {
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-[#ffd85d]/5 to-[#ff9558]/5 rounded-full blur-3xl"></div>
             </div>
 
-            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-screen flex items-center">
-              <div className="grid lg:grid-cols-2 gap-12 items-center w-full">
+            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-screen flex items-center py-20">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
                 {/* Left Column - Content */}
                 <motion.div
-                  className="space-y-8 pt-20 lg:pt-0"
+                  className="space-y-8 order-1 lg:order-1"
                   initial={{ opacity: 0, x: -50 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.8, delay: 0.2 }}
                 >
                   {/* Badge */}
                   <motion.div
-                    className="inline-flex items-center px-4 py-2 bg-[#ff5a58]/10 border border-[#ff5a58]/20 rounded-full"
+                    className="inline-flex items-center mt-4 md:mt-2 lg:mt-0 px-4 py-2 bg-[#ff5a58]/10 border border-[#ff5a58]/20 rounded-full"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.6, delay: 0.4 }}
@@ -385,7 +405,7 @@ export default function Home() {
 
                 {/* Right Column - Hero Image */}
                 <motion.div
-                  className="relative hidden lg:block"
+                  className="relative order-2 lg:order-2"
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.8, delay: 0.4 }}
@@ -393,7 +413,7 @@ export default function Home() {
                   <div className="relative">
                     {/* Main Image */}
                     <motion.div
-                      className="relative w-full h-[500px] lg:h-[600px] flex items-center justify-center"
+                      className="relative w-full h-[400px] sm:h-[500px] lg:h-[600px] flex items-center justify-center"
                       animate={{ y: [0, -20, 0] }}
                       transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                     >
@@ -430,7 +450,7 @@ export default function Home() {
               transition={{ duration: 1, delay: 0.2 }}
               viewport={{ once: true }}
             >
-              <Image src="/assets/stats1.png" alt="decorative" width={380} height={380} className="hidden sm:block absolute -bottom-0 -left-0" />
+              <Image src="/assets/stats1.png" alt="decorative" width={380} height={380} className="hidden xl:block absolute -bottom-0 -left-0" />
             </motion.div>
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -438,7 +458,7 @@ export default function Home() {
               transition={{ duration: 1, delay: 0.4 }}
               viewport={{ once: true }}
             >
-              <Image src="/assets/stats2.png" alt="decorative" width={380} height={380} className="hidden sm:block absolute -bottom-0 -right-0" />
+              <Image src="/assets/stats2.png" alt="decorative" width={380} height={380} className="hidden xl:block absolute -bottom-0 -right-0" />
             </motion.div>
             <div className="relative z-10 mx-auto max-w-6xl px-4 h-full flex items-center">
               <motion.div

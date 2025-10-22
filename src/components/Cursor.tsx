@@ -1,3 +1,11 @@
+/**
+ * Cursor Component
+ * 
+ * Basic cursor display component for real-time collaboration.
+ * Shows a mouse pointer icon with user name label.
+ * Used by the RealtimeCursors system to display other users' cursors.
+ */
+
 import { cn } from '@/lib/utils'
 import { MousePointer2 } from 'lucide-react'
 

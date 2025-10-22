@@ -1,3 +1,12 @@
+/**
+ * AuthContext - Authentication Context Provider
+ * 
+ * Provides authentication state management for the entire application.
+ * Handles user login/logout, session management, and authentication state.
+ * Uses Supabase Auth for authentication with automatic session restoration.
+ * Provides useAuth hook for components to access authentication state.
+ */
+
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";

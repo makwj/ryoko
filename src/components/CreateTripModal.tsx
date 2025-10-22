@@ -1,9 +1,18 @@
+/**
+ * CreateTripModal Component
+ * 
+ * Multi-step modal for creating new trips with comprehensive trip planning features.
+ * Includes destination selection with autocomplete, date picking, collaborator invitations,
+ * and interest selection. Features step-by-step wizard interface with validation.
+ * Integrates with Google Places API for location search and Supabase for data storage.
+ */
+
 "use client";
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { X, Calendar, Plus } from "lucide-react";
+import { X, ChevronDownIcon, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import LocationAutocomplete from "./LocationAutocomplete";
 import { Button } from "@/components/ui/button";
@@ -13,6 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 type CreateTripModalProps = {
   open: boolean;
@@ -48,6 +59,8 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
     interests: []
   });
   const [newCollaborator, setNewCollaborator] = useState("");
+  const [openStart, setOpenStart] = useState(false);
+  const [openEnd, setOpenEnd] = useState(false);
 
   const handleInputChange = (field: keyof TripFormData, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -106,21 +119,6 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
         return;
       }
 
-      // Convert collaborator emails to user IDs
-      let collaboratorIds = [];
-      if (formData.collaborators.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, email')
-          .in('email', formData.collaborators);
-        
-        if (profilesError) {
-          console.warn('Error fetching collaborator profiles:', profilesError);
-        } else {
-          collaboratorIds = profiles?.map(p => p.id) || [];
-        }
-      }
-
       // Create trip
       const { data, error } = await supabase
         .from('trips')
@@ -133,7 +131,8 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
             start_date: formData.startDate || null,
             end_date: formData.endDate || null,
             interests: formData.interests.length > 0 ? formData.interests : null,
-            collaborators: collaboratorIds.length > 0 ? collaboratorIds : null,
+            // Do not add collaborators directly; invitations will be sent instead
+            collaborators: null,
           }
         ])
         .select();
@@ -209,7 +208,7 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
               <h2 className="text-2xl text-dark font-extrabold text-center mb-8">PLAN A NEW TRIP</h2>
               
               <div className="space-y-4">
-                <div>
+                <div className="bg-white rounded-xl">
                   <LocationAutocomplete
                     value={formData.destination}
                     onChange={(value) => handleInputChange("destination", value)}
@@ -218,23 +217,61 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <Input
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) => handleInputChange("startDate", e.target.value)}
-                      className="pl-10"
-                    />
+                  <div className="flex flex-col gap-3">
+                    <Label htmlFor="start-date" className="px-1 text-sm text-gray-400">
+                      Start Date (Optional)
+                    </Label>
+                    <Popover open={openStart} onOpenChange={setOpenStart}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          id="start-date"
+                          className="w-full justify-between font-normal"
+                        >
+                          {formData.startDate ? new Date(formData.startDate).toLocaleDateString() : "Select start date"}
+                          <ChevronDownIcon />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={formData.startDate ? new Date(formData.startDate) : undefined}
+                          captionLayout="dropdown"
+                          onSelect={(date: Date | undefined) => {
+                            handleInputChange('startDate', date ? date.toISOString().slice(0,10) : '');
+                            setOpenStart(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <Input
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) => handleInputChange("endDate", e.target.value)}
-                      className="pl-10"
-                    />
+                  <div className="flex flex-col gap-3">
+                    <Label htmlFor="end-date" className="px-1 text-sm text-gray-400">
+                      End Date (Optional)
+                    </Label>
+                    <Popover open={openEnd} onOpenChange={setOpenEnd}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          id="end-date"
+                          className="w-full justify-between font-normal"
+                        >
+                          {formData.endDate ? new Date(formData.endDate).toLocaleDateString() : "Select end date"}
+                          <ChevronDownIcon />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={formData.endDate ? new Date(formData.endDate) : undefined}
+                          captionLayout="dropdown"
+                          onSelect={(date: Date | undefined) => {
+                            handleInputChange('endDate', date ? date.toISOString().slice(0,10) : '');
+                            setOpenEnd(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
               </div>
@@ -266,6 +303,7 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
                     value={formData.title}
                     onChange={(e) => handleInputChange("title", e.target.value)}
                     placeholder="Enter a Trip Name"
+                    className="focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                     required
                   />
                 </div>
@@ -274,7 +312,7 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
                   <Textarea
                     value={formData.description}
                     onChange={(e) => handleInputChange("description", e.target.value)}
-                    className="h-24 resize-none"
+                    className="h-24 resize-none focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                     placeholder="Write a short description for your trip (Optional)"
                     rows={3}
                   />
@@ -305,14 +343,14 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
               </p>
               
               <div className="space-y-4">
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <Input
                     type="email"
                     value={newCollaborator}
                     onChange={(e) => setNewCollaborator(e.target.value)}
                     placeholder="Enter Email Address"
                     onKeyPress={(e) => e.key === 'Enter' && addCollaborator()}
-                    className="flex-1"
+                    className="flex-1 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
                   />
                   <Button
                     onClick={addCollaborator}
@@ -403,7 +441,7 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[600px] p-0 overflow-hidden">
+      <DialogContent className="max-w-4xl h-[600px] p-0 overflow-hidden border-0 bg-[#EEEEEE]">
         <DialogHeader className="sr-only">
           <DialogTitle>Create New Trip</DialogTitle>
         </DialogHeader>
