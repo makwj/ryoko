@@ -126,15 +126,6 @@ export default function Home() {
     }
   }, [user, authLoading, router]);
   
-  const handleAuthModeChange = (mode: "login" | "register") => {
-    setAuthMode(mode);
-  };
-
-  const openSignUp = () => {
-    setAuthMode("register");
-    setAuthOpen(true);
-  };
-
   // Add loading delay to show the full loading animation
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -143,11 +134,6 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, []);
-
-  // Show loading while checking auth or redirecting
-  if (authLoading || (user && !isLoading)) {
-    return <Loading />;
-  }
 
   // Check for email verification success
   useEffect(() => {
@@ -169,6 +155,20 @@ export default function Home() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
+  
+  const handleAuthModeChange = (mode: "login" | "register") => {
+    setAuthMode(mode);
+  };
+
+  const openSignUp = () => {
+    setAuthMode("register");
+    setAuthOpen(true);
+  };
+
+  // Show loading while checking auth or redirecting
+  if (authLoading || (user && !isLoading)) {
+    return <Loading />;
+  }
   
   return (
     <PublicRoute>
