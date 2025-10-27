@@ -2,7 +2,7 @@
  * Navbar Component
  * 
  * The main navigation bar for authenticated users.
- * Features the Ryoko logo, navigation links (Dashboard, Trips, Bookmarks, Social),
+ * Features the Ryoko logo, navigation links (Dashboard, Bookmarks, Social),
  * and user profile dropdown. Includes animated hover effects and active state indicators.
  * Fetches user profile data and handles profile updates.
  */
@@ -151,14 +151,14 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                   Dashboard
                 </Link>
                 <Link
-                  href="/trips"
+                  href="/social"
                   className={`text-sm font-medium transition-colors ${
-                    isActive('/trips') 
+                    isActive('/social') 
                       ? 'text-[#ff5a58]' 
                       : 'text-gray-600 hover:text-[#ff5a58]'
                   }`}
                 >
-                  Trips
+                  Social
                 </Link>
                 <Link
                   href="/bookmark"
@@ -170,22 +170,11 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                 >
                   Bookmarks
                 </Link>
-                <Link
-                  href="/social"
-                  className={`text-sm font-medium transition-colors ${
-                    isActive('/social') 
-                      ? 'text-[#ff5a58]' 
-                      : 'text-gray-600 hover:text-[#ff5a58]'
-                  }`}
-                >
-                  Social
-                </Link>
               </>
             ) : (
               // Placeholder div to maintain consistent spacing when not authenticated
               <div className="flex items-center gap-6">
-                <div className="w-16 h-4"></div>
-                <div className="w-12 h-4"></div>
+                <div className="w-20 h-4"></div>
                 <div className="w-20 h-4"></div>
                 <div className="w-12 h-4"></div>
               </div>

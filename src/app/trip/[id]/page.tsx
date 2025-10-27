@@ -576,7 +576,7 @@ function SortableActivityItem({
           {isMultiSelectMode && (
             <button
               onClick={() => onToggleSelect(activity.id)}
-              className="p-1 rounded hover:bg-gray-100 transition-colors"
+              className="cursor-pointer p-1 rounded hover:bg-gray-100 transition-colors"
             >
               {isSelected ? (
                 <Check className="w-4 h-4 text-blue-600" />
@@ -605,7 +605,7 @@ function SortableActivityItem({
               <div className="space-y-1">
                 <button
                   onClick={() => onEdit(activity)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
                 >
                   <Edit className="w-4 h-4" />
                   Edit Activity
@@ -3832,52 +3832,54 @@ export default function TripPage() {
 
         {/* Navigation Tabs */}
         <div className="max-w-[1400px] mx-auto px-4 mb-6">
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-            {['Itinerary', 'Idea Board', 'Recommendations', 'Expenses', 'Gallery', 'Recent Activities'].map((tab) => {
-              const tabKey = tab.toLowerCase().replace(/\s+/g, '');
-              const usersInTab = onlineUsers.filter(u => u.currentTab === tabKey && u.id !== user?.id);
-              
-              return (
-              <button
-                key={tab}
-                  onClick={() => setActiveTab(tabKey)}
-                  className={`cursor-pointer relative px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
-                    activeTab === tabKey
-                    ? 'bg-[#ff5a58] text-white'
-                    : 'text-gray-600 hover:text-dark'
-                }`}
-              >
-                  <span>{tab}</span>
-                  {usersInTab.length > 0 && (
-                    <div className="flex -space-x-1">
-                      {usersInTab.slice(0, 3).map((user, index) => {
-                        const participant = participants.find(p => p.id === user.id);
-                        return (
-                          <div
-                            key={user.id}
-                            className={`${activeTab === tabKey ? 'border-white' : 'border-gray-100'}`}
-                          >
-                            <Avatar
-                              name={user.name}
-                              imageUrl={participant?.avatar_url}
-                              size="sm"
-                              className="border-2"
-                            />
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg overflow-x-auto scrollbar-hide">
+            <div className="flex space-x-1 min-w-max">
+              {['Itinerary', 'Idea Board', 'Recommendations', 'Expenses', 'Gallery', 'Recent Activities'].map((tab) => {
+                const tabKey = tab.toLowerCase().replace(/\s+/g, '');
+                const usersInTab = onlineUsers.filter(u => u.currentTab === tabKey && u.id !== user?.id);
+                
+                return (
+                <button
+                  key={tab}
+                    onClick={() => setActiveTab(tabKey)}
+                    className={`cursor-pointer relative px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${
+                      activeTab === tabKey
+                      ? 'bg-[#ff5a58] text-white'
+                      : 'text-gray-600 hover:text-dark'
+                  }`}
+                >
+                    <span>{tab}</span>
+                    {usersInTab.length > 0 && (
+                      <div className="flex -space-x-1">
+                        {usersInTab.slice(0, 3).map((user, index) => {
+                          const participant = participants.find(p => p.id === user.id);
+                          return (
+                            <div
+                              key={user.id}
+                              className={`${activeTab === tabKey ? 'border-white' : 'border-gray-100'}`}
+                            >
+                              <Avatar
+                                name={user.name}
+                                imageUrl={participant?.avatar_url}
+                                size="sm"
+                                className="border-2"
+                              />
+                            </div>
+                          );
+                        })}
+                        {usersInTab.length > 3 && (
+                          <div className={`w-5 h-5 rounded-full border-2 ${
+                            activeTab === tabKey ? 'border-white' : 'border-gray-100'
+                          } bg-gray-400 flex items-center justify-center text-xs font-medium text-white`}>
+                            +{usersInTab.length - 3}
                           </div>
-                        );
-                      })}
-                      {usersInTab.length > 3 && (
-                        <div className={`w-5 h-5 rounded-full border-2 ${
-                          activeTab === tabKey ? 'border-white' : 'border-gray-100'
-                        } bg-gray-400 flex items-center justify-center text-xs font-medium text-white`}>
-                          +{usersInTab.length - 3}
-                        </div>
-                      )}
-                    </div>
-                  )}
-              </button>
-              );
-            })}
+                        )}
+                      </div>
+                    )}
+                </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -4161,15 +4163,15 @@ export default function TripPage() {
                           const ideaCommentsList = ideaComments.filter(comment => comment.idea_id === idea.id);
 
                           return (
-                            <div key={idea.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
-                              <div className="flex">
+                            <div key={idea.id} className="border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
+                              <div className="flex px-4 py-2 items-center">
                                 {/* Image - Only show if there's an image */}
                                 {idea.link_image && (
-                                  <div className="w-[300px] bg-gray-100 flex-shrink-0">
+                                  <div className="w-32 h-32 bg-gray-100 flex-shrink-0">
                                     <img 
                                       src={idea.link_image} 
                                       alt={idea.title}
-                                      className="w-full h-full object-cover"
+                                      className="w-full h-full object-cover rounded-xl"
                                     />
                                   </div>
                                 )}
@@ -4190,115 +4192,24 @@ export default function TripPage() {
                                         {idea.tags.map((tag) => (
                                           <span key={tag} className={`px-2 py-1 rounded-full text-xs font-medium ${
                                             tag === 'food' ? 'bg-green-100 text-green-800' :
-                                            tag === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
-                                            tag === 'accommodation' ? 'bg-blue-100 text-blue-800' :
-                                            tag === 'activity' ? 'bg-purple-100 text-purple-800' :
+                                            tag === 'transportation' ? 'bg-blue-100 text-blue-800' :
+                                            tag === 'accommodation' ? 'bg-purple-100 text-purple-800' :
+                                            tag === 'activity' ? 'bg-green-100 text-green-800' :
                                             tag === 'shopping' ? 'bg-pink-100 text-pink-800' :
                                             tag === 'nature' ? 'bg-emerald-100 text-emerald-800' :
                                             tag === 'history' ? 'bg-amber-100 text-amber-800' :
                                             tag === 'culture' ? 'bg-indigo-100 text-indigo-800' :
+                                            tag === 'other' ? 'bg-gray-100 text-gray-800' :
                                             'bg-gray-100 text-dark-medium'
                                           }`}>
                                             {tag.charAt(0).toUpperCase() + tag.slice(1)}
                                           </span>
                                         ))}
-                                        {idea.link_url && (
-                                          <ExternalLink className="w-4 h-4 text-gray-400" />
-                                        )}
-                                      </div>
-
-                                      {/* Description */}
-                                      {idea.description && (
-                                        <p className="text-sm text-gray-600 mb-3">{idea.description}</p>
-                                      )}
-
-                                      {/* Location */}
-                                      {idea.location && (
-                                          <div className="flex items-center gap-1 mb-3 bg-gray-100 text-gray-700 px-2 py-1 rounded-lg text-sm w-fit px-4" data-location={idea.location}>
-                                          <MapPin className="w-4 h-4 text-gray-400" />
-                                          <span className="text-sm text-gray-600">{idea.location}</span>
-                                        </div>
-                                      )}
-
-                                      {/* Link Preview */}
-                                      {idea.link_url && (
-                                        <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-                                          <a 
-                                            href={idea.link_url} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                                          >
-                                            {idea.link_title || idea.link_url}
-                                          </a>
-                                          {idea.link_description && (
-                                            <p className="text-xs text-gray-500 mt-1">{idea.link_description}</p>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {/* Voting */}
-                                      <div className="flex items-center gap-4 mb-3">
-                                        <button
-                                          onClick={() => handleVoteIdea(idea.id, 'upvote')}
-                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
-                                            userVote?.vote_type === 'upvote'
-                                              ? 'bg-[#ff5a58] text-white cursor-pointer'
-                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
-                                          }`}
-                                        >
-                                          <ThumbsUp className="w-4 h-4" />
-                                          <span className="text-sm font-medium">{idea.upvotes}</span>
-                                        </button>
-                                        <button
-                                          onClick={() => handleVoteIdea(idea.id, 'downvote')}
-                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
-                                            userVote?.vote_type === 'downvote'
-                                              ? 'bg-[#ff5a58] text-white cursor-pointer'
-                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
-                                          }`}
-                                        >
-                                          <ThumbsDown className="w-4 h-4" />
-                                          <span className="text-sm font-medium">{idea.downvotes}</span>
-                                        </button>
-                                        <div className="flex items-center gap-1 text-sm text-gray-500">
-                                          <MessageCircle className="w-4 h-4" />
-                                          <button
-                                            onClick={() => handleToggleComments(idea.id)}
-                                            className="hover:text-gray-700 transition-colors"
-                                          >
-                                            {ideaCommentsList.length}
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      <div className="flex items-center justify-between text-sm text-gray-500">
-                                        <div className="flex items-center gap-2">
-                                          <span>Added By:</span>
-                                          <div className="flex items-center gap-2">
-                                            <Avatar 
-                                              name={addedByParticipant?.name || 'Unknown'} 
-                                              imageUrl={addedByParticipant?.avatar_url}
-                                              size="sm"
-                                            />
-                                            <span>{addedByParticipant?.name || 'Unknown'}</span>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Move to Itinerary Button */}
-                                        <button
-                                          onClick={() => handleMoveToItinerary(idea)}
-                                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
-                                        >
-                                          Move to Itinerary
-                                          <ArrowLeft className="w-3 h-3 rotate-180" />
-                                        </button>
                                       </div>
                                     </div>
 
-                                    {/* Action Buttons */}
-                                    <div className="flex items-center gap-2 ml-4">
-                                      {/* Dropdown Menu */}
+                                    {/* Action Button */}
+                                    <div className="ml-4">
                                       <Popover>
                                         <PopoverTrigger asChild>
                                           <button
@@ -4329,84 +4240,183 @@ export default function TripPage() {
                                       </Popover>
                                     </div>
                                   </div>
+
+                                  {/* Description - Full width underneath */}
+                                  <div className="w-full mb-3">
+                                    {idea.description && (
+                                      <p className="text-gray-600 text-sm">{idea.description}</p>
+                                    )}
+                                  </div>
                                 </div>
+                              </div>
 
-                                {/* Inline Comments Section */}
-                                {expandedComments.has(idea.id) && (
-                                  <div className="border-t bg-gray-50 p-4">
-                                    {/* Comments List */}
-                                    <div className="space-y-3 mb-4">
-                                      {ideaCommentsList.length === 0 ? (
-                                        <p className="text-sm text-form text-center py-2">No comments yet. Be the first to comment!</p>
-                                      ) : (
-                                        ideaCommentsList.map((comment) => {
-                                          const commenter = participants.find(p => p.id === comment.user_id);
-                                          const isOwnComment = user?.id === comment.user_id;
+                              {/* Enhanced Details */}
+                              <div className="px-4 pb-4">
+                                <div className="space-y-2">
+                                  {/* Location */}
+                                  {idea.location && (
+                                    <div className="flex items-center gap-1 text-sm text-gray-500" data-location={idea.location}>
+                                      <MapPin className="w-4 h-4" />
+                                      <span>{idea.location}</span>
+                                    </div>
+                                  )}
 
-                                          return (
-                                            <div key={comment.id} className="flex gap-3">
-                                              <Avatar 
-                                                name={commenter?.name || 'Unknown'} 
-                                                imageUrl={commenter?.avatar_url}
-                                                size="sm"
-                                                className="flex-shrink-0"
-                                              />
-                                              <div className="flex-1">
-                                                <div className="bg-white rounded-lg p-3 shadow-sm">
-                                                  <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-medium text-sm text-dark">
-                                                      {commenter?.name || 'Unknown'}
-                                                    </span>
-                                                    <span className="text-xs text-gray-500">
-                                                      {new Date(comment.created_at).toLocaleDateString()}
-                                                    </span>
-                                                  </div>
-                                                  <p className="text-sm text-gray-700">{comment.content}</p>
-                                                </div>
-                                                {isOwnComment && (
-                                                  <button
-                                                    onClick={() => handleDeleteComment(comment.id)}
-                                                    className="text-xs text-red-600 hover:text-red-800 mt-1"
-                                                  >
-                                                    Delete
-                                                  </button>
-                                                )}
-                                              </div>
-                                            </div>
-                                          );
-                                        })
+                                  {/* Link Preview */}
+                                  {idea.link_url && (
+                                    <>
+                                      <div className="flex items-center gap-1 text-sm">
+                                        <ExternalLink className="w-4 h-4 text-gray-400" />
+                                        <a 
+                                          href={idea.link_url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                          {idea.link_title || idea.link_url}
+                                        </a>
+                                      </div>
+                                      {idea.link_description && (
+                                        <div className="text-sm text-gray-500">
+                                          {idea.link_description}
+                                        </div>
                                       )}
+                                    </>
+                                  )}
+
+                                  {/* Voting and Actions */}
+                                  <div className="flex items-center justify-between pt-2">
+                                    <div className="flex items-center gap-4">
+                                      <button
+                                        onClick={() => handleVoteIdea(idea.id, 'upvote')}
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                                          userVote?.vote_type === 'upvote'
+                                            ? 'bg-[#ff5a58] text-white cursor-pointer'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
+                                        }`}
+                                      >
+                                        <ThumbsUp className="w-4 h-4" />
+                                        <span className="text-sm font-medium">{idea.upvotes}</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleVoteIdea(idea.id, 'downvote')}
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                                          userVote?.vote_type === 'downvote'
+                                            ? 'bg-[#ff5a58] text-white cursor-pointer'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
+                                        }`}
+                                      >
+                                        <ThumbsDown className="w-4 h-4" />
+                                        <span className="text-sm font-medium">{idea.downvotes}</span>
+                                      </button>
+                                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                                        <MessageCircle className="w-4 h-4" />
+                                        <button
+                                          onClick={() => handleToggleComments(idea.id)}
+                                          className="hover:text-gray-700 transition-colors"
+                                        >
+                                          {ideaCommentsList.length}
+                                        </button>
+                                      </div>
                                     </div>
 
-                                    {/* Add Comment */}
-                                    <div className="flex gap-3">
-                                      <Avatar 
-                                        name={user?.email || 'Unknown'} 
-                                        imageUrl={participants.find(p => p.id === user?.id)?.avatar_url}
-                                        size="sm"
-                                        className="flex-shrink-0"
-                                      />
-                                      <div className="flex-1">
-                                        <textarea
-                                          value={newCommentText[idea.id] || ''}
-                                          onChange={(e) => setNewCommentText(prev => ({ ...prev, [idea.id]: e.target.value }))}
-                                          placeholder="Write a comment..."
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-sm"
-                                          rows={2}
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                                        <span className="text-xs">Added By:</span>
+                                        <Avatar 
+                                          name={addedByParticipant?.name || 'Unknown'} 
+                                          imageUrl={addedByParticipant?.avatar_url}
+                                          size="sm"
                                         />
+                                        <span>{addedByParticipant?.name || 'Unknown'}</span>
                                       </div>
+                                      
+                                      {/* Move to Itinerary Button */}
                                       <button
-                                        onClick={() => handleAddComment(idea.id)}
-                                        disabled={!newCommentText[idea.id]?.trim()}
-                                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
+                                        onClick={() => handleMoveToItinerary(idea)}
+                                        className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                                       >
-                                        <MessageCircle className="w-3 h-3" />
-                                        Send
+                                        <Plus className="w-3 h-3" />
+                                        Move to Itinerary
                                       </button>
                                     </div>
                                   </div>
-                                )}
+                                </div>
                               </div>
+
+                              {/* Comments Section Below Card */}
+                              {expandedComments.has(idea.id) && (
+                                <div className="border-t bg-gray-50 p-4">
+                                  {/* Comments List */}
+                                  <div className="space-y-3 mb-4">
+                                    {ideaCommentsList.length === 0 ? (
+                                      <p className="text-sm text-form text-center py-2">No comments yet. Be the first to comment!</p>
+                                    ) : (
+                                      ideaCommentsList.map((comment) => {
+                                        const commenter = participants.find(p => p.id === comment.user_id);
+                                        const isOwnComment = user?.id === comment.user_id;
+
+                                        return (
+                                          <div key={comment.id} className="flex gap-3">
+                                            <Avatar 
+                                              name={commenter?.name || 'Unknown'} 
+                                              imageUrl={commenter?.avatar_url}
+                                              size="sm"
+                                              className="flex-shrink-0"
+                                            />
+                                            <div className="flex-1">
+                                              <div className="bg-white rounded-lg p-3 shadow-sm">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                  <span className="font-medium text-sm text-dark">
+                                                    {commenter?.name || 'Unknown'}
+                                                  </span>
+                                                  <span className="text-xs text-gray-500">
+                                                    {new Date(comment.created_at).toLocaleDateString()}
+                                                  </span>
+                                                </div>
+                                                <p className="text-sm text-gray-700">{comment.content}</p>
+                                              </div>
+                                              {isOwnComment && (
+                                                <button
+                                                  onClick={() => handleDeleteComment(comment.id)}
+                                                  className="text-xs text-red-600 hover:text-red-800 mt-1"
+                                                >
+                                                  Delete
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })
+                                    )}
+                                  </div>
+
+                                  {/* Add Comment */}
+                                  <div className="flex gap-3">
+                                    <Avatar 
+                                      name={user?.email || 'Unknown'} 
+                                      imageUrl={participants.find(p => p.id === user?.id)?.avatar_url}
+                                      size="sm"
+                                      className="flex-shrink-0"
+                                    />
+                                    <div className="flex-1">
+                                      <textarea
+                                        value={newCommentText[idea.id] || ''}
+                                        onChange={(e) => setNewCommentText(prev => ({ ...prev, [idea.id]: e.target.value }))}
+                                        placeholder="Write a comment..."
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent resize-none text-sm"
+                                        rows={2}
+                                      />
+                                    </div>
+                                    <button
+                                      onClick={() => handleAddComment(idea.id)}
+                                      disabled={!newCommentText[idea.id]?.trim()}
+                                      className="px-3 max-h-[40px] bg-[#ff5a58] text-white rounded-lg hover:bg-[#ff4a47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
+                                    >
+                                      Send
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
