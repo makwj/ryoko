@@ -425,7 +425,6 @@ function TimePeriodSection({
   handleEditActivity, 
   handleDeleteActivity, 
   getTypeColor, 
-  getTypeIcon, 
   isMultiSelectMode,
   onAskAI
 }: {
@@ -439,7 +438,6 @@ function TimePeriodSection({
   handleEditActivity: (activity: Activity) => void;
   handleDeleteActivity: (activityId: string) => void;
   getTypeColor: (type: string) => string;
-  getTypeIcon: (type: string) => React.ReactElement;
   isMultiSelectMode: boolean;
   onAskAI: (title: string) => void;
 }) {
@@ -491,7 +489,6 @@ function TimePeriodSection({
               onEdit={handleEditActivity}
               onDelete={handleDeleteActivity}
               getTypeColor={getTypeColor}
-              getTypeIcon={getTypeIcon}
               isMultiSelectMode={isMultiSelectMode}
               onAskAI={onAskAI}
             />
@@ -517,7 +514,6 @@ function SortableActivityItem({
   onEdit, 
   onDelete, 
   getTypeColor, 
-  getTypeIcon,
   isMultiSelectMode,
   onAskAI
 }: {
@@ -527,7 +523,6 @@ function SortableActivityItem({
   onEdit: (activity: Activity) => void;
   onDelete: (id: string) => void;
   getTypeColor: (type: string) => string;
-  getTypeIcon: (type: string) => React.ReactElement;
   isMultiSelectMode: boolean;
   onAskAI: (title: string) => void;
 }) {
@@ -633,14 +628,10 @@ function SortableActivityItem({
       )}
 
       <div className="flex items-center gap-4 mb-3">
-        
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Clock className="w-4 h-4" />
-          <span className="capitalize">{activity.time_period}</span>
-        </div>
+       
         {activity.location && (
           <div className="flex items-center gap-2 text-sm text-gray-500" data-location={activity.location}>
-            {getTypeIcon(activity.activity_type)}
+            <MapPin className="w-4 h-4" />
             {activity.location}
           </div>
         )}
@@ -1785,15 +1776,6 @@ export default function TripPage() {
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'transportation': return <Train className="w-4 h-4" />;
-      case 'accommodation': return <Pin className="w-4 h-4" />;
-      case 'activity': return <MapPin className="w-4 h-4" />;
-      case 'food': return <Clock className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
-    }
-  };
 
   const getActivitiesForDay = (dayNumber: number) => {
     return activities
@@ -3423,7 +3405,7 @@ export default function TripPage() {
             <h1 className="text-2xl font-bold text-dark mb-4">Trip not found</h1>
             <button
               onClick={() => router.push('/dashboard')}
-              className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-2 rounded-lg"
+              className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-2 rounded-lg"
             >
               Back to Dashboard
             </button>
@@ -3446,7 +3428,7 @@ export default function TripPage() {
           <div className="max-w-[1400px] mx-auto px-4">
             <button
               onClick={() => router.push('/dashboard')}
-              className="text-gray-500 hover:text-gray-700 flex items-center gap-2 text-sm"
+              className="cursor-pointer text-gray-500 hover:text-gray-700 flex items-center gap-2 text-sm"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to trip selection
@@ -3573,7 +3555,7 @@ export default function TripPage() {
                             handleRemoveImage();
                           }}
                           disabled={uploadingImage}
-                          className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
+                          className="cursor-pointer w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
                         >
                           <X className="w-4 h-4" />
                           Remove
@@ -3811,7 +3793,7 @@ export default function TripPage() {
                                 "Cancel"
                               );
                             }}
-                            className="ml-auto text-xs text-red-600 hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
+                            className="cursor-pointer ml-auto text-xs text-red-600 hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
                           >
                             Remove
                           </button>
@@ -3973,7 +3955,7 @@ export default function TripPage() {
                                   setSelectedActivities(new Set());
                                 }
                               }}
-                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                              className={`cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
                                 isMultiSelectMode 
                                   ? 'bg-blue-600 text-white hover:bg-blue-700' 
                                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -3996,7 +3978,7 @@ export default function TripPage() {
                               <>
                                 <button 
                                   onClick={selectAllActivitiesForDay}
-                                  className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
+                                  className="cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
                                 >
                                   {getActivitiesForDay(activeDay).every(activity => selectedActivities.has(activity.id)) ? 'Deselect All' : 'Select All'}
                                 </button>
@@ -4004,7 +3986,7 @@ export default function TripPage() {
                                 {selectedActivities.size > 0 && (
                                 <button 
                                     onClick={handleBulkDelete}
-                                    className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
+                                    className="cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                     Delete ({selectedActivities.size})
@@ -4062,7 +4044,6 @@ export default function TripPage() {
                                     handleEditActivity={handleEditActivity}
                                     handleDeleteActivity={handleDeleteActivity}
                                     getTypeColor={getTypeColor}
-                                    getTypeIcon={getTypeIcon}
                                     isMultiSelectMode={isMultiSelectMode}
                                     onAskAI={handleDestinationAskAI}
                                   />
@@ -5238,7 +5219,7 @@ export default function TripPage() {
       </div>
           <button
             onClick={closeAIChatSidebar}
-            className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+            className="cursor-pointer p-1 hover:bg-gray-200 rounded-full transition-colors"
           >
             <X className="w-4 h-4 text-gray-500" />
           </button>

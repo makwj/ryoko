@@ -27,7 +27,7 @@ export default function LocationTooltip({ children, locationText, onAskAI }: Loc
           <Button 
             variant="ghost" 
             size="sm" 
-            className="gap-2 text-sm font-medium"
+            className="cursor-pointer gap-2 text-sm font-medium"
             onClick={onAskAI}
           >
             <MessageCircle className="h-4 w-4" />
