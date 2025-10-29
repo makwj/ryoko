@@ -203,7 +203,6 @@ export default function TextSelectionAI({
 
   // Event listeners
   useEffect(() => {
-    console.log('Setting up hover listeners'); // Debug log
     const container = containerRef.current;
     if (container) {
       container.addEventListener('mouseover', handleMouseOver);
@@ -212,7 +211,6 @@ export default function TextSelectionAI({
     document.addEventListener('click', handleClickOutside);
     
     return () => {
-      console.log('Cleaning up hover listeners'); // Debug log
       if (container) {
         container.removeEventListener('mouseover', handleMouseOver);
         container.removeEventListener('mouseout', handleMouseOut);
@@ -320,7 +318,7 @@ export default function TextSelectionAI({
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                <div className="w-6 h-6 bg-[#0B486B] rounded-full flex items-center justify-center">
                   <MessageCircle className="w-3 h-3 text-white" />
                 </div>
                 <div>
@@ -374,7 +372,7 @@ export default function TextSelectionAI({
                       <div
                         className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                           message.type === 'user'
-                            ? 'bg-blue-500 text-white'
+                            ? 'bg-[#0B486B] text-white'
                             : 'bg-gray-100 text-gray-900'
                         }`}
                       >

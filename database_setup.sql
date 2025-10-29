@@ -54,6 +54,7 @@ CREATE TABLE trips (
   archived BOOLEAN DEFAULT FALSE,
   completed BOOLEAN DEFAULT FALSE,
   trip_image_url TEXT, -- Custom uploaded image URL for the trip header
+  shared_to_social BOOLEAN DEFAULT FALSE, -- Whether trip is shared to social for others to view and copy
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -64,6 +65,9 @@ ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
 -- Create policies for trips table
 CREATE POLICY "Users can view own trips" ON trips
   FOR SELECT USING (auth.uid() = owner_id);
+
+CREATE POLICY "Users can view shared trips" ON trips
+  FOR SELECT USING (shared_to_social = TRUE);
 
 CREATE POLICY "Users can insert own trips" ON trips
   FOR INSERT WITH CHECK (auth.uid() = owner_id);
@@ -690,4 +694,174 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
+
+
+-- =============================
+-- Social tables and policies
+-- =============================
+
+-- Posts
+CREATE TABLE IF NOT EXISTS public.posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  author_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  country_code TEXT,
+  country_name TEXT,
+  is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+  trip_id UUID REFERENCES public.trips(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Post images
+CREATE TABLE IF NOT EXISTS public.post_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
+  image_path TEXT NOT NULL,
+  width INT,
+  height INT,
+  order_index INT NOT NULL DEFAULT 0
+);
+
+-- Reactions
+CREATE TABLE IF NOT EXISTS public.post_reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('like','dislike')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (post_id, user_id)
+);
+
+-- Comments
+CREATE TABLE IF NOT EXISTS public.post_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Bookmarks
+CREATE TABLE IF NOT EXISTS public.post_bookmarks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (post_id, user_id)
+);
+
+-- Enable RLS
+ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_bookmarks ENABLE ROW LEVEL SECURITY;
+
+-- Policies (idempotent via create or replace workaround with exception handling)
+DO $$ BEGIN
+  -- posts
+  CREATE POLICY posts_select ON public.posts FOR SELECT USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY posts_insert ON public.posts FOR INSERT WITH CHECK (author_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY posts_update ON public.posts FOR UPDATE USING (author_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY posts_delete ON public.posts FOR DELETE USING (author_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- post_images
+DO $$ BEGIN
+  CREATE POLICY post_images_select ON public.post_images FOR SELECT USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_images_insert ON public.post_images FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.author_id = auth.uid())
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_images_delete ON public.post_images FOR DELETE USING (
+    EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.author_id = auth.uid())
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- post_reactions
+DO $$ BEGIN
+  CREATE POLICY post_reactions_select ON public.post_reactions FOR SELECT USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_reactions_insert ON public.post_reactions FOR INSERT WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_reactions_delete ON public.post_reactions FOR DELETE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- post_comments
+DO $$ BEGIN
+  CREATE POLICY post_comments_select ON public.post_comments FOR SELECT USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_comments_insert ON public.post_comments FOR INSERT WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_comments_update ON public.post_comments FOR UPDATE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_comments_delete ON public.post_comments FOR DELETE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- post_bookmarks
+DO $$ BEGIN
+  CREATE POLICY post_bookmarks_select ON public.post_bookmarks FOR SELECT USING (auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_bookmarks_insert ON public.post_bookmarks FOR INSERT WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_bookmarks_delete ON public.post_bookmarks FOR DELETE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Storage bucket for post images
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('post-images', 'post-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage policies for post images
+DO $$ BEGIN
+  CREATE POLICY post_images_upload ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'post-images' AND auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_images_read ON storage.objects
+  FOR SELECT USING (bucket_id = 'post-images');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_images_delete ON storage.objects
+  FOR DELETE USING (bucket_id = 'post-images' AND auth.role() = 'authenticated');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_posts_author_created ON public.posts(author_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_featured ON public.posts(is_featured, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_post_images_post ON public.post_images(post_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_post_reactions_post ON public.post_reactions(post_id);
+CREATE INDEX IF NOT EXISTS idx_post_comments_post ON public.post_comments(post_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_post_bookmarks_user ON public.post_bookmarks(user_id, created_at);
 

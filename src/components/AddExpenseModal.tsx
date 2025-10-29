@@ -68,7 +68,6 @@ export default function AddExpenseModal({
 
   useEffect(() => {
     if (open && participants.length > 0) {
-      console.log('AddExpenseModal: Participants loaded:', participants);
       setFormData(prev => ({
         ...prev,
         paidBy: participants[0].id
@@ -341,7 +340,6 @@ export default function AddExpenseModal({
               </div>
             </div>
             <Select value={formData.paidBy} onValueChange={(value) => {
-              console.log('Paid By selected:', value);
               handleInputChange('paidBy', value);
             }}>
               <SelectTrigger id="paidBy">

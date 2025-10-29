@@ -16,7 +16,6 @@ import {
   Upload, 
   X, 
   MessageCircle, 
-  Heart,
   MoreVertical,
   Edit,
   Trash2,
@@ -25,11 +24,13 @@ import {
   Plus,
   Calendar,
   User,
-  Loader2
+  Loader2,
+  Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
+import Avatar from "@/components/ui/avatar";
 
 interface GalleryImage {
   id: string;
@@ -63,7 +64,7 @@ interface GalleryProps {
   tripId: string;
   userId: string;
   numberOfDays: number;
-  participants: Array<{ id: string; name: string }>;
+  participants: Array<{ id: string; name: string; avatar_url?: string }>;
 }
 
 export default function Gallery({ tripId, userId, numberOfDays, participants }: GalleryProps) {
@@ -667,7 +668,7 @@ function ImageDetailModal({
   showComments: Set<string>;
   setShowComments: (value: Set<string>) => void;
   userId: string;
-  participants: Array<{ id: string; name: string }>;
+  participants: Array<{ id: string; name: string; avatar_url?: string }>;
 }) {
   const isOwner = image.uploaded_by === userId;
   const fileName = image.image_url.split('/').pop() || '';
@@ -686,7 +687,9 @@ function ImageDetailModal({
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-dark">Day {image.day_number}</h3>
-            <p className="text-sm text-gray-500">by {image.uploader_name}</p>
+            <p className="text-sm text-gray-500">
+              by {image.uploader_name}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -731,10 +734,21 @@ function ImageDetailModal({
             <div className="mt-3 flex items-center gap-3">
               <button
                 onClick={() => onToggleLike(image.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${image.liked_by_user ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-800'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${image.liked_by_user ? 'bg-[#ff5a58] text-white' : 'bg-gray-100 text-gray-800'}`}
               >
-                <Heart className={`w-4 h-4 ${image.liked_by_user ? 'fill-current' : ''}`} />
-                {image.likes_count ?? 0}
+                <img 
+                  src={image.liked_by_user ? '/assets/bone.svg' : '/assets/bone-plain.svg'} 
+                  alt="Like" 
+                  className="w-4 h-4"
+                  style={image.liked_by_user ? {
+                    filter: 'brightness(0) invert(1)'
+                  } : {
+                    filter: 'brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%)'
+                  }}
+                />
+                <span className={`text-sm font-medium ${image.liked_by_user ? 'text-white' : ''}`}>
+                  {image.likes_count ?? 0}
+                </span>
               </button>
             </div>
             <div className="mt-3">
@@ -787,7 +801,9 @@ function ImageDetailModal({
               </div>
               
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {image.comments?.map((comment) => (
+                {image.comments?.map((comment) => {
+                  const commenter = participants.find(p => p.id === comment.user_id);
+                  return (
                   <div key={comment.id} className="flex gap-3">
                     <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                       <User className="w-4 h-4 text-gray-500" />
@@ -812,7 +828,8 @@ function ImageDetailModal({
                       </button>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Add Comment */}

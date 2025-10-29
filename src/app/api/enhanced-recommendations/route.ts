@@ -228,7 +228,6 @@ async function fetchPlaces(query: string, destination?: string): Promise<GoogleP
       searchQuery = `${query} in ${destination}`;
     }
     
-    console.log(`Fetching places for query: "${searchQuery}"`);
     
     const result = await retryRequest(
       async () => {
@@ -253,7 +252,6 @@ async function fetchPlaces(query: string, destination?: string): Promise<GoogleP
       `Google Places search for "${searchQuery}"`
     );
     
-    console.log(`Google Places response for "${searchQuery}":`, result.results?.length || 0, 'results');
     
     if (result.results) {
       return result.results;
@@ -377,11 +375,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
     }
     
-    console.log('API Keys configured - Places:', !!process.env.GOOGLE_PLACES_API_KEY, 'Gemini:', !!process.env.GOOGLE_GEMINI_API_KEY);
-
     const { tripData }: { tripData: TripData } = await request.json();
-    
-    console.log('Received trip data:', tripData);
     
     if (!tripData) {
       return NextResponse.json({ error: 'Trip data is required' }, { status: 400 });
@@ -421,11 +415,9 @@ export async function POST(request: NextRequest) {
 
 
     // Step 2: Fetch places from Google Places API
-    console.log('Fetching places with queries:', placesQueries);
     const allPlaces = await Promise.all(
       placesQueries.map(query => fetchPlaces(query, destination))
     );
-    console.log('All places fetched:', allPlaces.map(places => places.length));
     
     // Flatten and deduplicate by place_id, excluding already shown places
     const uniquePlaces = new Map();
@@ -441,7 +433,6 @@ export async function POST(request: NextRequest) {
     });
     
     let initialPlaces = Array.from(uniquePlaces.values());
-    console.log('Unique places after deduplication:', initialPlaces.length);
     
     // Add randomization to get different results each time
     initialPlaces = initialPlaces.sort(() => Math.random() - 0.5);

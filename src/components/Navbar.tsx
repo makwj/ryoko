@@ -10,7 +10,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -97,22 +96,15 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
   const isActive = (path: string) => pathname === path;
 
   return (
-    <motion.header
+    <header
       className="fixed top-4 inset-x-0 z-30 flex justify-center pointer-events-none"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.8, delay: 0.2 }}
     >
       <div className="pointer-events-auto mx-auto w-full max-w-[1400px] px-4">
-        <motion.div
+        <div
           className="relative px-4 py-2 rounded-full bg-white shadow-lg shadow-black/5 flex items-center justify-between"
-          transition={{ duration: 0.2 }}
         >
-          <motion.div
+          <div
             className="flex items-center gap-2"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
           >
             <Link href="/dashboard">
               <Image 
@@ -130,13 +122,10 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                 className="block sm:hidden"
               />
             </Link>
-          </motion.div>
+          </div>
           
-          <motion.nav
+          <nav
             className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
           >
             {user ? (
               <>
@@ -179,7 +168,7 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                 <div className="w-12 h-4"></div>
               </div>
             )}
-          </motion.nav>
+          </nav>
 
           {showProfile ? (
             user && !loading ? (
@@ -189,8 +178,8 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
               <div className="w-8 h-8"></div>
             )
           ) : null}
-        </motion.div>
+        </div>
       </div>
-    </motion.header>
+    </header>
   );
 }

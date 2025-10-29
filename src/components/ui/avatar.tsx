@@ -18,7 +18,7 @@ interface AvatarProps {
 const generateColorFromName = (name: string): string => {
   const colors = [
     "bg-red-500",
-    "bg-blue-500", 
+    "bg-[#0B486B]", 
     "bg-green-500",
     "bg-yellow-500",
     "bg-purple-500",
@@ -77,7 +77,6 @@ export default function Avatar({
   const initials = name.charAt(0).toUpperCase();
   
   const handleImageError = () => {
-    console.log('Avatar image error for:', name, 'URL:', imageUrl);
     setImageError(true);
   };
   

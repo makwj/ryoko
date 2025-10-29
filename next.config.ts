@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
     // Disable TypeScript errors during builds for production deployment
     ignoreBuildErrors: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+    ],
+  },
 };
 
 export default nextConfig;

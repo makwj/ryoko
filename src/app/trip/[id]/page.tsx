@@ -22,8 +22,6 @@ import {
   Edit,
   Trash2,
   DollarSign,
-  ThumbsUp,
-  ThumbsDown,
   MessageCircle,
   ExternalLink,
   Archive,
@@ -67,6 +65,7 @@ import EditIdeaModal from "@/components/EditIdeaModal";
 import MoveToItineraryModal from "@/components/MoveToItineraryModal";
 import EditTripModal from "@/components/EditTripModal";
 import InviteCollaboratorsModal from "@/components/InviteCollaboratorsModal";
+import ShareTripGuideModal from "@/components/ShareTripGuideModal";
 import Gallery from "@/components/Gallery";
 import TripImageHeader from "@/components/TripImageHeader";
 import LinkPreview from "@/components/LinkPreview";
@@ -79,6 +78,7 @@ import { ActivityLogger, fetchActivityLogs, clearActivityHistory, ActivityLog } 
 import Avatar from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Navbar from "@/components/Navbar";
+import UserProfileDialog from "@/components/UserProfileDialog";
 import {
   DndContext,
   closestCenter,
@@ -116,6 +116,8 @@ interface Trip {
   archived?: boolean;
   completed?: boolean;
   trip_image_url?: string;
+  shared_to_social?: boolean;
+  share_caption?: string | null;
   created_at: string;
 }
 
@@ -259,14 +261,15 @@ const getWeatherIconComponent = (iconName: string) => {
 // Droppable Day Component
 function DroppableDay({ 
   day, 
-  isActive, 
-  onDayClick, 
+  isActive,
+  onDayClick,
   formatDate,
   weather,
   getWeatherIconComponent,
   onlineUsers,
   currentUserId,
-  participants
+  participants,
+  onUserClick
 }: {
   day: { day: number; date: Date; activities: number };
   isActive: boolean;
@@ -277,6 +280,7 @@ function DroppableDay({
   onlineUsers?: { id: string; name: string; currentTab: string; currentDay?: number }[];
   currentUserId?: string;
   participants?: { id: string; name: string; avatar_url?: string }[];
+  onUserClick?: (userId: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: `day-${day.day}`,
@@ -320,10 +324,10 @@ function DroppableDay({
               </>
             ) : (
               <>
-                <HelpCircle className="w-4 h-4 text-gray-400" />
+                <HelpCircle className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-400'}`} />
                 <div className="text-xs">
-                  <div className="font-medium text-gray-500">Not Available</div>
-                  <div className="text-gray-400">Weather data unavailable</div>
+                  <div className={`font-medium ${isActive ? 'text-white' : 'text-gray-500'}`}>Not Available</div>
+                  <div className={`${isActive ? 'text-white opacity-80' : 'text-gray-400'}`}>Weather data unavailable</div>
                 </div>
               </>
             )}
@@ -345,6 +349,7 @@ function DroppableDay({
                       imageUrl={participant?.avatar_url}
                       size="sm"
                       className="border-2"
+                      onClick={() => onUserClick && onUserClick(user.id)}
                     />
                   </div>
                 );
@@ -728,6 +733,7 @@ export default function TripPage() {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [newCommentText, setNewCommentText] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // Helper function to show confirmation dialog
   const showConfirmation = (title: string, description: string, onConfirm: () => void, variant: 'danger' | 'warning' = 'danger', confirmText?: string, cancelText?: string) => {
@@ -806,7 +812,6 @@ export default function TripPage() {
       }
 
       const data = await response.json();
-      console.log('AI response data:', data);
       
       if (data.error) {
         throw new Error(data.error);
@@ -852,7 +857,6 @@ export default function TripPage() {
       }
 
       const data = await response.json();
-      console.log('Nearby attractions data:', data);
       
       if (data.error) {
         throw new Error(data.error);
@@ -903,7 +907,6 @@ export default function TripPage() {
       }
 
       const data = await response.json();
-      console.log('Nearby accommodations data:', data);
       if (data.error) throw new Error(data.error);
 
       if (data.success && data.accommodations) {
@@ -1041,6 +1044,7 @@ export default function TripPage() {
   const [showMoveToItineraryModal, setShowMoveToItineraryModal] = useState(false);
   const [showEditTripModal, setShowEditTripModal] = useState(false);
   const [showInviteCollaboratorsModal, setShowInviteCollaboratorsModal] = useState(false);
+  const [showShareTripGuideModal, setShowShareTripGuideModal] = useState(false);
   
   // Map nearby attraction category to itinerary activity_type for consistent labeling
   const mapAttractionCategoryToActivityType = (category: string): Activity['activity_type'] => {
@@ -1634,7 +1638,6 @@ export default function TripPage() {
           filter: `id=in.(${[trip.owner_id, ...(trip.collaborators || [])].join(',')})`
         },
         (payload) => {
-          console.log('Profile updated:', payload);
           // Refresh participants when any profile is updated
           refreshParticipants();
         }
@@ -2293,11 +2296,9 @@ export default function TripPage() {
     // Create a unique key for this weather fetch to prevent duplicate requests
     const weatherKey = `${destination}-${startDate}-${endDate}`;
     if (weatherFetchRef.current === weatherKey) {
-      console.log('Weather already fetched for:', weatherKey);
       return; // Already fetched this exact weather data
     }
     
-    console.log('Fetching weather for:', weatherKey);
     weatherFetchRef.current = weatherKey;
     setLoadingWeather(true);
     
@@ -2309,7 +2310,6 @@ export default function TripPage() {
       if (response.ok) {
         const data = await response.json();
         setWeatherData(data.weather || []);
-        console.log('Weather data loaded successfully');
       } else {
         console.warn('Weather service not available');
         setWeatherData([]); // Set empty array to show "Not Available"
@@ -2497,7 +2497,6 @@ export default function TripPage() {
           .in('id', participantIds);
 
         if (!error) {
-          console.log('Fetched participants with avatars:', profilesData);
           // Add email placeholder for now - in a real app, you'd fetch this from auth.users
           const participantsWithEmail = (profilesData || []).map(profile => ({
             ...profile,
@@ -2896,7 +2895,6 @@ export default function TripPage() {
         startDate: trip.start_date,
       };
       
-      console.log('Sending trip data to API (main):', tripData);
 
       const response = await fetch('/api/enhanced-recommendations', {
         method: 'POST',
@@ -2911,8 +2909,6 @@ export default function TripPage() {
       }
 
       const data = await response.json();
-      console.log('API Response:', data);
-      console.log('Recommendations received:', data.recommendations?.length || 0);
       setRecommendations(data.recommendations || []);
       toast.success('Recommendations generated successfully!');
     } catch (error: unknown) {
@@ -2943,7 +2939,6 @@ export default function TripPage() {
         excludePlaceIds
       };
       
-      console.log('Sending trip data to API:', tripData);
 
       const response = await fetch('/api/enhanced-recommendations', {
         method: 'POST',
@@ -3482,6 +3477,18 @@ export default function TripPage() {
                         <Edit className="w-4 h-4" />
                         Edit Details
                       </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowShareTripGuideModal(true);
+                          setShowTripActionsMenu(false);
+                        }}
+                        className="cursor-pointer w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <Users className="w-4 h-4" />
+                        {trip?.shared_to_social ? 'Edit Trip Guide' : 'Share Trip as Guide'}
+                      </button>
                       {/* Show different options based on trip status */}
                       {trip?.completed || trip?.archived ? (
                       <button
@@ -3705,6 +3712,7 @@ export default function TripPage() {
                         name={tripOwner?.name || 'Unknown'} 
                         imageUrl={tripOwner?.avatar_url}
                         size="md"
+                        onClick={() => tripOwner && setSelectedUserId(tripOwner.id)}
                       />
                         <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
                           isOnline ? 'bg-green-500' : 'bg-gray-400'
@@ -3729,6 +3737,7 @@ export default function TripPage() {
                           name={collaborator?.name || 'Unknown'} 
                           imageUrl={collaborator?.avatar_url}
                           size="md"
+                          onClick={() => setSelectedUserId(collaboratorId)}
                         />
                           <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
                             isOnline ? 'bg-green-500' : 'bg-gray-400'
@@ -3845,6 +3854,7 @@ export default function TripPage() {
                                 imageUrl={participant?.avatar_url}
                                 size="sm"
                                 className="border-2"
+                                onClick={() => setSelectedUserId(user.id)}
                               />
                             </div>
                           );
@@ -3918,6 +3928,7 @@ export default function TripPage() {
                         isActive={activeDay === day.day}
                         onDayClick={setActiveDay}
                         formatDate={formatDate}
+                        onUserClick={(userId) => setSelectedUserId(userId)}
                         weather={getWeatherForDay(day.day)}
                         getWeatherIconComponent={getWeatherIconComponent}
                         onlineUsers={onlineUsers}
@@ -3957,7 +3968,7 @@ export default function TripPage() {
                               }}
                               className={`cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
                                 isMultiSelectMode 
-                                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                  ? 'bg-[#0B486B] text-white hover:bg-[#093751]' 
                                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                               }`}
                             >
@@ -4275,8 +4286,19 @@ export default function TripPage() {
                                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
                                         }`}
                                       >
-                                        <ThumbsUp className="w-4 h-4" />
-                                        <span className="text-sm font-medium">{idea.upvotes}</span>
+                                        <img 
+                                          src={userVote?.vote_type === 'upvote' ? '/assets/bone.svg' : '/assets/bone-plain.svg'} 
+                                          alt="Like" 
+                                          className="w-4 h-4"
+                                          style={userVote?.vote_type === 'upvote' ? {
+                                            filter: 'brightness(0) invert(1)'
+                                          } : {
+                                            filter: 'brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%)'
+                                          }}
+                                        />
+                                        <span className={`text-sm font-medium ${userVote?.vote_type === 'upvote' ? 'text-white' : ''}`}>
+                                          {idea.upvotes}
+                                        </span>
                                       </button>
                                       <button
                                         onClick={() => handleVoteIdea(idea.id, 'downvote')}
@@ -4286,8 +4308,19 @@ export default function TripPage() {
                                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
                                         }`}
                                       >
-                                        <ThumbsDown className="w-4 h-4" />
-                                        <span className="text-sm font-medium">{idea.downvotes}</span>
+                                        <img 
+                                          src={userVote?.vote_type === 'downvote' ? '/assets/bone-crack.svg' : '/assets/bone-broken-plain.svg'} 
+                                          alt="Dislike" 
+                                          className="w-4 h-4"
+                                          style={userVote?.vote_type === 'downvote' ? {
+                                            filter: 'brightness(0) invert(1)'
+                                          } : {
+                                            filter: 'brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%)'
+                                          }}
+                                        />
+                                        <span className={`text-sm font-medium ${userVote?.vote_type === 'downvote' ? 'text-white' : ''}`}>
+                                          {idea.downvotes}
+                                        </span>
                                       </button>
                                       <div className="flex items-center gap-1 text-sm text-gray-500">
                                         <MessageCircle className="w-4 h-4" />
@@ -4307,6 +4340,7 @@ export default function TripPage() {
                                           name={addedByParticipant?.name || 'Unknown'} 
                                           imageUrl={addedByParticipant?.avatar_url}
                                           size="sm"
+                                          onClick={() => addedByParticipant && setSelectedUserId(addedByParticipant.id)}
                                         />
                                         <span>{addedByParticipant?.name || 'Unknown'}</span>
                                       </div>
@@ -4314,7 +4348,7 @@ export default function TripPage() {
                                       {/* Move to Itinerary Button */}
                                       <button
                                         onClick={() => handleMoveToItinerary(idea)}
-                                        className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                        className="cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                                       >
                                         <Plus className="w-3 h-3" />
                                         Move to Itinerary
@@ -4343,6 +4377,7 @@ export default function TripPage() {
                                               imageUrl={commenter?.avatar_url}
                                               size="sm"
                                               className="flex-shrink-0"
+                                              onClick={() => commenter && setSelectedUserId(commenter.id)}
                                             />
                                             <div className="flex-1">
                                               <div className="bg-white rounded-lg p-3 shadow-sm">
@@ -4378,6 +4413,7 @@ export default function TripPage() {
                                       imageUrl={participants.find(p => p.id === user?.id)?.avatar_url}
                                       size="sm"
                                       className="flex-shrink-0"
+                                      onClick={() => user?.id && setSelectedUserId(user.id)}
                                     />
                                     <div className="flex-1">
                                       <textarea
@@ -4529,7 +4565,7 @@ export default function TripPage() {
                                   <div className="ml-4">
                                     <button
                                       onClick={() => moveRecommendationToIdeas(recommendation)}
-                                      className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                      className="cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                                     >
                                       <Plus className="w-4 h-4 cursor-pointer" />
                                       Add to Ideas
@@ -4844,6 +4880,7 @@ export default function TripPage() {
                                             name={paidByParticipant?.name || 'Unknown'} 
                                             imageUrl={paidByParticipant?.avatar_url}
                                             size="sm"
+                                            onClick={() => paidByParticipant && setSelectedUserId(paidByParticipant.id)}
                                           />
                                           <span>Paid by {paidByParticipant?.name || 'Unknown'}</span>
                                         </div>
@@ -4937,6 +4974,7 @@ export default function TripPage() {
                                               <div className="flex items-center gap-2">
                                                 <Avatar
                                                   name={fromParticipant?.name || 'Unknown'}
+                                                  onClick={() => fromParticipant && setSelectedUserId(fromParticipant.id)}
                                                   imageUrl={fromParticipant?.avatar_url}
                                                   size="sm"
                                                   showTooltip={true}
@@ -4949,6 +4987,7 @@ export default function TripPage() {
                                               <div className="flex items-center gap-2">
                                                 <Avatar
                                                   name={toParticipant?.name || 'Unknown'}
+                                                  onClick={() => toParticipant && setSelectedUserId(toParticipant.id)}
                                                   imageUrl={toParticipant?.avatar_url}
                                                   size="sm"
                                                   showTooltip={true}
@@ -5035,7 +5074,8 @@ export default function TripPage() {
                             <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
                               <div className="flex items-start gap-3">
                                 <Avatar 
-                                  name={log.user.name} 
+                                  name={log.user.name}
+                                  onClick={() => setSelectedUserId(log.user_id)} 
                                   imageUrl={participants.find(p => p.id === log.user_id)?.avatar_url}
                                   size="md"
                                   className="flex-shrink-0"
@@ -5173,6 +5213,19 @@ export default function TripPage() {
           />
         )}
 
+        {showShareTripGuideModal && trip && (
+          <ShareTripGuideModal
+            open={showShareTripGuideModal}
+            onClose={() => setShowShareTripGuideModal(false)}
+            tripId={trip.id}
+            currentCaption={trip.share_caption || null}
+            isCurrentlyShared={trip.shared_to_social || false}
+            onShared={() => {
+              handleTripUpdated('share');
+            }}
+          />
+        )}
+
         {showInviteCollaboratorsModal && trip && trip.id && (
           <InviteCollaboratorsModal
             open={showInviteCollaboratorsModal}
@@ -5235,7 +5288,7 @@ export default function TripPage() {
                   <div
                     className={`max-w-[80%] p-3 rounded-lg ${
                       message.role === 'user'
-                        ? 'bg-blue-500 text-white'
+                        ? 'bg-[#0B486B] text-white'
                         : 'bg-gray-100 text-gray-900'
                     }`}
                   >
@@ -5405,6 +5458,14 @@ export default function TripPage() {
 
       </div>
 
+      {/* User Profile Dialog */}
+      {selectedUserId && (
+        <UserProfileDialog
+          userId={selectedUserId}
+          isOpen={!!selectedUserId}
+          onClose={() => setSelectedUserId(null)}
+        />
+      )}
 
     </ProtectedRoute>
   );

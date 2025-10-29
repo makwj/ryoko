@@ -1,14 +1,25 @@
 /**
  * Debug Invitations API Route
  * 
+ * DEVELOPMENT ONLY - This endpoint should be disabled or restricted in production.
+ * 
  * Helps debug and clean up invitation records that might be causing constraint violations.
- * This is a temporary debugging tool to help resolve the duplicate key issue.
+ * 
+ * SECURITY NOTE: Restrict access to this endpoint in production by:
+ * 1. Adding environment check: if (process.env.NODE_ENV === 'production') return 403
+ * 2. Requiring admin role or special token
+ * 3. Removing this endpoint entirely in production
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
+  // Restrict in production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'This endpoint is disabled in production' }, { status: 403 });
+  }
+
   try {
     const { tripId, email, action = 'check' } = await request.json();
 

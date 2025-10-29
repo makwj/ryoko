@@ -76,7 +76,6 @@ export default function Dashboard() {
       // Get user's email from auth.users (not profiles table)
       const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
 
-      console.log('Auth user fetch result:', { authUser, userError });
 
       if (userError || !authUser?.email) {
         console.error('Error fetching user email:', userError);
@@ -101,7 +100,6 @@ export default function Dashboard() {
         .gt('expires_at', new Date().toISOString())
         .order('invited_at', { ascending: false });
 
-      console.log('Invitations fetch result:', { invitationsData, error });
 
       if (error) {
         console.error('Error fetching invitations:', error);
@@ -115,7 +113,6 @@ export default function Dashboard() {
         return;
       }
 
-      console.log('Successfully fetched invitations:', (invitationsData || []).length);
       
       if (invitationsData && invitationsData.length > 0) {
         // Fetch inviter profiles for each invitation
@@ -142,10 +139,8 @@ export default function Dashboard() {
           })
         );
         
-        console.log('Setting invitations with inviters:', invitationsWithInviters);
         setInvitations(invitationsWithInviters as any);
       } else {
-        console.log('No invitations data received');
         setInvitations([]);
       }
     } catch (error) {
@@ -409,15 +404,11 @@ export default function Dashboard() {
   const handleInvitationResponse = async (invitationId: string, action: 'accept' | 'decline') => {
     if (!user) return;
 
-    console.log('Handling invitation response:', { invitationId, action, user: user.id });
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      console.log('Session token available:', !!token);
-      console.log('Token length:', token?.length);
-      console.log('Request body:', JSON.stringify({ invitationId, action }));
 
       const response = await fetch('/api/invitation', {
         method: 'POST',
@@ -431,8 +422,6 @@ export default function Dashboard() {
         })
       });
 
-      console.log('API response status:', response.status);
-      console.log('API response headers:', Object.fromEntries(response.headers.entries()));
 
       const data = await response.json();
 
@@ -685,7 +674,6 @@ export default function Dashboard() {
                         <div className="flex gap-3">
                           <button 
                             onClick={() => {
-                              console.log('Decline button clicked, invitation:', invitation);
                               handleInvitationResponse(invitation.id, 'decline');
                             }}
                             className="cursor-pointer flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
@@ -694,7 +682,6 @@ export default function Dashboard() {
                           </button>
                           <button 
                             onClick={() => {
-                              console.log('Accept button clicked, invitation:', invitation);
                               handleInvitationResponse(invitation.id, 'accept');
                             }}
                             className="cursor-pointer flex-1 bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
