@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -15,7 +15,7 @@ import SharedTripCard from "@/components/SharedTripCard";
 import UserProfileDialog from "@/components/UserProfileDialog";
 import EditPostModal from "@/components/EditPostModal";
 
-export default function SocialPage() {
+function SocialPageInner() {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -843,5 +843,13 @@ export default function SocialPage() {
         )}
       </div>
     </ProtectedRoute>
+  );
+}
+
+export default function SocialPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50"><Navbar /><main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-20"><div className="text-center text-gray-500">Loading...</div></main></div>}>
+      <SocialPageInner />
+    </Suspense>
   );
 }
