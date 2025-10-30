@@ -15,6 +15,16 @@ import Navbar from "@/components/Navbar";
 import AvatarStack from "@/components/ui/avatar-stack";
 import Avatar from "@/components/ui/avatar";
 
+type InvitationRow = {
+  id: string;
+  trip_id: string;
+  inviter_id: string;
+  invitee_email: string;
+  status: string;
+  invited_at: string;
+  expires_at: string;
+};
+
 interface Trip {
   id: string;
   title: string;
@@ -116,7 +126,7 @@ export default function Dashboard() {
       
       if (invitationsData && invitationsData.length > 0) {
         // Fetch inviter profiles for each invitation
-        const invitationsWithInviters = await Promise.all(
+        const invitationsWithInviters: Invitation[] = await Promise.all(
           invitationsData.map(async (invitation) => {
             try {
               const { data: inviterProfile } = await supabase
@@ -139,7 +149,7 @@ export default function Dashboard() {
           })
         );
         
-        setInvitations(invitationsWithInviters as any);
+        setInvitations(invitationsWithInviters);
       } else {
         setInvitations([]);
       }
@@ -265,7 +275,7 @@ export default function Dashboard() {
         schema: 'public',
         table: 'invitations'
       }, async (payload) => {
-        const newRow = payload.new as any;
+        const newRow = payload.new as InvitationRow;
         if (!newRow?.invitee_email) return;
         if (String(newRow.invitee_email).toLowerCase() !== profileEmail) return;
         try {
@@ -283,12 +293,19 @@ export default function Dashboard() {
             .eq('id', newRow.inviter_id)
             .single();
           
-          const inviteWithTrip: any = { 
-            ...newRow, 
-            trips: trip, 
-            inviter: inviter || { id: newRow.inviter_id, name: 'Unknown User', avatar_url: null }
+          const inviteWithTrip: Invitation = {
+            id: newRow.id,
+            trip_id: newRow.trip_id,
+            inviter_id: newRow.inviter_id,
+            invitee_email: newRow.invitee_email,
+            invitee_name: undefined,
+            status: newRow.status,
+            invited_at: newRow.invited_at,
+            expires_at: newRow.expires_at,
+            trips: (trip as any),
+            inviter: (inviter as any) || { id: newRow.inviter_id, name: 'Unknown User', avatar_url: undefined }
           };
-          setInvitations(prev => [inviteWithTrip, ...prev.filter(i => i.id !== newRow.id)]);
+          setInvitations(prev => [inviteWithTrip, ...prev.filter((i) => i.id !== newRow.id)]);
           setInvitationsLoading(false);
           toast.success('You received a new trip invitation');
           // Fallback: two-phase refetch to handle replication lag
@@ -303,7 +320,7 @@ export default function Dashboard() {
         schema: 'public',
         table: 'invitations'
       }, async (payload) => {
-        const row = payload.new as any;
+        const row = payload.new as InvitationRow;
         if (!row?.invitee_email) return;
         if (String(row.invitee_email).toLowerCase() !== profileEmail) return;
         try {
@@ -312,8 +329,19 @@ export default function Dashboard() {
             .select('id, title, destination, start_date, end_date, description, owner_id')
             .eq('id', row.trip_id)
             .single();
-          const inviteWithTrip: any = { ...row, trips: trip };
-          setInvitations(prev => [inviteWithTrip, ...prev.filter(i => i.id !== row.id)]);
+          const updated: Invitation = {
+            id: row.id,
+            trip_id: row.trip_id,
+            inviter_id: row.inviter_id,
+            invitee_email: row.invitee_email,
+            invitee_name: undefined,
+            status: row.status,
+            invited_at: row.invited_at,
+            expires_at: row.expires_at,
+            trips: (trip as any),
+            inviter: (prev.find((i) => i.id === row.id)?.inviter as any) || { id: row.inviter_id, name: 'Unknown User', avatar_url: undefined }
+          };
+          setInvitations(prev => [updated, ...prev.filter((i) => i.id !== row.id)]);
           setInvitationsLoading(false);
           setTimeout(() => { fetchInvitations(user); }, 800);
           setTimeout(() => { fetchInvitations(user); }, 2000);
