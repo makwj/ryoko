@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Calendar, DollarSign, Users, Tag } from "lucide-react";
+import { X, Calendar, DollarSign, Users, Tag, ChevronDownIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { ActivityLogger } from "@/lib/activityLogger";
@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 interface EditExpenseModalProps {
   open: boolean;
@@ -67,6 +69,7 @@ export default function EditExpenseModal({
     expenseDate: new Date().toISOString().split('T')[0]
   });
   const [loading, setLoading] = useState(false);
+  const [openExpenseDate, setOpenExpenseDate] = useState(false);
 
   useEffect(() => {
     if (open && expense) {
@@ -289,16 +292,31 @@ export default function EditExpenseModal({
             <Label htmlFor="expenseDate" className="text-sm font-medium text-gray-700">
               Date *
             </Label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input
-                id="expenseDate"
-                type="date"
-                value={formData.expenseDate}
-                onChange={(e) => handleInputChange('expenseDate', e.target.value)}
-                className="pl-10"
+            <Popover open={openExpenseDate} onOpenChange={setOpenExpenseDate}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between font-normal"
+                >
+                  <span className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    {formData.expenseDate ? new Date(formData.expenseDate).toLocaleDateString() : "Select date"}
+                  </span>
+                  <ChevronDownIcon className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={formData.expenseDate ? new Date(formData.expenseDate) : undefined}
+                  captionLayout="dropdown"
+                  onSelect={(date: Date | undefined) => {
+                    handleInputChange('expenseDate', date ? date.toISOString().slice(0,10) : '');
+                    setOpenExpenseDate(false);
+                  }}
               />
-            </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 

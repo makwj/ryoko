@@ -22,6 +22,7 @@ function SocialPageInner() {
   const [showComposer, setShowComposer] = useState(false);
   const [attachTripId, setAttachTripId] = useState<string | null>(null);
   const [featured, setFeatured] = useState<PostRecord[]>([]);
+  const [featuredGuides, setFeaturedGuides] = useState<Array<{ type: 'trip'; data: any }>>([]);
   const [feed, setFeed] = useState<Array<PostRecord | { type: 'trip'; data: any }>>([]);
   const [loading, setLoading] = useState(false);
   const pageRef = useRef<{ from?: string; size: number }>({ size: 10 });
@@ -53,30 +54,56 @@ function SocialPageInner() {
   }, [searchParams]);
 
   const loadFeatured = useCallback(async () => {
-    const { data, error } = await supabase
+    const postsPromise = supabase
       .from('posts')
       .select('*, author:profiles(name, avatar_url), images:post_images(*), post_reactions(count), post_comments(count)')
       .eq('is_featured', true)
       .order('created_at', { ascending: false })
       .limit(10);
-    if (!error && data) {
-      setFeatured(normalizePosts(data));
+
+    const guidesPromise = supabase
+      .from('trips')
+      .select('*')
+      .eq('shared_to_social', true)
+      .eq('archived', false)
+      .eq('is_featured_social', true)
+      .order('updated_at', { ascending: false })
+      .limit(10);
+
+    try {
+      const [{ data: postsData }, { data: guidesData }] = await Promise.all([postsPromise, guidesPromise]);
+      const postItems = postsData ? normalizePosts(postsData) : [];
+      let guideItems: Array<{ type: 'trip'; data: any }> = [];
+      if (guidesData && guidesData.length > 0) {
+        try {
+          const enriched = await Promise.all(guidesData.map(trip => enrichTrip(trip)));
+          guideItems = enriched.filter(t => t).map(t => ({ type: 'trip', data: t }));
+        } catch (error) {
+          console.error('Error enriching featured guides:', error);
+        }
+      }
+      // Store featured posts and guides separately
+      setFeatured(postItems);
+      setFeaturedGuides(guideItems);
+    } catch (error) {
+      console.error('Error loading featured content:', error);
     }
   }, []);
 
   // Helper to enrich trip with author and activity count
   const enrichTrip = async (trip: any) => {
-    const [{ count }, { data: authorData }] = await Promise.all([
-      supabase
-        .from('activities')
-        .select('*', { count: 'exact', head: true })
-        .eq('trip_id', trip.id),
-      supabase
-        .from('profiles')
-        .select('name, avatar_url')
-        .eq('id', trip.owner_id)
-        .single(),
-    ]);
+    try {
+      const [{ count }, { data: authorData }] = await Promise.all([
+        supabase
+          .from('activities')
+          .select('*', { count: 'exact', head: true })
+          .eq('trip_id', trip.id),
+        supabase
+          .from('profiles')
+          .select('name, avatar_url')
+          .eq('id', trip.owner_id)
+          .single(),
+      ]);
     
     // Extract country from destination if not stored
     const extractCountryFromDestination = (destination: string): string => {
@@ -99,18 +126,27 @@ function SocialPageInner() {
       return countryMap[name] || null;
     };
 
-    const extractedCountry = trip.destination ? extractCountryFromDestination(trip.destination) : null;
-    const derivedCountryCode = extractedCountry ? getCountryCodeFromName(extractedCountry) : null;
+      const extractedCountry = trip.destination ? extractCountryFromDestination(trip.destination) : null;
+      const derivedCountryCode = extractedCountry ? getCountryCodeFromName(extractedCountry) : null;
 
-    return {
-      ...trip, // This should include trip_image_url from the original query
-      activity_count: count || 0,
-      author: authorData || null,
-      share_caption: trip.share_caption || null,
-      trip_image_url: trip.trip_image_url || null, // Explicitly preserve
-      country_name: trip.country_name || extractedCountry || null,
-      country_code: trip.country_code || derivedCountryCode || null,
-    };
+      return {
+        ...trip, // This should include trip_image_url from the original query
+        activity_count: count || 0,
+        author: authorData || null,
+        share_caption: trip.share_caption || null,
+        trip_image_url: trip.trip_image_url || null, // Explicitly preserve
+        country_name: trip.country_name || extractedCountry || null,
+        country_code: trip.country_code || derivedCountryCode || null,
+      };
+    } catch (error) {
+      console.error('Error enriching trip:', error);
+      // Return trip with minimal enrichment on error
+      return {
+        ...trip,
+        activity_count: 0,
+        author: null,
+      };
+    }
   };
 
   const normalizePosts = (rows: any[]): PostRecord[] => {
@@ -143,22 +179,24 @@ function SocialPageInner() {
       pageRef.current.from = undefined;
     }
 
-    // Get all posts (latest first)
+    // Get all posts (latest first), excluding featured posts
     const postsBase = supabase
       .from('posts')
       .select('*, author:profiles(name, avatar_url), images:post_images(*)')
+      .neq('is_featured', true)
       .order('created_at', { ascending: false });
 
     if (!reset && pageRef.current.from) {
       postsBase.lt('created_at', pageRef.current.from);
     }
 
-    // Get all shared trips (latest shared first, use updated_at)
+    // Get all shared trips (latest shared first, use updated_at), excluding featured guides
     const tripsBase = supabase
       .from('trips')
       .select('*')
       .eq('shared_to_social', true)
       .eq('archived', false)
+      .neq('is_featured_social', true)
       .order('updated_at', { ascending: false });
 
     if (!reset && pageRef.current.from) {
@@ -751,13 +789,13 @@ function SocialPageInner() {
             </div>
           </div>
 
-          {/* Featured Posts - only show on Explore tab */}
-          {activeTab === 'explore' && featured.length > 0 && (
+          {/* Featured Posts & Guides - only show on Explore tab */}
+          {activeTab === 'explore' && (featured.length > 0 || featuredGuides.length > 0) && (
             <section className="mb-8">
-              <div className="flex items-center gap-2 mb-3 text-[#ff5a58] font-semibold">
-                <Sparkles className="w-5 h-5" /> Featured Posts
+              <div className="flex items-center gap-2 mb-4 text-[#ff5a58] font-semibold">
+                <Sparkles className="w-5 h-5" /> Featured
               </div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-4">
                 {featured.map((p) => (
                   <PostCard 
                     key={p.id} 
@@ -765,6 +803,13 @@ function SocialPageInner() {
                     onUserClick={setSelectedUserId}
                     onEdit={handlePostEdit}
                     onDelete={handlePostDelete}
+                  />
+                ))}
+                {featuredGuides.map((guide) => (
+                  <SharedTripCard 
+                    key={guide.data.id} 
+                    trip={guide.data} 
+                    onUserClick={setSelectedUserId}
                   />
                 ))}
               </div>

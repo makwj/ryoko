@@ -77,10 +77,12 @@ export const useRealtimeCursors = ({
   roomName,
   username,
   throttleMs,
+  enabled = true,
 }: {
   roomName: string
   username: string
   throttleMs: number
+  enabled?: boolean
 }) => {
   const [color] = useState(generateRandomColor())
   const [userId] = useState(generateRandomNumber())
@@ -138,6 +140,15 @@ export const useRealtimeCursors = ({
   const handleMouseMove = useThrottleCallback(callback, throttleMs)
 
   useEffect(() => {
+    if (!enabled) {
+      // If disabled, clear any existing cursors and unsubscribe
+      setCursors({})
+      if (channelRef.current) {
+        channelRef.current.unsubscribe()
+        channelRef.current = null
+      }
+      return
+    }
     // Clear cursors when room changes to prevent showing stale cursors
     setCursors({})
     
@@ -195,9 +206,10 @@ export const useRealtimeCursors = ({
       channel.unsubscribe()
       clearInterval(cleanupInterval)
     }
-  }, [roomName, userId])
+  }, [roomName, userId, enabled])
 
   useEffect(() => {
+    if (!enabled) return
     // Add event listener for mousemove
     window.addEventListener('mousemove', handleMouseMove)
 
@@ -239,7 +251,7 @@ export const useRealtimeCursors = ({
       clearTimeout(resizeTimeout)
       clearTimeout(scrollTimeout)
     }
-  }, [handleMouseMove])
+  }, [handleMouseMove, enabled])
 
   return { cursors }
 }

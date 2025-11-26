@@ -31,6 +31,7 @@ interface NavbarProps {
 export default function Navbar({ showProfile = true }: NavbarProps) {
   const { user: authUser, loading: authLoading } = useAuth();
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
 
@@ -59,6 +60,7 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
           name: profile?.name || authUser.user_metadata?.name,
           avatar_url: profile?.avatar_url
         });
+        setIsAdmin(profile?.role === 'admin');
       } catch (error) {
         console.error('Error fetching user profile:', error);
         // Fallback to auth user data
@@ -68,6 +70,7 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
           name: authUser.user_metadata?.name,
           avatar_url: undefined
         });
+        setIsAdmin(false);
       } finally {
         setLoading(false);
       }
@@ -90,23 +93,26 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
         name: profile?.name || prev.name,
         avatar_url: profile?.avatar_url || prev.avatar_url
       } : null);
+      setIsAdmin(profile?.role === 'admin');
     }
   };
 
-  const isActive = (path: string) => pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/admin') {
+      // For admin, match any path that starts with /admin
+      return pathname.startsWith('/admin');
+    }
+    return pathname === path;
+  };
 
   return (
     <header
-      className="fixed top-4 inset-x-0 z-30 flex justify-center pointer-events-none"
+      className="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100"
     >
-      <div className="pointer-events-auto mx-auto w-full max-w-[1400px] px-4">
-        <div
-          className="relative px-4 py-2 rounded-full bg-white shadow-lg shadow-black/5 flex items-center justify-between"
-        >
-          <div
-            className="flex items-center gap-2"
-          >
-            <Link href="/dashboard">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center">
+            <Link href="/dashboard" className="cursor-pointer">
               <Image 
                 src="/assets/ryokolong.png" 
                 alt="Ryoko logo" 
@@ -124,14 +130,12 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
             </Link>
           </div>
           
-          <nav
-            className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6"
-          >
+          <nav className="hidden md:flex items-center gap-8">
             {user ? (
               <>
                 <Link
                   href="/dashboard"
-                  className={`text-sm font-medium transition-colors ${
+                  className={`text-sm transition-colors cursor-pointer ${
                     isActive('/dashboard') 
                       ? 'text-[#ff5a58]' 
                       : 'text-gray-600 hover:text-[#ff5a58]'
@@ -141,7 +145,7 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                 </Link>
                 <Link
                   href="/social"
-                  className={`text-sm font-medium transition-colors ${
+                  className={`text-sm transition-colors cursor-pointer ${
                     isActive('/social') 
                       ? 'text-[#ff5a58]' 
                       : 'text-gray-600 hover:text-[#ff5a58]'
@@ -151,7 +155,7 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                 </Link>
                 <Link
                   href="/bookmark"
-                  className={`text-sm font-medium transition-colors ${
+                  className={`text-sm transition-colors cursor-pointer ${
                     isActive('/bookmark') 
                       ? 'text-[#ff5a58]' 
                       : 'text-gray-600 hover:text-[#ff5a58]'
@@ -159,22 +163,26 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                 >
                   Bookmarks
                 </Link>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className={`text-sm transition-colors cursor-pointer ${
+                      isActive('/admin') 
+                        ? 'text-[#ff5a58]' 
+                        : 'text-gray-600 hover:text-[#ff5a58]'
+                    }`}
+                  >
+                    Admin
+                  </Link>
+                )}
               </>
-            ) : (
-              // Placeholder div to maintain consistent spacing when not authenticated
-              <div className="flex items-center gap-6">
-                <div className="w-20 h-4"></div>
-                <div className="w-20 h-4"></div>
-                <div className="w-12 h-4"></div>
-              </div>
-            )}
+            ) : null}
           </nav>
 
           {showProfile ? (
             user && !loading ? (
               <ProfileDropdown user={user} onProfileUpdated={handleProfileUpdated} />
             ) : (
-              // Placeholder div to maintain consistent spacing when loading or not authenticated
               <div className="w-8 h-8"></div>
             )
           ) : null}

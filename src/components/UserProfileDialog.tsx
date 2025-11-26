@@ -37,21 +37,27 @@ export default function UserProfileDialog({ userId, isOpen, onClose }: UserProfi
     const loadProfile = async () => {
       setLoading(true);
       try {
+        // Check if user is logged in (optional for visitors)
         const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (!currentUser) return;
+        if (currentUser) {
+          setCurrentUserId(currentUser.id);
+        }
 
-        setCurrentUserId(currentUser.id);
-
-        // Load profile
+        // Load profile (works for visitors too)
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', userId)
           .single();
 
+        if (!profileData) {
+          toast.error('Profile not found');
+          return;
+        }
+
         setProfile(profileData);
 
-        // Load stats
+        // Load stats (works for visitors too)
         const [
           { count: followersCount },
           { count: followingCount },
@@ -100,8 +106,8 @@ export default function UserProfileDialog({ userId, isOpen, onClose }: UserProfi
           tripsCompleted: tripsCompletedCount || 0,
         });
 
-        // Check if current user is following this user
-        if (currentUser.id !== userId) {
+        // Check if current user is following this user (only if logged in)
+        if (currentUser && currentUser.id !== userId) {
           const { data: followData } = await supabase
             .from('user_follows')
             .select('id')

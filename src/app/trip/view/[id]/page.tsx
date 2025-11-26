@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import ProtectedRoute from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
+import AuthModal from "@/components/AuthModal";
+import { motion } from "framer-motion";
 import { ArrowLeft, Calendar, MapPin, Users, Bookmark } from "lucide-react";
 import toast from "react-hot-toast";
 import Image from "next/image";
@@ -50,21 +51,23 @@ export default function ViewSharedTripPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [dynamicImageUrl, setDynamicImageUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
 
   useEffect(() => {
     const loadTrip = async () => {
       if (!params.id) return;
 
-      // Load trip
+      // Load trip - allow viewing via shareable link (no shared_to_social requirement)
       const { data: tripData, error: tripError } = await supabase
         .from('trips')
         .select('*')
         .eq('id', params.id)
-        .eq('shared_to_social', true)
         .single();
       
       if (tripError || !tripData) {
-        toast.error("Trip not found or not shared");
+        toast.error("Trip not found");
         router.push('/social');
         setLoading(false);
         return;
@@ -100,6 +103,24 @@ export default function ViewSharedTripPage() {
 
     loadTrip();
   }, [params.id, router]);
+
+  // Check auth status once for conditional UI (copy/bookmark/back link)
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsLoggedIn(!!user);
+    };
+    checkAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsLoggedIn(!!session?.user);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Fetch destination image from Unsplash/Pixabay if no trip_image_url
   useEffect(() => {
@@ -305,29 +326,91 @@ export default function ViewSharedTripPage() {
     }
   };
 
+  const renderNavbar = () => {
+    if (isLoggedIn) {
+      return <Navbar />;
+    }
+    
+    // Landing page style navbar for visitors
+    return (
+      <motion.header
+        className="fixed top-4 inset-x-0 z-30 flex justify-center pointer-events-none"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+      >
+        <div className="pointer-events-auto mx-auto w-full max-w-[1200px] px-3">
+          <motion.div
+            className="px-4 py-2 rounded-full bg-white shadow-lg shadow-black/5 flex items-center justify-between"
+            transition={{ duration: 0.2 }}
+          >
+            <motion.div
+              className="flex items-center gap-2"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+            >
+              <button onClick={() => router.push('/')}>
+                <Image src="/assets/ryokolong.png" alt="Ryoko logo" width={120} height={40} className="hidden sm:block" />
+                <Image src="/assets/ryokoicon.png" alt="Ryoko logo" width={40} height={40} className="block sm:hidden" />
+              </button>
+            </motion.div>
+            <motion.div
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
+            >
+              <motion.button
+                className="h-9 px-4 text-sm font-bold hover:text-[#ff5a58] cursor-pointer"
+                onClick={() => {
+                  setAuthMode("login");
+                  setAuthOpen(true);
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+              >
+                SIGN IN
+              </motion.button>
+              <motion.button
+                className="h-9 px-4 rounded-full text-sm font-bold text-white bg-[#ff5a58] hover:bg-[#ff4a47] cursor-pointer"
+                onClick={() => {
+                  setAuthMode("register");
+                  setAuthOpen(true);
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+              >
+                GET STARTED
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        </div>
+      </motion.header>
+    );
+  };
+
   if (loading) {
     return (
-      <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50">
-          <Navbar />
-          <div className="max-w-[1400px] mx-auto px-4 pt-20 pb-20">
-            <div className="text-center py-20">Loading...</div>
-          </div>
+      <div className="min-h-screen bg-gray-50">
+        {renderNavbar()}
+        <div className="max-w-[1400px] mx-auto px-4 pt-20 pb-20">
+          <div className="text-center py-20">Loading...</div>
         </div>
-      </ProtectedRoute>
+      </div>
     );
   }
 
   if (!trip) {
     return (
-      <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50">
-          <Navbar />
-          <div className="max-w-[1400px] mx-auto px-4 pt-20 pb-20">
-            <div className="text-center py-20 text-gray-500">Trip not found</div>
-          </div>
+      <div className="min-h-screen bg-gray-50">
+        {renderNavbar()}
+        <div className="max-w-[1400px] mx-auto px-4 pt-20 pb-20">
+          <div className="text-center py-20 text-gray-500">Trip not found</div>
         </div>
-      </ProtectedRoute>
+      </div>
     );
   }
 
@@ -335,17 +418,24 @@ export default function ViewSharedTripPage() {
   const days = Object.keys(groupedActivities).map(Number).sort((a, b) => a - b);
 
   return (
-    <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
+        {renderNavbar()}
+        <AuthModal 
+          open={authOpen} 
+          mode={authMode} 
+          onClose={() => setAuthOpen(false)} 
+          onModeChange={(mode) => setAuthMode(mode)}
+        />
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-20">
-          <button
-            onClick={() => router.push('/social')}
-            className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Social
-          </button>
+          {isLoggedIn && (
+            <button
+              onClick={() => router.push('/social')}
+              className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Social
+            </button>
+          )}
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <div className="flex gap-6 items-stretch">
@@ -433,31 +523,33 @@ export default function ViewSharedTripPage() {
                 </div>
 
                 {/* Buttons - below trip info */}
-                <div className="flex gap-2 mt-auto">
-                  <button
-                    onClick={handleCopyTrip}
-                    disabled={copying}
-                    className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
-                  >
-                    <img 
-                      src="/assets/paw.svg" 
-                      alt="Copy" 
-                      className="w-4 h-4"
-                      style={{ filter: 'brightness(0) invert(1)' }}
-                    />
-                    {copying ? 'Copying...' : 'Copy Trip'}
-                  </button>
-                  <button
-                    onClick={toggleBookmark}
-                    className={`flex items-center justify-center gap-1.5 border px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      bookmarked 
-                        ? 'border-[#ff5a58] bg-[#ff5a58] text-white' 
-                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Bookmark className={`w-4 h-4 ${bookmarked ? 'fill-current' : ''}`} />
-                  </button>
-                </div>
+                {isLoggedIn && (
+                  <div className="flex gap-2 mt-auto">
+                    <button
+                      onClick={handleCopyTrip}
+                      disabled={copying}
+                      className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+                    >
+                      <img 
+                        src="/assets/paw.svg" 
+                        alt="Copy" 
+                        className="w-4 h-4"
+                        style={{ filter: 'brightness(0) invert(1)' }}
+                      />
+                      {copying ? 'Copying...' : 'Copy Trip'}
+                    </button>
+                    <button
+                      onClick={toggleBookmark}
+                      className={`flex items-center justify-center gap-1.5 border px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        bookmarked 
+                          ? 'border-[#ff5a58] bg-[#ff5a58] text-white' 
+                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Bookmark className={`w-4 h-4 ${bookmarked ? 'fill-current' : ''}`} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -526,7 +618,6 @@ export default function ViewSharedTripPage() {
           />
         )}
       </div>
-    </ProtectedRoute>
   );
 }
 

@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { motion } from "framer-motion";
+import { getMockEnhancedRecommendations, getMockChatResponse, getMockNearbyAttractions, getMockNearbyAccommodations } from "@/lib/mockApiData";
 import { RealtimeCursors } from "@/components/RealtimeCursors";
 import { 
   MapPin, 
@@ -734,6 +735,7 @@ export default function TripPage() {
   const [newCommentText, setNewCommentText] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [useMockData, setUseMockData] = useState(false); // Toggle for mock API data
 
   // Helper function to show confirmation dialog
   const showConfirmation = (title: string, description: string, onConfirm: () => void, variant: 'danger' | 'warning' = 'danger', confirmText?: string, cancelText?: string) => {
@@ -785,33 +787,48 @@ export default function TripPage() {
     setAiMessages(prev => [...prev, userMessage]);
 
     try {
-      const response = await fetch('/api/chat-recommendations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tripData: trip ? {
-            destination: trip.destination,
-            interests: trip.interests || [],
-            numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
-            numberOfParticipants: participants.length,
-            startDate: trip.start_date
-          } : undefined,
-          question: message,
-          selectedPlace: {
-            name: selectedDestination,
-            location: trip?.destination || '',
-            description: `Information about ${selectedDestination}`
-          }
-        }),
-      });
+      let data;
+      
+      if (useMockData) {
+        // Use mock data
+        const tripData = trip ? {
+          destination: trip.destination,
+          interests: trip.interests || [],
+          numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+          numberOfParticipants: participants.length,
+          startDate: trip.start_date
+        } : undefined;
+        data = getMockChatResponse(message, tripData);
+      } else {
+        // Use real API
+        const response = await fetch('/api/chat-recommendations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tripData: trip ? {
+              destination: trip.destination,
+              interests: trip.interests || [],
+              numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+              numberOfParticipants: participants.length,
+              startDate: trip.start_date
+            } : undefined,
+            question: message,
+            selectedPlace: {
+              name: selectedDestination,
+              location: trip?.destination || '',
+              description: `Information about ${selectedDestination}`
+            }
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to get AI response');
+        if (!response.ok) {
+          throw new Error('Failed to get AI response');
+        }
+
+        data = await response.json();
       }
-
-      const data = await response.json();
       
       if (data.error) {
         throw new Error(data.error);
@@ -839,24 +856,32 @@ export default function TripPage() {
     setAiMessages(prev => [...prev, userMessage]);
 
     try {
-      const response = await fetch('/api/nearby-attractions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          destination: trip.destination,
-          placeName: selectedDestination,
-          refreshToken: `${Date.now()}`
-        }),
-      });
+      let data;
+      
+      if (useMockData) {
+        // Use mock data
+        data = getMockNearbyAttractions(trip.destination, selectedDestination);
+      } else {
+        // Use real API
+        const response = await fetch('/api/nearby-attractions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            destination: trip.destination,
+            placeName: selectedDestination,
+            refreshToken: `${Date.now()}`
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby attractions'}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby attractions'}`);
+        }
+
+        data = await response.json();
       }
-
-      const data = await response.json();
       
       if (data.error) {
         throw new Error(data.error);
@@ -891,22 +916,30 @@ export default function TripPage() {
     setAiMessages(prev => [...prev, userMessage]);
 
     try {
-      const response = await fetch('/api/nearby-accommodations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destination: trip.destination,
-          placeName: selectedDestination,
-          refreshToken: `${Date.now()}`
-        }),
-      });
+      let data;
+      
+      if (useMockData) {
+        // Use mock data
+        data = getMockNearbyAccommodations(trip.destination, selectedDestination);
+      } else {
+        // Use real API
+        const response = await fetch('/api/nearby-accommodations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            destination: trip.destination,
+            placeName: selectedDestination,
+            refreshToken: `${Date.now()}`
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby accommodations'}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby accommodations'}`);
+        }
+
+        data = await response.json();
       }
-
-      const data = await response.json();
       if (data.error) throw new Error(data.error);
 
       if (data.success && data.accommodations) {
@@ -2895,20 +2928,27 @@ export default function TripPage() {
         startDate: trip.start_date,
       };
       
+      let data;
+      
+      if (useMockData) {
+        // Use mock data
+        data = getMockEnhancedRecommendations(tripData);
+      } else {
+        // Use real API
+        const response = await fetch('/api/enhanced-recommendations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ tripData }),
+        });
 
-      const response = await fetch('/api/enhanced-recommendations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tripData }),
-      });
+        if (!response.ok) {
+          throw new Error('Failed to generate recommendations');
+        }
 
-      if (!response.ok) {
-        throw new Error('Failed to generate recommendations');
+        data = await response.json();
       }
-
-      const data = await response.json();
       setRecommendations(data.recommendations || []);
       toast.success('Recommendations generated successfully!');
     } catch (error: unknown) {
@@ -2939,20 +2979,37 @@ export default function TripPage() {
         excludePlaceIds
       };
       
+      let data;
+      
+      if (useMockData) {
+        // Use mock data (exclude already shown places)
+        const mockData = getMockEnhancedRecommendations({
+          destination: trip.destination,
+          interests: trip.interests || [],
+          numberOfDays: tripData.numberOfDays,
+          numberOfParticipants: participants.length
+        });
+        // Filter out already shown recommendations
+        data = {
+          ...mockData,
+          recommendations: mockData.recommendations.filter(rec => !excludePlaceIds.includes(rec.place_id))
+        };
+      } else {
+        // Use real API
+        const response = await fetch('/api/enhanced-recommendations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ tripData }),
+        });
 
-      const response = await fetch('/api/enhanced-recommendations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tripData }),
-      });
+        if (!response.ok) {
+          throw new Error('Failed to generate more recommendations');
+        }
 
-      if (!response.ok) {
-        throw new Error('Failed to generate more recommendations');
+        data = await response.json();
       }
-
-      const data = await response.json();
       
       // Append new recommendations to existing ones
       setRecommendations(prev => [...prev, ...data.recommendations]);
@@ -3418,9 +3475,9 @@ export default function TripPage() {
       <div className="min-h-screen bg-gray-50">
         <Navbar />
 
-        {/* Back Button */}
+        {/* Back Button and API Toggle */}
         <div className="pt-20 pb-4">
-          <div className="max-w-[1400px] mx-auto px-4">
+          <div className="max-w-[1400px] mx-auto px-4 flex items-center justify-between">
             <button
               onClick={() => router.push('/dashboard')}
               className="cursor-pointer text-gray-500 hover:text-gray-700 flex items-center gap-2 text-sm"
@@ -3428,6 +3485,26 @@ export default function TripPage() {
               <ArrowLeft className="w-4 h-4" />
               Back to trip selection
             </button>
+            
+            {/* API Toggle */}
+            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
+              <span className="text-sm text-gray-600">Use Mock Data:</span>
+              <button
+                onClick={() => setUseMockData(!useMockData)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  useMockData ? 'bg-[#ff5a58]' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    useMockData ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`text-xs font-medium ${useMockData ? 'text-[#ff5a58]' : 'text-gray-500'}`}>
+                {useMockData ? 'ON' : 'OFF'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -4008,6 +4085,33 @@ export default function TripPage() {
                           </>
                         )}
                         
+                        <button 
+                          onClick={async () => {
+                            if (!trip?.id) return;
+                            const shareableUrl = `${window.location.origin}/trip/view/${trip.id}`;
+                            try {
+                              await navigator.clipboard.writeText(shareableUrl);
+                              toast.success('Shareable link copied to clipboard!');
+                            } catch (error) {
+                              // Fallback for older browsers
+                              const textArea = document.createElement('textarea');
+                              textArea.value = shareableUrl;
+                              document.body.appendChild(textArea);
+                              textArea.select();
+                              try {
+                                document.execCommand('copy');
+                                toast.success('Shareable link copied to clipboard!');
+                              } catch (err) {
+                                toast.error('Failed to copy link');
+                              }
+                              document.body.removeChild(textArea);
+                            }
+                          }}
+                          className="cursor-pointer border border-[#ff5a58] text-[#ff5a58] hover:bg-[#ff5a58] hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Share Itinerary
+                        </button>
                         <button 
                           onClick={() => setShowAddActivityModal(true)}
                           className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"

@@ -7,13 +7,15 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import toast from "react-hot-toast";
 import { User } from "@supabase/supabase-js";
 import { useAuth } from "@/contexts/AuthContext";
-import { MapPin, Clock, CheckCircle, XCircle, Calendar } from "lucide-react";
+import { MapPin, Clock, CheckCircle, XCircle, Calendar, Trash2, CheckSquare, Square } from "lucide-react";
 import CreateTripModal from "@/components/CreateTripModal";
 import DestinationImage from "@/components/DestinationImage";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import AvatarStack from "@/components/ui/avatar-stack";
 import Avatar from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
+import ConfirmationDialog from "@/components/ConfirmationDialog";
 
 type InvitationRow = {
   id: string;
@@ -77,6 +79,10 @@ export default function Dashboard() {
   const [invitationsLoading, setInvitationsLoading] = useState(true);
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
   const [participantsByTrip, setParticipantsByTrip] = useState<Record<string, { id: string; name: string; avatar_url?: string }[]>>({});
+  const [selectedTrips, setSelectedTrips] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
   const fetchInvitations = async (user: User) => {
@@ -516,6 +522,81 @@ export default function Dashboard() {
     return 'Less than an hour remaining';
   };
 
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedTrips(new Set());
+  };
+
+  const toggleTripSelection = (tripId: string) => {
+    const newSelected = new Set(selectedTrips);
+    if (newSelected.has(tripId)) {
+      newSelected.delete(tripId);
+    } else {
+      newSelected.add(tripId);
+    }
+    setSelectedTrips(newSelected);
+  };
+
+  const selectAllTrips = (tripsToSelect: Trip[]) => {
+    const ownedTrips = tripsToSelect.filter(t => t.owner_id === user?.id);
+    setSelectedTrips(new Set(ownedTrips.map(t => t.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedTrips(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    if (!user || selectedTrips.size === 0) return;
+
+    setIsDeleting(true);
+    try {
+      // Only delete trips owned by the user
+      const tripsToDelete = Array.from(selectedTrips).filter(tripId => {
+        const trip = trips.find(t => t.id === tripId);
+        return trip && trip.owner_id === user.id;
+      });
+
+      if (tripsToDelete.length === 0) {
+        toast.error('You can only delete trips you own');
+        setIsDeleting(false);
+        setShowDeleteDialog(false);
+        return;
+      }
+
+      // Delete trips
+      const { error } = await supabase
+        .from('trips')
+        .delete()
+        .in('id', tripsToDelete);
+
+      if (error) throw error;
+
+      toast.success(`Successfully deleted ${tripsToDelete.length} trip${tripsToDelete.length > 1 ? 's' : ''}`);
+      
+      // Refresh trips
+      const { data: tripsData, error: fetchError } = await supabase
+        .from('trips')
+        .select('*')
+        .or(`owner_id.eq.${user.id},collaborators.cs.{${user.id}}`)
+        .order('created_at', { ascending: false });
+
+      if (!fetchError) {
+        setTrips(tripsData || []);
+      }
+
+      // Clear selection and exit selection mode
+      setSelectedTrips(new Set());
+      setIsSelectionMode(false);
+      setShowDeleteDialog(false);
+    } catch (error) {
+      console.error('Error deleting trips:', error);
+      toast.error('Failed to delete trips');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
@@ -525,13 +606,42 @@ export default function Dashboard() {
         <main className="max-w-[1400px] mx-auto px-4 pt-24 pb-20">
           {/* Trips Sections */}
           <section className="mb-12">
-            <div className="flex justify-between items-center mb-6">
-              <button 
-                onClick={() => setShowCreateTripModal(true)}
-                className="ml-auto bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-xl cursor-pointer text-sm font-medium transition-colors"
-              >
-                Create New Trip +
-              </button>
+            <div className="flex justify-end items-center mb-6 gap-3">
+              {isSelectionMode ? (
+                <>
+                  <button
+                    onClick={toggleSelectionMode}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl cursor-pointer text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  {selectedTrips.size > 0 && (
+                    <button
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl cursor-pointer text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete ({selectedTrips.size})
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={toggleSelectionMode}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl cursor-pointer text-sm font-medium transition-colors flex items-center gap-2"
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                    Select
+                  </button>
+                  <button 
+                    onClick={() => setShowCreateTripModal(true)}
+                    className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-xl cursor-pointer text-sm font-medium transition-colors"
+                  >
+                    Create New Trip +
+                  </button>
+                </>
+              )}
             </div>
             
             {loading ? (
@@ -557,17 +667,57 @@ export default function Dashboard() {
 
                 const renderGrid = (items: Trip[]) => (
                   <div className="grid md:grid-cols-3 gap-6">
-                    {items.map((trip, index) => (
+                    {items.map((trip, index) => {
+                      const isSelected = selectedTrips.has(trip.id);
+                      const isOwned = trip.owner_id === user?.id;
+                      
+                      return (
                       <motion.div
                         key={trip.id}
-                        className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => router.push(`/trip/${trip.id}`)}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
+                        className={`bg-white rounded-xl shadow-sm border overflow-hidden transition-all relative ${
+                          isSelectionMode 
+                            ? isOwned 
+                              ? 'cursor-pointer' 
+                              : 'cursor-not-allowed opacity-60'
+                            : 'cursor-pointer border-gray-200 hover:shadow-md'
+                        } ${
+                          isSelected 
+                            ? 'border-2 border-[#ff5a58]' 
+                            : isSelectionMode 
+                              ? 'border-gray-200' 
+                              : ''
+                        }`}
+                        onClick={(e) => {
+                          if (isSelectionMode && isOwned) {
+                            e.stopPropagation();
+                            toggleTripSelection(trip.id);
+                          } else if (!isSelectionMode) {
+                            router.push(`/trip/${trip.id}`);
+                          }
+                        }}
+                        whileHover={!isSelectionMode ? { scale: 1.02 } : {}}
+                        whileTap={!isSelectionMode ? { scale: 0.98 } : {}}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: index * 0.1 }}
                       >
+                        {isSelectionMode && (
+                          <div 
+                            className="absolute top-3 left-3 z-10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isOwned) {
+                                toggleTripSelection(trip.id);
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={!isOwned}
+                              className="bg-white border-2 border-gray-300 data-[state=checked]:bg-[#ff5a58] data-[state=checked]:border-[#ff5a58]"
+                            />
+                          </div>
+                        )}
                         <DestinationImage 
                           destination={trip.destination || ''}
                           className="h-48"
@@ -605,14 +755,25 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </motion.div>
-                    ))}
+                      );
+                    })}
                   </div>
                 );
 
                 return (
                   <div className="space-y-12">
                     {/* Active */}
-                    <h2 className="text-2xl font-bold text-dark mb-6">Active Trips</h2>
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-2xl font-bold text-dark">Active Trips</h2>
+                      {isSelectionMode && activeTrips.filter(t => t.owner_id === user?.id).length > 0 && (
+                        <button
+                          onClick={() => selectAllTrips(activeTrips)}
+                          className="text-sm text-[#ff5a58] hover:text-[#ff4a47] cursor-pointer font-medium"
+                        >
+                          Select All
+                        </button>
+                      )}
+                    </div>
                     {activeTrips.length > 0 ? renderGrid(activeTrips) : (
                       <div className="text-center py-12">
                         <h3 className="text-lg font-medium text-dark mb-2">No active trips yet</h3>
@@ -622,7 +783,17 @@ export default function Dashboard() {
 
                     {/* Completed */}
                     <div>
-                      <h2 className="text-2xl font-bold text-dark mb-6">Completed Trips</h2>
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-bold text-dark">Completed Trips</h2>
+                        {isSelectionMode && completedTrips.filter(t => t.owner_id === user?.id).length > 0 && (
+                          <button
+                            onClick={() => selectAllTrips(completedTrips)}
+                            className="text-sm text-[#ff5a58] hover:text-[#ff4a47] cursor-pointer font-medium"
+                          >
+                            Select All
+                          </button>
+                        )}
+                      </div>
                       {completedTrips.length > 0 ? renderGrid(completedTrips) : (
                         <div className="text-center py-6 text-gray-500 text-sm">No completed trips yet</div>
                       )}
@@ -630,7 +801,17 @@ export default function Dashboard() {
 
                     {/* Archived */}
                     <div>
-                      <h2 className="text-2xl font-bold text-dark mb-6">Archived Trips</h2>
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-bold text-dark">Archived Trips</h2>
+                        {isSelectionMode && archivedTrips.filter(t => t.owner_id === user?.id).length > 0 && (
+                          <button
+                            onClick={() => selectAllTrips(archivedTrips)}
+                            className="text-sm text-[#ff5a58] hover:text-[#ff4a47] cursor-pointer font-medium"
+                          >
+                            Select All
+                          </button>
+                        )}
+                      </div>
                       {archivedTrips.length > 0 ? renderGrid(archivedTrips) : (
                         <div className="text-center py-6 text-gray-500 text-sm">No archived trips</div>
                       )}
@@ -730,6 +911,19 @@ export default function Dashboard() {
           open={showCreateTripModal}
           onClose={() => setShowCreateTripModal(false)}
           onTripCreated={handleTripCreated}
+        />
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmationDialog
+          open={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          onConfirm={handleBulkDelete}
+          title="Delete Trips"
+          description={`Are you sure you want to delete ${selectedTrips.size} trip${selectedTrips.size > 1 ? 's' : ''}? This action cannot be undone and will delete all activities, expenses, and ideas associated with ${selectedTrips.size > 1 ? 'these trips' : 'this trip'}.`}
+          confirmText={`Yes, delete ${selectedTrips.size} trip${selectedTrips.size > 1 ? 's' : ''}`}
+          cancelText="Cancel"
+          variant="danger"
+          isLoading={isDeleting}
         />
       </div>
     </ProtectedRoute>

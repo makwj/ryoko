@@ -26,9 +26,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Helper function to check if user is banned and sign them out if so
+    const checkAndHandleBannedUser = async (userId: string | undefined) => {
+      if (!userId) return false;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_banned')
+        .eq('id', userId)
+        .single();
+
+      if (profile?.is_banned) {
+        await supabase.auth.signOut();
+        return true;
+      }
+      return false;
+    };
+
     // Get initial session
     const getInitialSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const isBanned = await checkAndHandleBannedUser(session.user.id);
+        if (isBanned) {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+      }
       setUser(session?.user ?? null);
       setLoading(false);
     };
@@ -38,6 +63,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (session?.user) {
+          const isBanned = await checkAndHandleBannedUser(session.user.id);
+          if (isBanned) {
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+        }
         setUser(session?.user ?? null);
         setLoading(false);
       }

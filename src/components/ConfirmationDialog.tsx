@@ -3,7 +3,6 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Trash2 } from 'lucide-react';
 
 interface ConfirmationDialogProps {
   open: boolean;
@@ -40,25 +39,12 @@ export default function ConfirmationDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              variant === 'danger' ? 'bg-red-100' : 'bg-blue-100'
-            }`}>
-              {variant === 'danger' ? (
-                <Trash2 className="w-5 h-5 text-red-600" />
-              ) : (
-                <AlertTriangle className="w-5 h-5 text-blue-600" />
-              )}
-            </div>
-            <div>
-              <DialogTitle className="text-lg font-semibold text-gray-900">
-                {title}
-              </DialogTitle>
-              <DialogDescription className="text-sm text-gray-600 mt-1">
-                {description}
-              </DialogDescription>
-            </div>
-          </div>
+          <DialogTitle className="text-lg font-semibold text-gray-900">
+            {title}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-gray-600 mt-1">
+            {description}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-3 justify-end mt-6">

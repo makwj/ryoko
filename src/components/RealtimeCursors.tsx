@@ -9,15 +9,48 @@
 
 'use client'
 
-import { Cursor } from '@/components/Cursor'
 import { useRealtimeCursors } from '@/hooks/use-realtime-cursors'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CustomCursor from '@/components/CustomCursor'
 
 const THROTTLE_MS = 50
 
 export const RealtimeCursors = ({ roomName, username }: { roomName: string; username: string }) => {
-  const { cursors } = useRealtimeCursors({ roomName, username, throttleMs: THROTTLE_MS })
+  const [enabled, setEnabled] = useState(false)
+
+  // Determine if the app is focused and in fullscreen
+  useEffect(() => {
+    const computeEnabled = () => {
+      const isVisible = document.visibilityState === 'visible'
+      const isFocused = typeof document.hasFocus === 'function' ? document.hasFocus() : true
+      const isFullscreen = !!document.fullscreenElement ||
+        (window.innerHeight === window.screen.height && window.innerWidth === window.screen.width)
+      setEnabled(isVisible && isFocused && isFullscreen)
+    }
+
+    computeEnabled()
+    const onVisibility = () => computeEnabled()
+    const onFocus = () => computeEnabled()
+    const onBlur = () => computeEnabled()
+    const onFullscreen = () => computeEnabled()
+    const onResize = () => computeEnabled()
+
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('blur', onBlur)
+    document.addEventListener('fullscreenchange', onFullscreen)
+    window.addEventListener('resize', onResize)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('blur', onBlur)
+      document.removeEventListener('fullscreenchange', onFullscreen)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [])
+
+  const { cursors } = useRealtimeCursors({ roomName, username, throttleMs: THROTTLE_MS, enabled })
 
   // Calculate pixel positions from canvas-normalized coordinates
   const adjustedCursors = useMemo(() => {
@@ -58,6 +91,8 @@ export const RealtimeCursors = ({ roomName, username }: { roomName: string; user
       }
     })
   }, [cursors])
+
+  if (!enabled) return null
 
   return (
     <div className="absolute inset-0 pointer-events-none z-50">

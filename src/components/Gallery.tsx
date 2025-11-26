@@ -589,7 +589,7 @@ function UploadModal({
               accept="image/*"
               multiple
               onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent"
               required
             />
           </div>
@@ -602,7 +602,7 @@ function UploadModal({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Add a caption for this photo..."
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent resize-none"
               rows={3}
             />
           </div>
@@ -756,7 +756,7 @@ function ImageDetailModal({
                 isEditing ? (
                   <div className="flex gap-2 items-start">
                     <textarea
-                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent text-sm"
                       rows={3}
                       value={draftCaption}
                       onChange={(e) => setDraftCaption(e.target.value)}

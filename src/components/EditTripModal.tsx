@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { X, Calendar, FileText } from "lucide-react";
+import { X, Calendar, FileText, ChevronDownIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import LocationAutocomplete from "./LocationAutocomplete";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 interface EditTripModalProps {
   open: boolean;
@@ -48,6 +50,8 @@ export default function EditTripModal({
     start_date: '',
     end_date: ''
   });
+  const [openStart, setOpenStart] = useState(false);
+  const [openEnd, setOpenEnd] = useState(false);
 
   useEffect(() => {
     if (open && trip) {
@@ -155,26 +159,58 @@ export default function EditTripModal({
                     <Calendar className="w-4 h-4 inline mr-1" />
                     Start Date *
                   </Label>
-                  <Input
+                  <Popover open={openStart} onOpenChange={setOpenStart}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
                     id="start_date"
-                    type="date"
-                    value={formData.start_date}
-                    onChange={(e) => handleInputChange("start_date", e.target.value)}
-                    required
-                  />
+                        className="w-full justify-between font-normal"
+                      >
+                        {formData.start_date ? new Date(formData.start_date).toLocaleDateString() : "Select start date"}
+                        <ChevronDownIcon />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={formData.start_date ? new Date(formData.start_date) : undefined}
+                        captionLayout="dropdown"
+                        onSelect={(date: Date | undefined) => {
+                          handleInputChange('start_date', date ? date.toISOString().slice(0,10) : '');
+                          setOpenStart(false);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div>
                   <Label htmlFor="end_date" className="text-sm font-medium text-gray-700">
                     <Calendar className="w-4 h-4 inline mr-1" />
                     End Date *
                   </Label>
-                  <Input
+                  <Popover open={openEnd} onOpenChange={setOpenEnd}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
                     id="end_date"
-                    type="date"
-                    value={formData.end_date}
-                    onChange={(e) => handleInputChange("end_date", e.target.value)}
-                    required
-                  />
+                        className="w-full justify-between font-normal"
+                      >
+                        {formData.end_date ? new Date(formData.end_date).toLocaleDateString() : "Select end date"}
+                        <ChevronDownIcon />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={formData.end_date ? new Date(formData.end_date) : undefined}
+                        captionLayout="dropdown"
+                        onSelect={(date: Date | undefined) => {
+                          handleInputChange('end_date', date ? date.toISOString().slice(0,10) : '');
+                          setOpenEnd(false);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
 
