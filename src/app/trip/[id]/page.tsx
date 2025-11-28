@@ -3684,8 +3684,8 @@ export default function TripPage() {
                 }}
               >
                 <div className="absolute bottom-4 left-4 text-white">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-2xl font-bold drop-shadow-lg">{trip.title}</h1>
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    <h1 className="text-xl sm:text-2xl font-bold drop-shadow-lg">{trip.title}</h1>
                     {trip.completed && (
                       <span className="px-2 py-1 bg-green-500/80 text-white text-xs font-medium rounded-full drop-shadow-sm">
                         Completed
@@ -5365,12 +5365,12 @@ export default function TripPage() {
 
     {/* AI Chat Sidebar */}
     {showAIChatSidebar && selectedDestination && (
-      <div className="fixed top-0 right-0 h-full w-96 bg-white border-l border-gray-200 shadow-lg z-[9998] flex flex-col">
+      <div className="fixed top-0 right-0 h-full w-full sm:w-96 bg-white border-l border-gray-200 shadow-lg z-[9998] flex flex-col">
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-blue-600" />
-            <h3 className="font-semibold text-gray-900">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <MessageCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
+            <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
               Ask AI about "{selectedDestination}"
             </h3>
       </div>

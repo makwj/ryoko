@@ -178,7 +178,7 @@ export default function InviteCollaboratorsModal({
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       setError(errorMessage);
-      toast.error(errorMessage);
+      // Only show inline error, not toast (to avoid duplicate messages)
     } finally {
       setLoading(false);
     }

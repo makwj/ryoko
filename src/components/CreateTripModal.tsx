@@ -441,12 +441,12 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[600px] p-0 overflow-hidden border-0 bg-[#EEEEEE]">
+      <DialogContent className="max-w-4xl h-[600px] p-0 overflow-hidden border-0 bg-[#EEEEEE]" hideCloseButton>
         <DialogHeader className="sr-only">
           <DialogTitle>Create New Trip</DialogTitle>
         </DialogHeader>
         
-        <div className="grid md:grid-cols-[1fr_1.3fr] h-full">
+        <div className="relative grid md:grid-cols-[1fr_1.3fr] h-full">
           {/* Left decorative panel */}
           <div className="relative hidden md:block bg-[#1a2b4d]">
             <div className="absolute inset-0">
@@ -462,6 +462,14 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
 
           {/* Right form panel */}
           <div className="relative flex flex-col h-full">
+            {/* Close button positioned inside form panel */}
+            <button
+              onClick={onClose}
+              className="absolute right-4 top-4 cursor-pointer rounded-sm opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 z-10"
+            >
+              <X className="h-4 w-4 text-gray-700" />
+              <span className="sr-only">Close</span>
+            </button>
             <div className="flex-1 flex flex-col h-full">
               {renderStepContent()}
             </div>

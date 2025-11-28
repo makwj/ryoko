@@ -771,7 +771,7 @@ function SocialPageInner() {
             <div className="flex gap-2">
               <div className="relative">
                 <input
-                  className="border border-gray-300 rounded-md px-3 py-2 w-64"
+                  className="border border-gray-300 rounded-md px-3 py-2 w-full sm:w-64"
                   placeholder="Search users..."
                   value={query}
                   onChange={(e) => {

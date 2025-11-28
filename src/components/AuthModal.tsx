@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 
 type AuthMode = "login" | "register" | "forgot-password" | "reset-password";
 
@@ -28,9 +28,10 @@ type AuthModalProps = {
   mode: AuthMode;
   onClose: () => void;
   onModeChange: (mode: AuthMode) => void;
+  onRecoveryComplete?: () => void;
 };
 
-export default function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
+export default function AuthModal({ open, mode, onClose, onModeChange, onRecoveryComplete }: AuthModalProps) {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,11 +96,10 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
       if (error) throw error;
 
       setResetEmailSent(true);
-      toast.success("Password reset link sent! Please check your email.");
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       setError(errorMessage);
-      toast.error(errorMessage);
+      // Only show inline error, not toast (to avoid duplicate messages)
     } finally {
       setLoading(false);
     }
@@ -135,13 +135,14 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
       
       // Close modal and redirect to dashboard (user is already logged in after clicking reset link)
       onClose();
+      onRecoveryComplete?.();
       setTimeout(() => {
         window.location.href = '/dashboard';
       }, 1000);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       setError(errorMessage);
-      toast.error(errorMessage);
+      // Only show inline error, not toast (to avoid duplicate messages)
     } finally {
       setLoading(false);
     }
@@ -263,7 +264,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       setError(errorMessage);
-      toast.error(errorMessage);
+      // Only show inline error, not toast (to avoid duplicate messages)
     } finally {
       setLoading(false);
     }
@@ -338,13 +339,15 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
     );
   };
 
+  if (!open) return null;
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-3xl overflow-hidden p-0 border-0 bg-transparent">
+      <DialogContent className="w-full max-w-3xl overflow-hidden p-0 border-0 bg-transparent" hideCloseButton>
         <DialogHeader className="sr-only">
           <DialogTitle>{getTitle()}</DialogTitle>
         </DialogHeader>
-        <div className="grid md:grid-cols-[1fr_1.3fr]">
+        <div className="relative grid grid-cols-1 md:grid-cols-[1fr_1.3fr] min-h-[500px] bg-white md:bg-transparent rounded-lg overflow-hidden">
           {/* Left visual panel */}
           <div className="relative hidden md:block">
             <div className="absolute inset-0">
@@ -353,7 +356,15 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
           </div>
 
           {/* Right form panel */}
-          <div className="px-8 py-10 bg-[#EEEEEE]">
+          <div className="relative px-8 py-10 bg-[#EEEEEE] w-full">
+            {/* Close button positioned inside form panel */}
+            <button
+              onClick={onClose}
+              className="absolute right-4 top-4 cursor-pointer rounded-sm opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 z-10"
+            >
+              <X className="h-4 w-4 text-gray-700" />
+              <span className="sr-only">Close</span>
+            </button>
             <div className="mx-auto max-w-md">
               <div className="flex flex-col items-center">
                 <Image src="/assets/ryokosquare.png" alt="Ryoko logo" className="h-40 w-40" width={160} height={160} />

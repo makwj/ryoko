@@ -110,6 +110,7 @@ export default function Home() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot-password" | "reset-password">("login");
   const [isLoading, setIsLoading] = useState(true);
+  const [inRecoveryFlow, setInRecoveryFlow] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   
@@ -131,17 +132,15 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Redirect logged-in users to dashboard
-  // This should happen immediately when auth state is ready, not wait for loading animation
+  // Redirect logged-in users to dashboard (skip during recovery flow)
   useEffect(() => {
-    if (!authLoading && user) {
-      // Small delay to ensure auth state is fully propagated
+    if (!authLoading && user && !inRecoveryFlow) {
       const redirectTimer = setTimeout(() => {
         router.push('/dashboard');
       }, 100);
       return () => clearTimeout(redirectTimer);
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, inRecoveryFlow, router]);
 
   // Check for email verification success and password reset
   useEffect(() => {
@@ -158,6 +157,7 @@ export default function Home() {
     } else if (type === 'recovery' && !error) {
       setAuthMode("reset-password");
       setAuthOpen(true);
+      setInRecoveryFlow(true);
     } else if (error) {
       toast.error(errorDescription || "Email verification failed. Please try again.");
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -235,6 +235,7 @@ export default function Home() {
             mode={authMode} 
             onClose={() => setAuthOpen(false)} 
             onModeChange={handleAuthModeChange}
+            onRecoveryComplete={() => setInRecoveryFlow(false)}
           />
           
           {/* Modern Header */}
