@@ -312,7 +312,7 @@ export default function WorldMapFilter({
             className="fixed inset-0 z-40" 
             onClick={() => setShowMap(false)}
           />
-          <div className="absolute top-full left-0 mt-2 w-[90vw] sm:w-[500px] lg:w-[600px] bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-[700px] overflow-hidden flex flex-col">
+          <div className="absolute top-full left-0 mt-2 w-[600px] bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-[700px] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-green-50">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold flex items-center gap-2 text-gray-800">

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { X, Clock, MapPin, FileText, Plus, Upload, Trash2, Calendar, Link, Sunrise, Sun, Moon } from "lucide-react";
+import { X, Clock, MapPin, FileText, Plus, Upload, Trash2, Sunrise, Sun, Moon } from "lucide-react";
 import toast from "react-hot-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 interface MoveToItineraryModalProps {
   open: boolean;
@@ -40,7 +41,7 @@ interface ActivityFormData {
   description: string;
   time_period: 'morning' | 'afternoon' | 'evening';
   location: string;
-  activity_type: 'transportation' | 'accommodation' | 'activity' | 'food';
+  activity_type: 'transportation' | 'accommodation' | 'activity' | 'food' | 'shopping' | 'entertainment' | 'other';
   note: string;
   linkUrl: string;
   attachments: FileWithCustomName[];
@@ -50,7 +51,10 @@ const activityTypes = [
   { value: 'transportation', label: 'Transportation', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'accommodation', label: 'Accommodation', color: 'bg-blue-100 text-blue-800' },
   { value: 'activity', label: 'Activity', color: 'bg-green-100 text-green-800' },
-  { value: 'food', label: 'Food', color: 'bg-orange-100 text-orange-800' }
+  { value: 'food', label: 'Food', color: 'bg-orange-100 text-orange-800' },
+  { value: 'shopping', label: 'Shopping', color: 'bg-pink-100 text-pink-800' },
+  { value: 'entertainment', label: 'Entertainment', color: 'bg-purple-100 text-purple-800' },
+  { value: 'other', label: 'Other', color: 'bg-gray-100 text-gray-800' }
 ];
 
 const timePeriods = [
@@ -92,16 +96,17 @@ export default function MoveToItineraryModal({
     if (open && idea) {
       // Map first tag to activity type (or default to activity)
       const firstTag = idea.tags[0] || 'other';
-      const categoryMapping: Record<string, 'food' | 'transportation' | 'accommodation' | 'activity'> = {
+      const categoryMapping: Record<string, 'food' | 'transportation' | 'accommodation' | 'activity' | 'shopping' | 'entertainment' | 'other'> = {
         'food': 'food',
         'transportation': 'transportation',
         'accommodation': 'accommodation',
         'activity': 'activity',
-        'shopping': 'activity',
+        'shopping': 'shopping',
+        'entertainment': 'entertainment',
         'nature': 'activity',
         'history': 'activity',
         'culture': 'activity',
-        'other': 'activity'
+        'other': 'other'
       };
 
       setFormData({
@@ -282,15 +287,17 @@ export default function MoveToItineraryModal({
           <DialogTitle className="text-2xl font-bold text-dark">Move Idea to Itinerary</DialogTitle>
         </DialogHeader>
             
-            <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3">
+            <div className="max-h-[60vh] overflow-y-auto px-2 space-y-3">
               {/* Day Selection */}
               <div>
-                <Label className="text-sm font-medium text-gray-700">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Select Day *
+                <Label className="text-sm font-medium text-gray-700 flex items-center justify-between">
+                  <span>Select Day</span>
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                    Required
+                  </span>
                 </Label>
                 <Select value={formData.day.toString()} onValueChange={(value) => handleInputChange("day", parseInt(value))}>
-                  <SelectTrigger className="w-full h-12">
+                  <SelectTrigger className="w-full h-12 mt-2">
                     <SelectValue placeholder="Select day" />
                   </SelectTrigger>
                   <SelectContent>
@@ -303,14 +310,17 @@ export default function MoveToItineraryModal({
 
               {/* Activity Title */}
               <div>
-                <Label className="text-sm font-medium text-gray-700">
-                  Activity Title *
+                <Label className="text-sm font-medium text-gray-700 flex items-center justify-between">
+                  <span>Activity Title</span>
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                    Required
+                  </span>
                 </Label>
                 <Input
                   type="text"
                   value={formData.title}
                   onChange={(e) => handleInputChange("title", e.target.value)}
-                  className="w-full h-12"
+                  className="w-full h-12 mt-2"
                   placeholder="e.g., Visit Colosseum"
                   required
                 />
@@ -318,25 +328,23 @@ export default function MoveToItineraryModal({
 
               {/* Activity Type */}
               <div>
-                <Label className="text-sm font-medium text-gray-700">
+                <Label htmlFor="activity-type" className="text-sm font-medium text-gray-700">
                   Activity Type
                 </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {activityTypes.map((type) => (
-                    <Button
-                      key={type.value}
-                      onClick={() => handleInputChange("activity_type", type.value)}
-                      variant={formData.activity_type === type.value ? "default" : "outline"}
-                      className={`h-12 px-3 text-sm font-medium ${
-                        formData.activity_type === type.value
-                          ? `${type.color} border-2 border-current`
-                          : 'hover:bg-gray-200'
-                      }`}
-                    >
-                      {type.label}
-                    </Button>
-                  ))}
-                </div>
+                <Select value={formData.activity_type} onValueChange={(value) => handleInputChange("activity_type", value)}>
+                  <SelectTrigger id="activity-type" className="w-full h-12 mt-2 cursor-pointer focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0">
+                    <SelectValue placeholder="Select activity type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activityTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        <div className="flex items-center gap-2">
+                          <Badge className={type.color}>{type.label}</Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Time Period and Location */}
@@ -349,7 +357,7 @@ export default function MoveToItineraryModal({
                     value={formData.time_period}
                     onValueChange={(value) => handleInputChange("time_period", value)}
                   >
-                    <SelectTrigger className="w-full h-12">
+                    <SelectTrigger className="w-full h-12 mt-2">
                       <SelectValue placeholder="Select time period" />
                     </SelectTrigger>
                     <SelectContent>
@@ -368,7 +376,7 @@ export default function MoveToItineraryModal({
                   <Label className="text-sm font-medium text-gray-700">
                     Location
                   </Label>
-                  <div className="relative">
+                  <div className="relative mt-2">
                     <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <Input
                       type="text"
@@ -389,7 +397,7 @@ export default function MoveToItineraryModal({
                 <Textarea
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  className="w-full h-20 resize-none"
+                  className="w-full h-20 resize-none mt-2"
                   placeholder="Add details about this activity..."
                   rows={2}
                 />
@@ -398,7 +406,6 @@ export default function MoveToItineraryModal({
               {/* Link URL */}
               <div>
                 <Label htmlFor="linkUrl" className="text-sm font-medium text-gray-700">
-                  <Link className="w-4 h-4 inline mr-1" />
                   Link URL
                 </Label>
                 <Input
@@ -406,7 +413,7 @@ export default function MoveToItineraryModal({
                   type="url"
                   value={formData.linkUrl}
                   onChange={(e) => handleLinkUrlChange(e.target.value)}
-                  className="w-full h-12"
+                  className="w-full h-12 mt-2"
                   placeholder="https://example.com"
                 />
                 
@@ -444,7 +451,7 @@ export default function MoveToItineraryModal({
                 <Label className="text-sm font-medium text-gray-700">
                   Note
                 </Label>
-                <div className="relative">
+                <div className="relative mt-2">
                   <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                   <Textarea
                     value={formData.note}
@@ -461,7 +468,7 @@ export default function MoveToItineraryModal({
                 <Label className="text-sm font-medium text-gray-700">
                   Attachments
                 </Label>
-                <div className="space-y-3">
+                <div className="space-y-3 mt-2">
                   <div className="flex gap-2">
                     <input
                       ref={fileInputRef}

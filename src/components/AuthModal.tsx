@@ -10,16 +10,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 type AuthMode = "login" | "register" | "forgot-password" | "reset-password";
 
@@ -28,14 +28,16 @@ type AuthModalProps = {
   mode: AuthMode;
   onClose: () => void;
   onModeChange: (mode: AuthMode) => void;
-  onRecoveryComplete?: () => void;
 };
 
-export default function AuthModal({ open, mode, onClose, onModeChange, onRecoveryComplete }: AuthModalProps) {
+export default function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetEmailAddress, setResetEmailAddress] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -44,25 +46,27 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
   });
 
   // Check for password reset token in URL when modal opens
+  // Note: We DON'T clear the hash here - we need to keep it until password reset is successful
+  // Clearing it too early can cause the session to be lost
   useEffect(() => {
-    if (open) {
-      // Check for Supabase password reset hash fragment
-      const hash = window.location.hash;
-      if (hash.includes('type=recovery') || hash.includes('access_token')) {
-        // User clicked password reset link from email
-        onModeChange("reset-password");
-        // Clear hash from URL (but keep it for Supabase session)
-        // We'll clear it after password is reset
-      }
+    if (open && mode === 'reset-password') {
+      console.log("[AuthModal] Reset-password mode opened, verifying session");
+      // Just verify the session exists, but don't clear the hash yet
+      const verifySession = async () => {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("[AuthModal] Session during reset-password modal open:", {
+          hasSession: !!session,
+          userId: session?.user?.id,
+        });
+        if (!session) {
+          setError("Session expired. Please request a new password reset link.");
+        }
+      };
       
-      // Also check query params (fallback)
-      const token = searchParams?.get('token');
-      const type = searchParams?.get('type');
-      if (token && type === 'recovery') {
-        onModeChange("reset-password");
-      }
+      verifySession();
     }
-  }, [open, searchParams, onModeChange]);
+  }, [open, mode]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -95,11 +99,14 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
 
       if (error) throw error;
 
+      // Capture the email used for this reset so it doesn't change if the user edits the field
+      setResetEmailAddress(formData.email);
       setResetEmailSent(true);
+      // Form message is shown, no need for toast
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       setError(errorMessage);
-      // Only show inline error, not toast (to avoid duplicate messages)
+      // Form error is shown, no need for toast
     } finally {
       setLoading(false);
     }
@@ -108,42 +115,83 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
   // Handle password reset - update password
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    console.log("[AuthModal/handleResetPassword] Form submitted", {
+      hasPassword: !!formData.password,
+      hasConfirmPassword: !!formData.confirmPassword,
+    });
+
+    // Basic client-side validation BEFORE we set loading=true
+    if (formData.password !== formData.confirmPassword) {
+      console.warn("[AuthModal/handleResetPassword] Passwords do not match");
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      console.warn("[AuthModal/handleResetPassword] Password too short");
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setResetSuccess(false);
 
     try {
-      if (formData.password !== formData.confirmPassword) {
-        setError("Passwords do not match");
-        return;
-      }
-
-      if (formData.password.length < 6) {
-        setError("Password must be at least 6 characters");
-        return;
-      }
-
+      // Update password - this should work with recovery sessions
+      console.log("[AuthModal/handleResetPassword] Calling supabase.auth.updateUser");
       const { error } = await supabase.auth.updateUser({
         password: formData.password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[AuthModal/handleResetPassword] Password update error:", error);
+        throw error;
+      }
 
-      toast.success("Password reset successful! Redirecting to dashboard...");
-      
-      // Clear URL hash/params
-      window.history.replaceState({}, '', window.location.pathname);
-      
-      // Close modal and redirect to dashboard (user is already logged in after clicking reset link)
-      onClose();
-      onRecoveryComplete?.();
+      // Clear password fields
+      setFormData(prev => ({
+        ...prev,
+        password: "",
+        confirmPassword: "",
+      }));
+
+      // Clear loading state immediately so button doesn't stay stuck
+      setLoading(false);
+
+      // Show success and keep the recovery session active so the user stays logged in
+      setResetSuccess(true);
+      toast.success("Password reset successful! Redirecting to your dashboard...");
+
+      console.log("[AuthModal/handleResetPassword] Password reset successful, clearing hash and scheduling redirect");
+
+      // NOW it's safe to clear Supabase recovery token from the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Give the user a brief moment to see the inline success state, then redirect
       setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 1000);
+        console.log("[AuthModal/handleResetPassword] Redirecting to /dashboard?password_reset_success=1");
+        // Full reload redirect so AuthContext re-initializes with the updated session
+        window.location.href = "/dashboard?password_reset_success=1";
+      }, 1200);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      console.error("[AuthModal/handleResetPassword] Password reset error:", error);
+      let errorMessage = "An unknown error occurred";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // Handle Supabase AuthApiError specifically
+        if ("message" in error && typeof (error as any).message === "string") {
+          errorMessage = (error as any).message;
+        }
+      }
+      
       setError(errorMessage);
-      // Only show inline error, not toast (to avoid duplicate messages)
+      // Also show toast for visibility
+      toast.error(errorMessage);
     } finally {
+      // Ensure loading state is ALWAYS cleared so the button never gets stuck
       setLoading(false);
     }
   };
@@ -251,7 +299,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
             await supabase.auth.signOut();
             const banMessage = "Your account has been banned. Please contact support if you believe this is an error.";
             setError(banMessage);
-            toast.error(banMessage);
+            // Form error is shown, no need for toast
             return;
           }
 
@@ -264,7 +312,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       setError(errorMessage);
-      // Only show inline error, not toast (to avoid duplicate messages)
+      // Form error is shown, no need for toast
     } finally {
       setLoading(false);
     }
@@ -339,15 +387,14 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
     );
   };
 
-  if (!open) return null;
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-3xl overflow-hidden p-0 border-0 bg-transparent" hideCloseButton>
+      <DialogContent className="w-full max-w-3xl overflow-hidden p-0 border-0 bg-transparent">
         <DialogHeader className="sr-only">
           <DialogTitle>{getTitle()}</DialogTitle>
+          <DialogDescription>Authentication form for {getTitle().toLowerCase()}</DialogDescription>
         </DialogHeader>
-        <div className="relative grid grid-cols-1 md:grid-cols-[1fr_1.3fr] min-h-[500px] bg-white md:bg-transparent rounded-lg overflow-hidden">
+        <div className="grid md:grid-cols-[1fr_1.3fr]">
           {/* Left visual panel */}
           <div className="relative hidden md:block">
             <div className="absolute inset-0">
@@ -356,15 +403,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
           </div>
 
           {/* Right form panel */}
-          <div className="relative px-8 py-10 bg-[#EEEEEE] w-full">
-            {/* Close button positioned inside form panel */}
-            <button
-              onClick={onClose}
-              className="absolute right-4 top-4 cursor-pointer rounded-sm opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 z-10"
-            >
-              <X className="h-4 w-4 text-gray-700" />
-              <span className="sr-only">Close</span>
-            </button>
+          <div className="px-8 py-10 bg-[#EEEEEE]">
             <div className="mx-auto max-w-md">
               <div className="flex flex-col items-center">
                 <Image src="/assets/ryokosquare.png" alt="Ryoko logo" className="h-40 w-40" width={160} height={160} />
@@ -380,7 +419,13 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
 
                 {resetEmailSent && mode === "forgot-password" && (
                   <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
-                    Password reset link has been sent to {formData.email}. Please check your email and click the link to reset your password.
+                    Password reset link has been sent to {resetEmailAddress ?? formData.email}. Please check your email and click the link to reset your password.
+                  </div>
+                )}
+
+                {resetSuccess && mode === "reset-password" && (
+                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                    Your password has been updated. Redirecting you to your dashboard...
                   </div>
                 )}
 
@@ -483,10 +528,14 @@ export default function AuthModal({ open, mode, onClose, onModeChange, onRecover
 
                   <Button
                     type="submit"
-                    disabled={loading || (mode === "forgot-password" && resetEmailSent)}
+                    disabled={loading || (mode === "forgot-password" && resetEmailSent) || (mode === "reset-password" && resetSuccess)}
                     className="cursor-pointer w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold disabled:opacity-50"
                   >
-                    {loading ? "Loading..." : getPrimaryCta()}
+                    {loading
+                      ? "Loading..."
+                      : mode === "reset-password" && resetSuccess
+                        ? "Password updated, redirecting..."
+                        : getPrimaryCta()}
                     <span className="ml-2">›</span>
                   </Button>
 

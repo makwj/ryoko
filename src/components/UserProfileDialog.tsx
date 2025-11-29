@@ -246,7 +246,7 @@ export default function UserProfileDialog({ userId, isOpen, onClose }: UserProfi
                 <button
                   onClick={handleFollowToggle}
                   disabled={actionLoading || !currentUserId}
-                  className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                  className={`w-full py-3 rounded-lg font-medium transition-colors cursor-pointer ${
                     isFollowing
                       ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       : 'bg-[#ff5a58] text-white hover:bg-[#ff4a47]'

@@ -10,53 +10,38 @@
 'use client'
 
 import { useRealtimeCursors } from '@/hooks/use-realtime-cursors'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import CustomCursor from '@/components/CustomCursor'
 
 const THROTTLE_MS = 50
 
-export const RealtimeCursors = ({ roomName, username }: { roomName: string; username: string }) => {
-  const [enabled, setEnabled] = useState(false)
+export const RealtimeCursors = ({ 
+  roomName, 
+  username, 
+  userId 
+}: { 
+  roomName: string
+  username: string
+  userId?: string
+}) => {
+  const { cursors } = useRealtimeCursors({ 
+    roomName, 
+    username, 
+    userId,
+    throttleMs: THROTTLE_MS
+  })
 
-  // Determine if the app is focused and in fullscreen
+  // Debug: Log cursor state
   useEffect(() => {
-    const computeEnabled = () => {
-      const isVisible = document.visibilityState === 'visible'
-      const isFocused = typeof document.hasFocus === 'function' ? document.hasFocus() : true
-      const isFullscreen = !!document.fullscreenElement ||
-        (window.innerHeight === window.screen.height && window.innerWidth === window.screen.width)
-      setEnabled(isVisible && isFocused && isFullscreen)
+    if (Object.keys(cursors).length > 0) {
+      console.log('[RealtimeCursors] Active cursors:', Object.keys(cursors).length, cursors)
     }
-
-    computeEnabled()
-    const onVisibility = () => computeEnabled()
-    const onFocus = () => computeEnabled()
-    const onBlur = () => computeEnabled()
-    const onFullscreen = () => computeEnabled()
-    const onResize = () => computeEnabled()
-
-    document.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('focus', onFocus)
-    window.addEventListener('blur', onBlur)
-    document.addEventListener('fullscreenchange', onFullscreen)
-    window.addEventListener('resize', onResize)
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('focus', onFocus)
-      window.removeEventListener('blur', onBlur)
-      document.removeEventListener('fullscreenchange', onFullscreen)
-      window.removeEventListener('resize', onResize)
-    }
-  }, [])
-
-  const { cursors } = useRealtimeCursors({ roomName, username, throttleMs: THROTTLE_MS, enabled })
+  }, [cursors])
 
   // Calculate pixel positions from canvas-normalized coordinates
   const adjustedCursors = useMemo(() => {
     const mainContent = document.querySelector('[data-main-content]') as HTMLElement
-    const canvas = mainContent || document.documentElement
-    const rect = canvas.getBoundingClientRect()
+    if (!mainContent) return []
 
     return Object.keys(cursors).map((id) => {
       const cursor = cursors[id]
@@ -74,12 +59,18 @@ export const RealtimeCursors = ({ roomName, username }: { roomName: string; user
       }
 
       // Reconstruct absolute canvas coordinates from normalized values
-      const docX = cursor.position.xNorm * canvas.scrollWidth
-      const docY = cursor.position.yNorm * canvas.scrollHeight
+      // Use the canvas dimensions from the cursor payload if available, otherwise use current dimensions
+      const canvasWidth = cursor.canvas?.scrollWidth || mainContent.scrollWidth || mainContent.clientWidth
+      const canvasHeight = cursor.canvas?.scrollHeight || mainContent.scrollHeight || mainContent.clientHeight
       
-      // Convert to viewport coordinates for positioning
-      const adjustedX = docX - canvas.scrollLeft
-      const adjustedY = docY - canvas.scrollTop
+      const docX = cursor.position.xNorm * canvasWidth
+      const docY = cursor.position.yNorm * canvasHeight
+      
+      // Convert to coordinates relative to the cursor container
+      // The container is `absolute inset-0` relative to mainContent, so coordinates are relative to mainContent
+      // We need to account for scroll position
+      const adjustedX = docX - mainContent.scrollLeft
+      const adjustedY = docY - mainContent.scrollTop
 
       return {
         id,
@@ -91,8 +82,6 @@ export const RealtimeCursors = ({ roomName, username }: { roomName: string; user
       }
     })
   }, [cursors])
-
-  if (!enabled) return null
 
   return (
     <div className="absolute inset-0 pointer-events-none z-50">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Calendar, DollarSign, Users, Tag, ChevronDownIcon } from "lucide-react";
+import { X, Calendar, DollarSign, Users, ChevronDownIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { ActivityLogger } from "@/lib/activityLogger";
@@ -176,8 +176,11 @@ export default function EditExpenseModal({
         <div className="space-y-6">
           {/* Title */}
           <div>
-            <Label htmlFor="title" className="text-sm font-medium text-gray-700">
-              Expense Title *
+            <Label htmlFor="title" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Expense Title</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Input
               id="title"
@@ -205,8 +208,11 @@ export default function EditExpenseModal({
 
           {/* Amount */}
           <div>
-            <Label htmlFor="amount" className="text-sm font-medium text-gray-700">
-              Amount *
+            <Label htmlFor="amount" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Amount</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -225,8 +231,11 @@ export default function EditExpenseModal({
 
           {/* Category */}
           <div>
-            <Label htmlFor="category" className="text-sm font-medium text-gray-700">
-              Category *
+            <Label htmlFor="category" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Category</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
               <SelectTrigger id="category">
@@ -235,10 +244,7 @@ export default function EditExpenseModal({
               <SelectContent>
                 {expenseCategories.map((category) => (
                   <SelectItem key={category.value} value={category.value}>
-                    <div className="flex items-center gap-2">
-                      <Tag className="w-4 h-4" />
-                      <Badge className={category.color}>{category.label}</Badge>
-                    </div>
+                    <Badge className={category.color}>{category.label}</Badge>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -247,8 +253,11 @@ export default function EditExpenseModal({
 
           {/* Paid By */}
           <div>
-            <Label htmlFor="paidBy" className="text-sm font-medium text-gray-700">
-              Paid By *
+            <Label htmlFor="paidBy" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Paid By</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Select value={formData.paidBy} onValueChange={(value) => handleInputChange('paidBy', value)}>
               <SelectTrigger id="paidBy">
@@ -266,8 +275,11 @@ export default function EditExpenseModal({
 
           {/* Split With */}
           <div>
-            <Label className="text-sm font-medium text-gray-700">
-              Split With *
+            <Label className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Split With</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <div className="space-y-2">
               <Button
@@ -289,8 +301,11 @@ export default function EditExpenseModal({
 
           {/* Expense Date */}
           <div>
-            <Label htmlFor="expenseDate" className="text-sm font-medium text-gray-700">
-              Date *
+            <Label htmlFor="expenseDate" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Date</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Popover open={openExpenseDate} onOpenChange={setOpenExpenseDate}>
               <PopoverTrigger asChild>

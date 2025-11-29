@@ -19,30 +19,28 @@ interface CustomCursorProps {
 
 export default function CustomCursor({ color, name, className = "", style }: CustomCursorProps) {
   return (
-    <div className={`absolute pointer-events-none flex flex-col items-start ${className}`} style={style}>
-      {/* Cursor trail effect */}
-      <div 
-        className="absolute w-3 h-3 rounded-full opacity-40"
-        style={{ 
-          backgroundColor: color,
-          transform: 'translate(-50%, -50%)',
-          filter: 'blur(3px)'
-        }}
-      />
-      
+    <div className={`absolute pointer-events-none ${className}`} style={style}>
       {/* Cursor icon */}
-      <div style={{ color }}>
-        <MousePointer2 strokeWidth={1.5} size={24} className="drop-shadow-md" />
+      <div style={{ color, position: 'relative' }}>
+        <MousePointer2 
+          strokeWidth={2} 
+          size={20} 
+          className="drop-shadow-md"
+          style={{ fill: color }}
+        />
       </div>
       
-      {/* Username label */}
+      {/* Username label - positioned at bottom right of cursor */}
       <div
-        className="mt-2 px-2 py-1 rounded text-xs whitespace-nowrap"
+        className="absolute px-2 py-1 rounded text-xs whitespace-nowrap"
         style={{ 
           backgroundColor: color,
           color: '#fff',
           fontWeight: 500,
-          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+          top: '16px',
+          left: '12px',
+          transform: 'translate(0, 0)'
         }}
       >
         {name}

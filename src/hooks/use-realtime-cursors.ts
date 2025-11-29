@@ -45,11 +45,19 @@ const useThrottleCallback = <Params extends unknown[], Return>(
   )
 }
 
-// Generate a random color for the cursor
-const generateRandomColor = () => `hsl(${Math.floor(Math.random() * 360)}, 100%, 70%)`
+// Generate a random color for the cursor (darker colors for better visibility)
+const generateRandomColor = () => `hsl(${Math.floor(Math.random() * 360)}, 100%, 45%)`
 
-// Generate a random number for the cursor
-const generateRandomNumber = () => Math.floor(Math.random() * 100)
+// Generate a unique ID from a string (like user ID)
+const generateIdFromString = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
 
 // The event name for the cursor move
 const EVENT_NAME = 'realtime-cursor-move'
@@ -76,16 +84,22 @@ type CursorEventPayload = {
 export const useRealtimeCursors = ({
   roomName,
   username,
+  userId: providedUserId,
   throttleMs,
-  enabled = true,
 }: {
   roomName: string
   username: string
+  userId?: string
   throttleMs: number
-  enabled?: boolean
 }) => {
   const [color] = useState(generateRandomColor())
-  const [userId] = useState(generateRandomNumber())
+  // Use provided user ID or generate from username
+  const [userId] = useState(() => {
+    if (providedUserId) {
+      return generateIdFromString(providedUserId)
+    }
+    return generateIdFromString(username + Date.now())
+  })
   const [cursors, setCursors] = useState<Record<string, CursorEventPayload>>({})
 
   const channelRef = useRef<RealtimeChannel | null>(null)
@@ -127,11 +141,31 @@ export const useRealtimeCursors = ({
         timestamp: new Date().getTime(),
       }
 
-      channelRef.current?.send({
-        type: 'broadcast',
-        event: EVENT_NAME,
-        payload: payload,
-      })
+      if (channelRef.current) {
+        const channelState = channelRef.current.state
+        if (channelState !== 'joined') {
+          console.warn('[useRealtimeCursors] Channel not in joined state:', channelState, 'room:', roomName)
+        }
+        
+        channelRef.current.send({
+          type: 'broadcast',
+          event: EVENT_NAME,
+          payload: payload,
+        }).then((status) => {
+          if (status === 'error') {
+            console.error('[useRealtimeCursors] Broadcast error, channel state:', channelRef.current?.state)
+          } else {
+            // Log first few broadcasts to verify they're working
+            if (Math.random() < 0.1) {
+              console.log('[useRealtimeCursors] Broadcast sent successfully, status:', status)
+            }
+          }
+        }).catch((error) => {
+          console.error('[useRealtimeCursors] Broadcast exception:', error, 'channel state:', channelRef.current?.state)
+        })
+      } else {
+        console.warn('[useRealtimeCursors] Channel not available for broadcast')
+      }
     },
     [color, userId, username]
   )
@@ -140,44 +174,83 @@ export const useRealtimeCursors = ({
   const handleMouseMove = useThrottleCallback(callback, throttleMs)
 
   useEffect(() => {
-    if (!enabled) {
-      // If disabled, clear any existing cursors and unsubscribe
-      setCursors({})
-      if (channelRef.current) {
-        channelRef.current.unsubscribe()
-        channelRef.current = null
-      }
-      return
+    // Unsubscribe from previous channel if room changed
+    if (channelRef.current) {
+      console.log('[useRealtimeCursors] Unsubscribing previous channel:', roomName)
+      channelRef.current.unsubscribe()
+      channelRef.current = null
     }
+
     // Clear cursors when room changes to prevent showing stale cursors
     setCursors({})
     
+    console.log('[useRealtimeCursors] Setting up channel:', roomName, 'userId:', userId)
     const channel = supabase.channel(roomName)
     channelRef.current = channel
 
     // Track active users in this room
     const activeUsers = new Set<string>()
 
+    let subscribed = false
+
     channel
       .on('broadcast', { event: EVENT_NAME }, (data: { payload: CursorEventPayload }) => {
         const { user } = data.payload
+        console.log('[useRealtimeCursors] Received cursor broadcast:', {
+          receivedUserId: user.id,
+          ownUserId: userId,
+          username: user.name,
+          roomName
+        })
+        
         // Don't render your own cursor
-        if (user.id === userId) return
+        if (user.id === userId) {
+          console.log('[useRealtimeCursors] Ignoring own cursor')
+          return
+        }
 
         activeUsers.add(user.id.toString())
 
         setCursors((prev) => {
-          if (prev[userId]) {
-            delete prev[userId]
+          // Remove own cursor if it exists (shouldn't happen, but safety check)
+          const updated = { ...prev }
+          if (updated[userId]) {
+            delete updated[userId]
           }
 
-          return {
-            ...prev,
+          // Add/update the other user's cursor
+          const newCursors = {
+            ...updated,
             [user.id]: data.payload,
           }
+          console.log('[useRealtimeCursors] Updated cursors:', Object.keys(newCursors))
+          return newCursors
         })
       })
-      .subscribe()
+      .subscribe((status) => {
+        console.log('[useRealtimeCursors] Channel subscription status:', status, roomName)
+        if (status === 'SUBSCRIBED') {
+          subscribed = true
+          console.log('[useRealtimeCursors] Channel subscribed successfully:', roomName)
+          // Send an initial cursor position to announce presence
+          const mainContent = document.querySelector('[data-main-content]') as HTMLElement
+          if (mainContent) {
+            const event = new MouseEvent('mousemove', {
+              clientX: window.innerWidth / 2,
+              clientY: window.innerHeight / 2,
+            })
+            callback(event)
+          }
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[useRealtimeCursors] Channel error:', roomName)
+        } else if (status === 'TIMED_OUT') {
+          console.error('[useRealtimeCursors] Channel timeout:', roomName)
+        } else if (status === 'CLOSED') {
+          console.warn('[useRealtimeCursors] Channel closed:', roomName, 'subscribed was:', subscribed)
+          // Note: Channel closing is normal when component unmounts or room changes
+          // We don't need to resubscribe here as the effect will handle it
+        }
+      })
 
     // Cleanup stale cursors periodically
     const cleanupInterval = setInterval(() => {
@@ -186,14 +259,14 @@ export const useRealtimeCursors = ({
         let hasChanges = false
 
         // Remove cursors for users who haven't sent updates recently
-        Object.keys(updated).forEach(userId => {
-          const cursor = updated[userId]
+        Object.keys(updated).forEach(cursorUserId => {
+          const cursor = updated[cursorUserId]
           const now = Date.now()
           const timeSinceUpdate = now - cursor.timestamp
           
           // Remove cursor if no update in last 2 seconds
           if (timeSinceUpdate > 2000) {
-            delete updated[userId]
+            delete updated[cursorUserId]
             hasChanges = true
           }
         })
@@ -203,15 +276,29 @@ export const useRealtimeCursors = ({
     }, 1000) // Check every second
 
     return () => {
-      channel.unsubscribe()
+      console.log('[useRealtimeCursors] Cleaning up channel:', roomName)
+      if (channelRef.current === channel) {
+        channel.unsubscribe()
+        channelRef.current = null
+      }
       clearInterval(cleanupInterval)
     }
-  }, [roomName, userId, enabled])
+  }, [roomName, userId])
 
   useEffect(() => {
-    if (!enabled) return
+    console.log('[useRealtimeCursors] Setting up mouse tracking, channel available:', !!channelRef.current)
+    
     // Add event listener for mousemove
-    window.addEventListener('mousemove', handleMouseMove)
+    const mainContent = document.querySelector('[data-main-content]') as HTMLElement
+    const targetElement = mainContent || window
+    
+    const mouseMoveHandler = (event: MouseEvent) => {
+      if (channelRef.current) {
+        handleMouseMove(event)
+      }
+    }
+    
+    targetElement.addEventListener('mousemove', mouseMoveHandler)
 
     // Handle window resize to update viewport info (debounced)
     let resizeTimeout: NodeJS.Timeout
@@ -241,17 +328,21 @@ export const useRealtimeCursors = ({
     }
 
     window.addEventListener('resize', handleResize)
-    window.addEventListener('scroll', handleScroll)
+    
+    // Listen to scroll on the main content element if it exists
+    const scrollElement = mainContent || window
+    scrollElement.addEventListener('scroll', handleScroll, true)
 
     // Cleanup on unmount
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
+      targetElement.removeEventListener('mousemove', mouseMoveHandler)
       window.removeEventListener('resize', handleResize)
-      window.removeEventListener('scroll', handleScroll)
+      scrollElement.removeEventListener('scroll', handleScroll, true)
       clearTimeout(resizeTimeout)
       clearTimeout(scrollTimeout)
     }
-  }, [handleMouseMove, enabled])
+  }, [handleMouseMove])
 
   return { cursors }
 }
+

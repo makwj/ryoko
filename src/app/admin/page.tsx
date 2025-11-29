@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
+import ConfirmationDialog from "@/components/ConfirmationDialog";
 
 // Users types
 interface ProfileRow {
@@ -253,6 +254,9 @@ function PostsTab() {
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<keyof AdminItem | ''>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -318,21 +322,31 @@ function PostsTab() {
     }
   };
 
-  const onDelete = async (postId: string) => {
-    const ok = confirm('Delete this post?');
-    if (!ok) return;
+  const handleDeleteClick = (postId: string) => {
+    setPostToDelete(postId);
+    setShowDeleteDialog(true);
+  };
+
+  const onDelete = async () => {
+    if (!postToDelete) return;
+    
+    setIsDeleting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
-      const res = await fetch(`/api/admin/posts?postId=${encodeURIComponent(postId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/admin/posts?postId=${encodeURIComponent(postToDelete)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         toast.success('Post deleted successfully');
+        setShowDeleteDialog(false);
+        setPostToDelete(null);
         load();
       } else {
         toast.error('Failed to delete post');
       }
     } catch (error) {
       toast.error('Failed to delete post');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -387,7 +401,7 @@ function PostsTab() {
                     {item.type === 'post' ? (
                       <div className="flex gap-2 justify-center items-center">
                         <button onClick={(e) => { e.stopPropagation(); onFeatureToggle(item.id, !!item.is_featured); }} className="px-3 py-1 text-xs rounded-md border cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap min-w-[80px]">{item.is_featured ? 'Unfeature' : 'Feature'}</button>
-                        <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} className="px-3 py-1 text-xs rounded-md bg-red-600 text-white cursor-pointer hover:bg-red-700 transition-colors whitespace-nowrap min-w-[60px]">Delete</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id); }} className="px-3 py-1 text-xs rounded-md bg-red-600 text-white cursor-pointer hover:bg-red-700 transition-colors whitespace-nowrap min-w-[60px]">Delete</button>
                       </div>
                     ) : (
                       <GuideActions id={item.id} />
@@ -416,6 +430,22 @@ function PostsTab() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setPostToDelete(null);
+        }}
+        onConfirm={onDelete}
+        title="Delete Post"
+        description="Are you sure you want to delete this post? This action cannot be undone and will delete all images, comments, and reactions associated with this post."
+        confirmText="Yes, delete post"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

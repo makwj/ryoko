@@ -834,7 +834,38 @@ export default function TripPage() {
         throw new Error(data.error);
       }
       
-      const aiMessage = { role: 'assistant' as const, content: data.response };
+      const responseText: string = data.response || '';
+
+      // Heuristic: if the AI response starts by bolding a specific place, e.g.
+      // "**Lookout Point @ Changkat Tunku** in Kuala Lumpur, Malaysia ...",
+      // parse that as a recommended attraction and surface it as a card
+      // that can be added to Ideas.
+      try {
+        const boldPlaceMatch = responseText.match(/\*\*(.+?)\*\*\s+in\s+([^.!\n]+)[.!?\n]/);
+        if (boldPlaceMatch && trip) {
+          const placeName = boldPlaceMatch[1].trim();
+          const placeLocation = boldPlaceMatch[2].trim();
+
+          const attraction = {
+            name: placeName,
+            category: 'attraction',
+            description: responseText,
+            location: placeLocation || trip.destination,
+            rating: undefined as number | undefined,
+            distance: undefined as string | undefined,
+            image: undefined as string | undefined,
+            linkUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              `${placeName} ${placeLocation || trip.destination || ''}`.trim()
+            )}`,
+          };
+
+          setNearbyAttractions(prev => [...prev, attraction]);
+        }
+      } catch (parseError) {
+        console.warn('Failed to parse highlighted place from AI response:', parseError);
+      }
+
+      const aiMessage = { role: 'assistant' as const, content: responseText };
       setAiMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('Error sending AI message:', error);
@@ -3684,8 +3715,8 @@ export default function TripPage() {
                 }}
               >
                 <div className="absolute bottom-4 left-4 text-white">
-                  <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <h1 className="text-xl sm:text-2xl font-bold drop-shadow-lg">{trip.title}</h1>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-2xl font-bold drop-shadow-lg">{trip.title}</h1>
                     {trip.completed && (
                       <span className="px-2 py-1 bg-green-500/80 text-white text-xs font-medium rounded-full drop-shadow-sm">
                         Completed
@@ -3962,6 +3993,7 @@ export default function TripPage() {
                 : `cursors:trip:${trip?.id}:tab:${activeTab}`
               }
               username={participants.find((p: any) => p.id === user.id)?.name || user.email || 'Someone'}
+              userId={user.id}
             />
           )}
           
@@ -4380,7 +4412,8 @@ export default function TripPage() {
                                   )}
 
                                   {/* Voting and Actions */}
-                                  <div className="flex items-center justify-between pt-2">
+                                  <div className="flex flex-col md:flex-row md:items-center md:justify-between pt-2 gap-3 md:gap-0">
+                                    {/* Voting, comment */}
                                     <div className="flex items-center gap-4">
                                       <button
                                         onClick={() => handleVoteIdea(idea.id, 'upvote')}
@@ -4437,8 +4470,30 @@ export default function TripPage() {
                                       </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    {/* 
+                                      Row for "Move to Itinerary" and Added By (placement swaps responsively)
+                                      
+                                      On small screens:
+                                        - Move to Itinerary becomes its own row (w-full, mb-2)
+                                        - Added By avatar aligns right, at end of card
+                                    */}
+                                    {/* Second row: Move to Itinerary + Added By.
+                                        - On small screens: this whole block is a new row under the votes,
+                                          with button and avatar side-by-side.
+                                        - On md+ screens: layout matches previous inline behavior. */}
+                                    <div className="flex flex-row items-center justify-between md:justify-start gap-3 w-full md:w-auto">
+                                      {/* Move to Itinerary is its own row on mobile, inline on desktop */}
+                                      <button
+                                        onClick={() => handleMoveToItinerary(idea)}
+                                        className="order-2 md:order-1 cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 
+                                          w-auto mb-0"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        Move to Itinerary
+                                      </button>
+                                      
+                                      {/* Added By - right aligned on mobile, inline on desktop */}
+                                      <div className="order-1 md:order-2 flex items-center gap-2 text-sm text-gray-500 md:ml-2 justify-end md:justify-start w-auto">
                                         <span className="text-xs">Added By:</span>
                                         <Avatar 
                                           name={addedByParticipant?.name || 'Unknown'} 
@@ -4448,15 +4503,6 @@ export default function TripPage() {
                                         />
                                         <span>{addedByParticipant?.name || 'Unknown'}</span>
                                       </div>
-                                      
-                                      {/* Move to Itinerary Button */}
-                                      <button
-                                        onClick={() => handleMoveToItinerary(idea)}
-                                        className="cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                      >
-                                        <Plus className="w-3 h-3" />
-                                        Move to Itinerary
-                                      </button>
                                     </div>
                                   </div>
                                 </div>
@@ -4561,7 +4607,7 @@ export default function TripPage() {
                 {activeTab === 'recommendations' && (
                   <div className="space-y-6">
                     {/* Header */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div>
                         <h2 className="text-2xl font-bold text-dark">AI Trip Recommendations</h2>
                         <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
@@ -4569,7 +4615,7 @@ export default function TripPage() {
                       <button
                         onClick={() => generateRecommendations()}
                         disabled={generatingRecommendations}
-                        className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white text-sm px-6 py-3 rounded-lg font-medium transition-all duration-200 transform disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                        className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white text-sm px-6 py-3 rounded-lg font-medium transition-all duration-200 transform disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2 self-end md:self-auto"
                       >
                         {generatingRecommendations ? (
                           <>
@@ -5365,12 +5411,12 @@ export default function TripPage() {
 
     {/* AI Chat Sidebar */}
     {showAIChatSidebar && selectedDestination && (
-      <div className="fixed top-0 right-0 h-full w-full sm:w-96 bg-white border-l border-gray-200 shadow-lg z-[9998] flex flex-col">
+      <div className="fixed top-0 right-0 h-full w-96 bg-white border-l border-gray-200 shadow-lg z-[9998] flex flex-col">
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <MessageCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
-            <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-gray-900">
               Ask AI about "{selectedDestination}"
             </h3>
       </div>
@@ -5384,28 +5430,32 @@ export default function TripPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-              {aiMessages.map((message, index) => (
+          {aiMessages.map((message, index) => {
+            // Strip simple markdown bold markers for cleaner display in the chat bubble
+            const displayContent = message.content.replace(/\*\*(.*?)\*\*/g, '$1');
+            return (
+              <div
+                key={index}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
                 <div
-                  key={index}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`max-w-[80%] p-3 rounded-lg ${
+                    message.role === 'user'
+                      ? 'bg-[#0B486B] text-white'
+                      : 'bg-gray-100 text-gray-900'
+                  }`}
                 >
-                  <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                      message.role === 'user'
-                        ? 'bg-[#0B486B] text-white'
-                        : 'bg-gray-100 text-gray-900'
-                    }`}
-                  >
-                    {message.content}
-                  </div>
+                  {displayContent}
                 </div>
-              ))}
+              </div>
+            );
+          })}
               
           {aiLoading && (
             <div className="flex justify-start">
               <div className="bg-gray-100 p-3 rounded-lg flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-gray-600">AI is thinking...</span>
+                <span className="text-gray-600">Thinking...</span>
               </div>
             </div>
           )}
@@ -5436,8 +5486,7 @@ export default function TripPage() {
               </div>
               {nearbyAttractions.map((attraction, index) => (
                 <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
+                  <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-medium text-gray-900 text-sm">{attraction.name}</h4>
                         <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
@@ -5459,16 +5508,33 @@ export default function TripPage() {
                           </span>
                         )}
                         {attraction.rating && (
-                          <span className="flex items-center gap-1">
-                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                            {attraction.rating}
-                          </span>
+                          attraction.linkUrl ? (
+                            <a
+                              href={attraction.linkUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(attraction.name + ' ' + (attraction.location || trip?.destination || ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                              title="View reviews on Google Maps"
+                            >
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              <span className="text-xs font-medium text-gray-700">
+                                {attraction.rating.toFixed ? attraction.rating.toFixed(1) : attraction.rating}
+                              </span>
+                              <ExternalLink className="w-3 h-3 text-gray-400 ml-0.5" />
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              {attraction.rating}
+                            </span>
+                          )
                         )}
                       </div>
                     </div>
+                  <div className="mt-3 flex justify-end">
                     <button
                       onClick={() => addAttractionToIdeas(attraction)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 bg-[#0B486B] text-white text-xs rounded-md hover:bg-[#093751] transition-colors"
                     >
                       <Plus className="w-3 h-3" />
                       Add to Ideas
@@ -5496,8 +5562,7 @@ export default function TripPage() {
               </div>
               {nearbyAccommodations.map((item, index) => (
                 <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
+                  <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
                         <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
@@ -5513,16 +5578,33 @@ export default function TripPage() {
                           </span>
                         )}
                         {item.rating && (
-                          <span className="flex items-center gap-1">
-                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                            {item.rating}
-                          </span>
+                          item.linkUrl ? (
+                            <a
+                              href={item.linkUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name + ' ' + (item.location || trip?.destination || ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                              title="View reviews on Google Maps"
+                            >
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              <span className="text-xs font-medium text-gray-700">
+                                {item.rating.toFixed ? item.rating.toFixed(1) : item.rating}
+                              </span>
+                              <ExternalLink className="w-3 h-3 text-gray-400 ml-0.5" />
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              {item.rating}
+                            </span>
+                          )
                         )}
                       </div>
                     </div>
+                  <div className="mt-3 flex justify-end">
                     <button
                       onClick={() => addAttractionToIdeas(item)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 bg-[#0B486B] text-white text-xs rounded-md hover:bg-[#093751] transition-colors"
                     >
                       <Plus className="w-3 h-3" />
                       Add to Ideas

@@ -45,17 +45,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const isBanned = await checkAndHandleBannedUser(session.user.id);
-        if (isBanned) {
+      // Safety timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn("[AuthContext] Timeout reached in getInitialSession, clearing loading state");
+        setUser(null);
+        setLoading(false);
+      }, 10000); // 10 second timeout
+
+      try {
+        // Check if this is a recovery session (password reset flow)
+        console.log("[AuthContext] getInitialSession start");
+        const hash = window.location.hash;
+        const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(hash.substring(1));
+        const isRecovery = (urlParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery') && hash.includes('access_token');
+        console.log("[AuthContext] URL state on init", {
+          hash,
+          search: window.location.search,
+          isRecovery,
+          queryType: urlParams.get('type'),
+          hashType: hashParams.get('type'),
+        });
+
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("[AuthContext] Error getting session:", error);
+          clearTimeout(timeoutId);
           setUser(null);
           setLoading(false);
           return;
         }
+
+        console.log("[AuthContext] Initial session result", {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          isRecovery,
+        });
+        
+        // Don't set user for recovery sessions - user should only be logged in after resetting password
+        if (isRecovery && session) {
+          clearTimeout(timeoutId);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+        
+        if (session?.user) {
+          const isBanned = await checkAndHandleBannedUser(session.user.id);
+          if (isBanned) {
+            clearTimeout(timeoutId);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+        }
+        clearTimeout(timeoutId);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      } catch (error) {
+        console.error("[AuthContext] Error in getInitialSession:", error);
+        // Always clear loading state even on error to prevent stuck loading
+        clearTimeout(timeoutId);
+        setUser(null);
+        setLoading(false);
       }
-      setUser(session?.user ?? null);
-      setLoading(false);
     };
 
     getInitialSession();
@@ -63,6 +117,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("[AuthContext] onAuthStateChange event", {
+          event,
+          hasSession: !!session,
+          userId: session?.user?.id,
+        });
+
+        // If the user just updated (e.g. finished password reset), redirect them
+        // to the dashboard when this happens in the password recovery flow.
+        if (event === 'USER_UPDATED') {
+          const hash = window.location.hash;
+          const urlParams = new URLSearchParams(window.location.search);
+          const hashParams = new URLSearchParams(hash.substring(1));
+          const isRecovery =
+            (urlParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery') &&
+            (hash.includes('access_token') || urlParams.get('access_token'));
+
+          console.log("[AuthContext] USER_UPDATED handler", {
+            pathname: window.location.pathname,
+            search: window.location.search,
+            hash,
+            isRecovery,
+          });
+
+          if (isRecovery && session?.user) {
+            console.log("[AuthContext] Detected password recovery USER_UPDATED, redirecting to dashboard");
+            // Clean URL and redirect so the app re-initializes with the new session
+            window.history.replaceState({}, document.title, window.location.pathname);
+            window.location.href = "/dashboard?password_reset_success=1";
+            return;
+          }
+        }
+
+        // Don't set user for PASSWORD_RECOVERY event - this is a temporary recovery session
+        // User should only be logged in after successfully resetting password
+        if (event === 'PASSWORD_RECOVERY') {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+        
         if (session?.user) {
           const isBanned = await checkAndHandleBannedUser(session.user.id);
           if (isBanned) {

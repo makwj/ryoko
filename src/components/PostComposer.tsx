@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, Upload, Globe2, MapPin, ChevronDown, Search } from "lucide-react";
 import toast from "react-hot-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 
 interface ComposerProps {
   isOpen: boolean;
@@ -391,12 +389,17 @@ export default function PostComposer({ isOpen, onClose, onPosted, attachTripId }
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{attachTripId ? 'Share Trip' : 'New Post'}</DialogTitle>
-        </DialogHeader>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50">
+      <div className="bg-white w-full max-w-lg rounded-lg shadow-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold">{attachTripId ? 'Share Trip' : 'New Post'}</h3>
+          <button className="cursor-pointer" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         {trip && (
           <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
@@ -411,7 +414,7 @@ export default function PostComposer({ isOpen, onClose, onPosted, attachTripId }
         )}
 
         <textarea
-          className="w-full border border-gray-300 rounded-md p-3 mb-3 focus:outline-none focus:ring-2 focus:ring-[#ff5a58] focus:ring-offset-0"
+          className="w-full border border-gray-300 rounded-md p-3 mb-3 focus:outline-none focus:ring-2 focus:ring-[#ff5a58]"
           rows={4}
           placeholder="Share your travel story..."
           value={content}
@@ -439,7 +442,7 @@ export default function PostComposer({ isOpen, onClose, onPosted, attachTripId }
                   <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#ff5a58] focus:ring-offset-0"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#ff5a58]"
                     placeholder="Search countries..."
                     value={countrySearch}
                     onChange={(e) => setCountrySearch(e.target.value)}
@@ -508,13 +511,13 @@ export default function PostComposer({ isOpen, onClose, onPosted, attachTripId }
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={uploading}>Cancel</Button>
-          <Button className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white" onClick={handleSubmit} disabled={uploading}>
+          <button className="px-4 py-2 rounded-md border" onClick={onClose} disabled={uploading}>Cancel</button>
+          <button className="px-4 py-2 rounded-md bg-[#ff5a58] text-white disabled:opacity-60" onClick={handleSubmit} disabled={uploading}>
             {uploading ? 'Posting...' : 'Post'}
-          </Button>
+          </button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
 

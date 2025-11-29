@@ -39,12 +39,12 @@ export default function ConfirmationDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold text-gray-900">
-            {title}
-          </DialogTitle>
-          <DialogDescription className="text-sm text-gray-600 mt-1">
-            {description}
-          </DialogDescription>
+              <DialogTitle className="text-lg font-semibold text-gray-900">
+                {title}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-600 mt-1">
+                {description}
+              </DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-3 justify-end mt-6">

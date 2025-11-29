@@ -110,7 +110,6 @@ export default function Home() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot-password" | "reset-password">("login");
   const [isLoading, setIsLoading] = useState(true);
-  const [inRecoveryFlow, setInRecoveryFlow] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   
@@ -132,37 +131,59 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Redirect logged-in users to dashboard (skip during recovery flow)
+  // Redirect logged-in users to dashboard
+  // This should happen immediately when auth state is ready, not wait for loading animation
+  // BUT: Don't redirect if user is in password reset mode (they need to reset password first)
   useEffect(() => {
-    if (!authLoading && user && !inRecoveryFlow) {
+    if (!authLoading && user && authMode !== 'reset-password') {
+      // Small delay to ensure auth state is fully propagated
       const redirectTimer = setTimeout(() => {
         router.push('/dashboard');
       }, 100);
       return () => clearTimeout(redirectTimer);
     }
-  }, [user, authLoading, inRecoveryFlow, router]);
+  }, [user, authLoading, router, authMode]);
 
   // Check for email verification success and password reset
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    
-    const type = urlParams.get('type') || hashParams.get('type');
-    const error = urlParams.get('error') || hashParams.get('error');
-    const errorDescription = urlParams.get('error_description') || hashParams.get('error_description');
+    const handleRecoveryToken = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      
+      const type = urlParams.get('type') || hashParams.get('type');
+      const error = urlParams.get('error') || hashParams.get('error');
+      const errorDescription = urlParams.get('error_description') || hashParams.get('error_description');
 
-    if (type === 'signup' && !error) {
-      toast.success("Email verification successful! You can now sign in to your account.");
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (type === 'recovery' && !error) {
-      setAuthMode("reset-password");
-      setAuthOpen(true);
-      setInRecoveryFlow(true);
-    } else if (error) {
-      toast.error(errorDescription || "Email verification failed. Please try again.");
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
+      console.log("[Home] handleRecoveryToken", {
+        search: window.location.search,
+        hash: window.location.hash,
+        type,
+        error,
+      });
+
+      if (type === 'signup' && !error) {
+        toast.success("Email verification successful! You can now sign in to your account.");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (type === 'recovery' && !error && authMode !== 'reset-password') {
+        // DON'T clear hash immediately - Supabase needs it to establish the recovery session
+        // The hash contains the access_token that Supabase uses to create the session
+        // We'll clear it after password reset is successful (in AuthModal)
+        
+        // Wait a moment for Supabase to process the hash and create the session
+        // Then open the reset password modal
+        setTimeout(() => {
+          console.log("[Home] Opening reset-password modal after recovery link");
+          setAuthMode("reset-password");
+          setAuthOpen(true);
+        }, 100);
+      } else if (error) {
+        toast.error(errorDescription || "Email verification failed. Please try again.");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+
+    handleRecoveryToken();
+  }, [authMode]);
 
   // Fetch statistics from database
   useEffect(() => {
@@ -220,22 +241,19 @@ export default function Home() {
     setAuthOpen(true);
   };
 
-  if (authLoading || (user && !isLoading)) {
+  // Show loading while auth is loading or during initial page load animation
+  if (authLoading || isLoading) {
     return <Loading />;
   }
   
   return (
     <PublicRoute>
-      {isLoading ? (
-        <Loading />
-      ) : (
         <div className="font-sans min-h-screen bg-white text-[#1a1a1a] antialiased">
           <AuthModal 
             open={authOpen} 
             mode={authMode} 
             onClose={() => setAuthOpen(false)} 
             onModeChange={handleAuthModeChange}
-            onRecoveryComplete={() => setInRecoveryFlow(false)}
           />
           
           {/* Modern Header */}
@@ -247,7 +265,7 @@ export default function Home() {
           >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between h-16">
-                <motion.div
+              <motion.div
                   className="flex items-center"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -309,25 +327,25 @@ export default function Home() {
                     <>
                       <button
                         className="text-sm font-medium text-gray-700 hover:text-[#ff5a58] transition-colors cursor-pointer"
-                        onClick={() => {
-                          setAuthMode("login");
-                          setAuthOpen(true);
-                        }}
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthOpen(true);
+                    }}
                       >
                         Sign In
                       </button>
                       <button
                         className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#ff5a58] hover:bg-[#ff4a47] transition-colors shadow-sm cursor-pointer"
-                        onClick={() => {
-                          setAuthMode("register");
-                          setAuthOpen(true);
-                        }}
+                    onClick={() => {
+                      setAuthMode("register");
+                      setAuthOpen(true);
+                    }}
                       >
                         Get Started
                       </button>
                     </>
                   )}
-                </motion.div>
+              </motion.div>
               </div>
             </div>
           </motion.header>
@@ -344,14 +362,14 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                >
+                  >
                   <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-gray-900 mb-6">
-                    Plan Together
+                      Plan Together
                     <br />
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff5a58] to-[#ff9558]">
                       Travel Smarter
                     </span>
-                  </h1>
+                    </h1>
                 </motion.div>
                 
                 <motion.p
@@ -362,48 +380,48 @@ export default function Home() {
                 >
                   Ryoko revolutionizes group trip planning with AI-powered recommendations, real-time collaboration, and seamless expense management.
                 </motion.p>
-                
+                    
                 <motion.div
                   className="flex flex-col sm:flex-row items-center justify-center gap-4"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.4 }}
                 >
-                  <button
+                        <button
                     className="px-8 py-4 rounded-lg text-base font-semibold text-white bg-gradient-to-r from-[#ff5a58] to-[#ff9558] hover:from-[#ff4a47] hover:to-[#ff8550] transition-all shadow-lg hover:shadow-xl transform hover:scale-105 cursor-pointer"
-                    onClick={() => {
-                      setAuthMode("register");
-                      setAuthOpen(true);
-                    }}
-                  >
+                          onClick={() => {
+                            setAuthMode("register");
+                            setAuthOpen(true);
+                          }}
+                        >
                     Get Started Free
-                  </button>
-                  <button
+                        </button>
+                        <button
                     className="px-8 py-4 rounded-lg text-base font-semibold text-gray-700 bg-white border-2 border-gray-200 hover:border-[#ff5a58] hover:text-[#ff5a58] transition-all cursor-pointer"
-                    onClick={() => {
-                      setAuthMode("login");
-                      setAuthOpen(true);
-                    }}
-                  >
-                    Sign In
-                  </button>
+                          onClick={() => {
+                            setAuthMode("login");
+                            setAuthOpen(true);
+                          }}
+                        >
+                          Sign In
+                        </button>
                 </motion.div>
-              </div>
-            </div>
+                  </div>
+                </div>
           </section>
 
           {/* Stats Section */}
           <section className="relative py-32 bg-gradient-to-r from-[#ff5a58] to-[#ff9558] overflow-hidden">
             {/* Decorative images */}
             <div className="absolute bottom-0 left-0 z-0">
-              <Image 
+                      <Image
                 src="/assets/stats1.png" 
                 alt="decorative" 
                 width={380} 
                 height={380} 
                 className="hidden xl:block" 
-              />
-            </div>
+                      />
+                    </div>
             <div className="absolute bottom-0 right-0 z-0">
               <Image 
                 src="/assets/stats2.png" 
@@ -411,23 +429,23 @@ export default function Home() {
                 width={380} 
                 height={380} 
                 className="hidden xl:block" 
-              />
-            </div>
+                    />
+                </div>
             
             <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <motion.div
                 className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center"
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true }}
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
                 transition={{ duration: 0.6 }}
-              >
-                <motion.div
+          >
+            <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
+              viewport={{ once: true }}
                   transition={{ delay: 0.1 }}
-                >
+            >
                   <div className="text-5xl md:text-6xl font-bold text-white mb-2">
                     {statsLoading ? (
                       <span>0</span>
@@ -482,7 +500,7 @@ export default function Home() {
                   whileInView={{ opacity: 1, x: 0, y: 0 }}
                   viewport={{ once: true, margin: "-100px" }}
                   transition={{ duration: 0.8, ease: "easeOut" }}
-                >
+          >
                   <div className="p-8 sm:p-12">
                     <div className="inline-flex items-center gap-2">
                       <svg
@@ -663,11 +681,11 @@ export default function Home() {
           {/* Features Section - Accordion Style */}
           <section id="features" className="py-24 bg-white">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <motion.div
+                <motion.div
                 className="text-center mb-16"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
+                  viewport={{ once: true }}
                 transition={{ duration: 0.6 }}
               >
                 <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
@@ -682,8 +700,8 @@ export default function Home() {
                 <div className="flex flex-col gap-12 md:flex-row md:gap-24">
                   <div className="grid grid-cols-1 items-stretch gap-8 sm:gap-12 lg:grid-cols-2 lg:gap-24">
                     <ul className="w-full">
-                      {[
-                        {
+                  {[
+                    {
                           id: 1,
                           title: "All-in-One Planning Hub",
                           description: "Bring itineraries, budgets, and bookings into one organized place. Never miss a detail with our comprehensive planning tools.",
@@ -697,8 +715,8 @@ export default function Home() {
                             <Calendar key="calendar" className="h-4 w-4 text-[#ff5a58]" />,
                             <Pencil key="pencil" className="h-4 w-4 text-[#ff5a58]" />,
                           ],
-                        },
-                        {
+                    },
+                    {
                           id: 2,
                           title: "Real-Time Collaboration",
                           description: "Vote, chat, and coordinate with your group in seconds. Plan together seamlessly with live updates and instant communication.",
@@ -712,8 +730,8 @@ export default function Home() {
                             <Users key="users" className="h-4 w-4 text-[#ff5a58]" />,
                             <Zap key="zap" className="h-4 w-4 text-[#ff5a58]" />,
                           ],
-                        },
-                        {
+                    },
+                    {
                           id: 3,
                           title: "AI-Powered Recommendations",
                           description: "Get personalized suggestions for activities, restaurants, and attractions based on your interests. Let AI help you discover amazing experiences.",
@@ -727,7 +745,7 @@ export default function Home() {
                             <Globe key="globe" className="h-4 w-4 text-[#ff5a58]" />,
                             <MapPin key="mappin" className="h-4 w-4 text-[#ff5a58]" />,
                           ],
-                        },
+                    },
                       ].map((feature) => (
                         <li
                           key={feature.id}
@@ -753,7 +771,7 @@ export default function Home() {
                                   ? "font-bold text-[#ff5a58]"
                                   : ""
                               }`}
-                            >
+                    >
                               <h3 className="inline">{feature.title}</h3>
                             </span>
                             <span className="ml-auto">
@@ -795,7 +813,7 @@ export default function Home() {
                             <div className="pb-8">
                               <div className="leading-relaxed text-gray-600 mb-4">
                                 <p>{feature.description}</p>
-                              </div>
+                        </div>
                               <div className="mt-4 space-y-1.5">
                                 {Array.isArray(feature.additionalInfo) ? (
                                   feature.additionalInfo.map((info, index) => (
@@ -805,19 +823,19 @@ export default function Home() {
                                     >
                                       {feature.icons?.[index]}
                                       {info}
-                                    </div>
+                        </div>
                                   ))
                                 ) : (
                                   <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
                                     {feature.icons}
                                     {feature.additionalInfo}
-                                  </div>
+                      </div>
                                 )}
                               </div>
                             </div>
                           </div>
                         </li>
-                      ))}
+                  ))}
                     </ul>
                     <div className="flex items-center justify-center">
                       {[
@@ -849,9 +867,9 @@ export default function Home() {
                             height={500}
                             className="w-full rounded-2xl border border-gray-200 bg-gray-50 object-contain object-center sm:w-[26rem]"
                           />
-                        </div>
+              </div>
                       ))}
-                    </div>
+            </div>
                   </div>
                 </div>
               </div>
@@ -885,9 +903,9 @@ export default function Home() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
+            viewport={{ once: true }}
                 transition={{ duration: 0.6 }}
-              >
+            >
                 <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
                   Ready to plan your next adventure?
                 </h2>
@@ -911,7 +929,7 @@ export default function Home() {
                     Sign In
                   </button>
                 </div>
-              </motion.div>
+            </motion.div>
             </div>
           </section>
 
@@ -922,16 +940,16 @@ export default function Home() {
                 <div>
                   <h3 className="text-lg font-bold mb-4">About Ryoko</h3>
                   <p className="text-gray-400 text-sm leading-relaxed">
-                    Ryoko is a collaborative travel planning platform built for group travelers. From trip
-                    ideation to budgeting and post-trip memories, keep everything in one place.
-                  </p>
+                  Ryoko is a collaborative travel planning platform built for group travelers. From trip
+                  ideation to budgeting and post-trip memories, keep everything in one place.
+                </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-bold mb-4">Our Mission</h3>
                   <p className="text-gray-400 text-sm leading-relaxed">
-                    We help keep everything organized in one place so you can focus on making memories, not
-                    managing logistics.
-                  </p>
+                  We help keep everything organized in one place so you can focus on making memories, not
+                  managing logistics.
+                </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-bold mb-4">Get Started</h3>
@@ -939,20 +957,19 @@ export default function Home() {
                     className="flex items-center gap-2 text-sm font-medium text-white hover:text-[#ff5a58] transition-colors cursor-pointer"
                     onClick={openSignUp}
                   >
-                    Sign Up Now <ArrowRight className="w-4 h-4" />
+                  Sign Up Now <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
-              </div>
+            </div>
               <div className="border-t border-gray-800 pt-8">
                 <div className="flex items-center justify-between text-sm text-gray-400">
                   <span>© 2025 Ryoko. All rights reserved.</span>
                   <span>Capstone Project</span>
-                </div>
               </div>
+            </div>
             </div>
           </footer>
         </div>
-      )}
     </PublicRoute>
   );
 }

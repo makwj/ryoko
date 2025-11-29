@@ -305,7 +305,7 @@ export default function TextSelectionAI({
       {showSidebar && hoveredLocation && (
         <div
           ref={sidebarRef}
-          className="fixed z-[9998] w-[90vw] sm:w-80 bg-white border border-gray-200 rounded-lg shadow-xl"
+          className="fixed z-[9998] w-80 bg-white border border-gray-200 rounded-lg shadow-xl"
           style={{
             top: `${sidebarPosition.top}px`,
             right: `${sidebarPosition.right}px`,

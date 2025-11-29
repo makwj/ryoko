@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, Upload, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+import ConfirmationDialog from "@/components/ConfirmationDialog";
 
 interface EditPostModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ interface EditPostModalProps {
     images?: Array<{ id: string; image_path: string; order_index: number }>;
   };
   onPostUpdated?: () => void;
-  onPostDeleted?: () => void;
+  onPostDeleted?: (postId: string) => void;
 }
 
 export default function EditPostModal({ isOpen, onClose, post, onPostUpdated, onPostDeleted }: EditPostModalProps) {
@@ -25,6 +26,8 @@ export default function EditPostModal({ isOpen, onClose, post, onPostUpdated, on
   const [existingImages, setExistingImages] = useState<Array<{ id: string; image_path: string; order_index: number }>>([]);
   const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Get country code from country name
   const getCountryCodeFromName = (name: string): string | null => {
@@ -137,12 +140,12 @@ export default function EditPostModal({ isOpen, onClose, post, onPostUpdated, on
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
-      return;
-    }
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true);
+  };
 
-    setUploading(true);
+  const handleDelete = async () => {
+    setIsDeleting(true);
     try {
       // Delete all images from storage first
       if (post.images && post.images.length > 0) {
@@ -161,13 +164,14 @@ export default function EditPostModal({ isOpen, onClose, post, onPostUpdated, on
       if (error) throw error;
 
       toast.success("Post deleted successfully!");
-      onPostDeleted?.();
+      setShowDeleteDialog(false);
+      onPostDeleted?.(post.id);
       onClose();
     } catch (error) {
       console.error('Delete post error:', error);
       toast.error("Failed to delete post");
     } finally {
-      setUploading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -244,7 +248,7 @@ export default function EditPostModal({ isOpen, onClose, post, onPostUpdated, on
         <div className="flex justify-between items-center">
           <button
             className="px-4 py-2 rounded-md border border-red-500 text-red-500 hover:bg-red-50 disabled:opacity-60 flex items-center gap-2"
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             disabled={uploading}
           >
             <Trash2 className="w-4 h-4" />
@@ -268,6 +272,19 @@ export default function EditPostModal({ isOpen, onClose, post, onPostUpdated, on
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleDelete}
+        title="Delete Post"
+        description="Are you sure you want to delete this post? This action cannot be undone and will delete all images, comments, and reactions associated with this post."
+        confirmText="Yes, delete post"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

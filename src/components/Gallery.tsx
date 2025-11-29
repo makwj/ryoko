@@ -28,6 +28,7 @@ import {
   Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import Avatar from "@/components/ui/avatar";
@@ -399,11 +400,11 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-dark">Trip Gallery</h2>
-          <p className="text-gray-600 mt-1">Share and organize your trip memories by day</p>
+          <p className="hidden md:block text-gray-600 mt-1">Share and organize your trip memories by day</p>
         </div>
         <Button
           onClick={() => setShowUploadModal(true)}
-          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+          className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
         >
           <Camera className="w-4 h-4" />
           Upload Photo
@@ -426,7 +427,9 @@ export default function Gallery({ tripId, userId, numberOfDays, participants }: 
           >
             Day {day}
             {daysWithImages.includes(day) && (
-              <span className="bg-[#ff5a58] text-white text-xs px-2 py-1 rounded-full">
+              <span className={`w-6 h-6 text-white text-xs rounded-full flex items-center justify-center ${
+                selectedDay === day ? 'bg-[#303030]' : 'bg-[#ff5a58]'
+              }`}>
                 {images.filter(img => img.day_number === day).length}
               </span>
             )}
@@ -598,11 +601,11 @@ function UploadModal({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Caption (optional, applied to all)
             </label>
-            <textarea
+            <Textarea
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Add a caption for this photo..."
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent resize-none"
+              className="resize-none"
               rows={3}
             />
           </div>
@@ -619,7 +622,7 @@ function UploadModal({
             <Button
               type="submit"
               disabled={selectedFiles.length === 0 || uploading}
-              className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+              className="flex-1 bg-[#ff5a58] hover:bg-[#ff4a47] text-white"
             >
               {uploading ? (
                 <>
@@ -755,8 +758,8 @@ function ImageDetailModal({
               {isOwner ? (
                 isEditing ? (
                   <div className="flex gap-2 items-start">
-                    <textarea
-                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent text-sm"
+                    <Textarea
+                      className="flex-1 text-sm resize-none"
                       rows={3}
                       value={draftCaption}
                       onChange={(e) => setDraftCaption(e.target.value)}
@@ -764,7 +767,7 @@ function ImageDetailModal({
                     <div className="flex gap-2">
                       <Button
                         onClick={() => { onUpdateCaption(image.id, draftCaption); setIsEditing(false); }}
-                        className="bg-red-500 hover:bg-red-600 text-white"
+                        className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white"
                       >
                         Save
                       </Button>
@@ -850,7 +853,7 @@ function ImageDetailModal({
                   <Button
                     onClick={() => onAddComment(image.id)}
                     disabled={!newComment[image.id]?.trim()}
-                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-2"
+                    className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-3 py-2"
                   >
                     <Plus className="w-4 h-4" />
                   </Button>

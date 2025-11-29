@@ -395,7 +395,7 @@ export default function Dashboard() {
     if (!profileEmail) initProfileEmail();
   }, [profileEmail]);
 
-  // Check for email verification success
+  // Check for email verification success and password reset success
   useEffect(() => {
     // Check both query parameters and hash parameters
     const urlParams = new URLSearchParams(window.location.search);
@@ -404,10 +404,24 @@ export default function Dashboard() {
     const type = urlParams.get('type') || hashParams.get('type');
     const error = urlParams.get('error') || hashParams.get('error');
     const errorDescription = urlParams.get('error_description') || hashParams.get('error_description');
+    const passwordResetSuccess = urlParams.get('password_reset_success');
+
+    console.log("[Dashboard] URL check on mount", {
+      search: window.location.search,
+      hash: window.location.hash,
+      type,
+      error,
+      passwordResetSuccess,
+    });
 
     if (type === 'signup' && !error) {
       toast.success("Email verification successful! Welcome to your dashboard.");
       // Clean up the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (passwordResetSuccess) {
+      // Successful password reset redirect flow
+      toast.success("Your password has been updated successfully.");
+      // Clean up the URL so the toast doesn't repeat on refresh
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (error) {
       toast.error(errorDescription || "Email verification failed. Please try again.");
@@ -634,12 +648,12 @@ export default function Dashboard() {
                     <CheckSquare className="w-4 h-4" />
                     Select
                   </button>
-                  <button 
-                    onClick={() => setShowCreateTripModal(true)}
+              <button 
+                onClick={() => setShowCreateTripModal(true)}
                     className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-xl cursor-pointer text-sm font-medium transition-colors"
-                  >
-                    Create New Trip +
-                  </button>
+              >
+                Create New Trip +
+              </button>
                 </>
               )}
             </div>

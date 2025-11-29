@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Link, Tag, Plus, MapPin } from "lucide-react";
+import { X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -195,7 +195,6 @@ export default function AddIdeaModal({
           {/* Location */}
           <div>
             <Label htmlFor="location" className="text-sm font-medium text-gray-700">
-              <MapPin className="w-4 h-4 inline mr-1" />
               Location
             </Label>
             <Input
@@ -210,7 +209,6 @@ export default function AddIdeaModal({
           {/* Link URL */}
           <div>
             <Label htmlFor="linkUrl" className="text-sm font-medium text-gray-700">
-              <Link className="w-4 h-4 inline mr-1" />
               Link URL
             </Label>
             <Input

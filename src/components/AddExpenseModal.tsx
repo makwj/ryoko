@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Calendar, DollarSign, Users, Tag, Plus, Minus, AlertCircle, ChevronDownIcon } from "lucide-react";
+import { X, Calendar, DollarSign, Users, Plus, Minus, AlertCircle, ChevronDownIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { ActivityLogger } from "@/lib/activityLogger";
@@ -260,8 +260,11 @@ export default function AddExpenseModal({
         <div className="space-y-6">
           {/* Title */}
           <div>
-            <Label htmlFor="title" className="text-sm font-medium text-gray-700">
-              Expense Title *
+            <Label htmlFor="title" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Expense Title</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Input
               id="title"
@@ -269,6 +272,7 @@ export default function AddExpenseModal({
               value={formData.title}
               onChange={(e) => handleInputChange('title', e.target.value)}
               placeholder="e.g., Train Ticket Fare and Taxi to Hotel"
+              className="mt-2"
             />
           </div>
 
@@ -281,7 +285,7 @@ export default function AddExpenseModal({
               id="description"
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
-              className="resize-none"
+              className="resize-none mt-2"
               rows={3}
               placeholder="Brief description of the expense..."
             />
@@ -289,10 +293,13 @@ export default function AddExpenseModal({
 
           {/* Amount */}
           <div>
-            <Label htmlFor="amount" className="text-sm font-medium text-gray-700">
-              Amount *
+            <Label htmlFor="amount" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Amount</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
-            <div className="relative">
+            <div className="relative mt-2">
               <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
                 id="amount"
@@ -309,20 +316,20 @@ export default function AddExpenseModal({
 
           {/* Category */}
           <div>
-            <Label htmlFor="category" className="text-sm font-medium text-gray-700">
-              Category *
+            <Label htmlFor="category" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Category</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
-              <SelectTrigger id="category">
+            <SelectTrigger id="category" className="mt-2">
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>
                 {expenseCategories.map((category) => (
                   <SelectItem key={category.value} value={category.value}>
-                    <div className="flex items-center gap-2">
-                      <Tag className="w-4 h-4" />
-                      <Badge className={category.color}>{category.label}</Badge>
-                    </div>
+                    <Badge className={category.color}>{category.label}</Badge>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -332,8 +339,11 @@ export default function AddExpenseModal({
           {/* Paid By */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label htmlFor="paidBy" className="text-sm font-medium text-gray-700">
-                Paid By *
+              <Label htmlFor="paidBy" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <span>Paid By</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                  Required
+                </span>
               </Label>
               <div className="text-xs text-gray-500">
                 You can add expenses for anyone
@@ -342,7 +352,7 @@ export default function AddExpenseModal({
             <Select value={formData.paidBy} onValueChange={(value) => {
               handleInputChange('paidBy', value);
             }}>
-              <SelectTrigger id="paidBy">
+              <SelectTrigger id="paidBy" className="mt-2">
                 <SelectValue placeholder="Select who paid" />
               </SelectTrigger>
               <SelectContent>
@@ -365,10 +375,13 @@ export default function AddExpenseModal({
 
           {/* Split Type */}
           <div>
-            <Label className="text-sm font-medium text-gray-700">
-              Split With *
+            <Label className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Split With</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
-            <div className="space-y-3">
+            <div className="space-y-3 mt-2">
               <Button
                 onClick={() => handleInputChange('splitType', 'everyone')}
                 variant={formData.splitType === 'everyone' ? 'default' : 'outline'}
@@ -517,14 +530,17 @@ export default function AddExpenseModal({
 
           {/* Expense Date */}
           <div>
-            <Label htmlFor="expenseDate" className="text-sm font-medium text-gray-700">
-              Date *
+            <Label htmlFor="expenseDate" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Date</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full justify-start text-left font-normal cursor-pointer focus-visible:ring-[#ff5a58] focus-visible:ring-2"
+                  className="w-full justify-start text-left font-normal cursor-pointer focus-visible:ring-[#ff5a58] focus-visible:ring-2 mt-2"
                 >
                   <Calendar className="mr-2 h-4 w-4" />
                   {formData.expenseDate ? new Date(formData.expenseDate).toLocaleDateString() : "Select expense date"}
