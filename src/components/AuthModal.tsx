@@ -139,16 +139,122 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
     setResetSuccess(false);
 
     try {
-      // Update password - this should work with recovery sessions
-      console.log("[AuthModal/handleResetPassword] Calling supabase.auth.updateUser");
-      const { error } = await supabase.auth.updateUser({
-        password: formData.password,
+      // Check if we have a recovery token in the URL hash
+      const hash = window.location.hash;
+      const hasRecoveryToken = hash.includes('access_token') && hash.includes('type=recovery');
+      console.log("[AuthModal/handleResetPassword] Hash check:", {
+        hasHash: !!hash,
+        hasRecoveryToken,
+        hashLength: hash.length,
       });
 
-      if (error) {
-        console.error("[AuthModal/handleResetPassword] Password update error:", error);
-        throw error;
+      // Wait a moment for Supabase to process the hash if it exists
+      if (hasRecoveryToken) {
+        console.log("[AuthModal/handleResetPassword] Recovery token detected, waiting for Supabase to process...");
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
       }
+
+      // Try to get the session - this should work if Supabase processed the hash
+      console.log("[AuthModal/handleResetPassword] Attempting to get session...");
+      let session = null;
+      let sessionAttempts = 0;
+      const maxAttempts = 3;
+
+      while (sessionAttempts < maxAttempts && !session) {
+        sessionAttempts++;
+        console.log(`[AuthModal/handleResetPassword] Session attempt ${sessionAttempts}/${maxAttempts}`);
+        
+        try {
+          const sessionResult = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise<{ data: { session: null }, error: Error }>((resolve) => {
+              setTimeout(() => {
+                resolve({ data: { session: null }, error: new Error("Session check timed out") });
+              }, 5000); // 5 second timeout per attempt
+            })
+          ]);
+          
+          session = sessionResult.data?.session;
+          
+          if (session) {
+            console.log("[AuthModal/handleResetPassword] Session found!", {
+              userId: session.user?.id,
+              email: session.user?.email,
+            });
+            break;
+          } else if (sessionAttempts < maxAttempts) {
+            console.log("[AuthModal/handleResetPassword] No session yet, waiting before retry...");
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        } catch (err) {
+          console.warn("[AuthModal/handleResetPassword] Session check error:", err);
+          if (sessionAttempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+      }
+
+      if (!session) {
+        console.error("[AuthModal/handleResetPassword] No session found after attempts");
+        throw new Error("Unable to establish recovery session. Please request a new password reset link.");
+      }
+
+      // Now update the password - we have a valid session
+      // Use event listener approach since updateUser promise sometimes doesn't resolve
+      console.log("[AuthModal/handleResetPassword] Setting up USER_UPDATED event listener");
+      console.log("[AuthModal/handleResetPassword] Password length:", formData.password.length);
+      
+      // Create a promise that resolves when USER_UPDATED event fires
+      const waitForUserUpdate = new Promise<{ success: boolean; error?: any }>((resolve) => {
+        let resolved = false;
+        
+        // Set up one-time listener for USER_UPDATED event
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          if (event === 'USER_UPDATED' && !resolved) {
+            console.log("[AuthModal/handleResetPassword] USER_UPDATED event detected!");
+            resolved = true;
+            subscription.unsubscribe();
+            resolve({ success: true });
+          }
+        });
+        
+        // Also set up timeout
+        setTimeout(() => {
+          if (!resolved) {
+            console.error("[AuthModal/handleResetPassword] Password update TIMED OUT after 10 seconds");
+            resolved = true;
+            subscription.unsubscribe();
+            resolve({ success: false, error: new Error("Password update timed out. Please try again.") });
+          }
+        }, 10000); // 10 second timeout
+      });
+      
+      // Start the password update (don't await it - we'll use the event instead)
+      console.log("[AuthModal/handleResetPassword] Calling supabase.auth.updateUser");
+      const updatePromise = supabase.auth.updateUser({
+        password: formData.password,
+      }).catch((error) => {
+        // If the promise rejects immediately, handle it
+        console.error("[AuthModal/handleResetPassword] updateUser promise rejected:", error);
+        return { error };
+      });
+      
+      // Wait for either the event or timeout
+      console.log("[AuthModal/handleResetPassword] Waiting for USER_UPDATED event or timeout...");
+      const eventResult = await waitForUserUpdate;
+      
+      if (!eventResult.success) {
+        // Check if updatePromise had an error
+        const updateResult = await updatePromise;
+        if (updateResult?.error) {
+          console.error("[AuthModal/handleResetPassword] Password update error:", updateResult.error);
+          throw updateResult.error;
+        }
+        // Otherwise, it was a timeout
+        throw eventResult.error;
+      }
+      
+      console.log("[AuthModal/handleResetPassword] Password update successful (confirmed via USER_UPDATED event)!");
 
       // Clear password fields
       setFormData(prev => ({
@@ -160,21 +266,24 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
       // Clear loading state immediately so button doesn't stay stuck
       setLoading(false);
 
-      // Show success and keep the recovery session active so the user stays logged in
+      // Show success message
       setResetSuccess(true);
       toast.success("Password reset successful! Redirecting to your dashboard...");
 
-      console.log("[AuthModal/handleResetPassword] Password reset successful, clearing hash and scheduling redirect");
+      console.log("[AuthModal/handleResetPassword] Password reset successful, clearing hash and redirecting");
 
-      // NOW it's safe to clear Supabase recovery token from the URL
+      // Clear Supabase recovery token from the URL
       window.history.replaceState({}, document.title, window.location.pathname);
 
-      // Give the user a brief moment to see the inline success state, then redirect
+      // Close the modal immediately
+      onClose();
+
+      // Redirect immediately - don't wait
+      console.log("[AuthModal/handleResetPassword] Redirecting to /dashboard?password_reset_success=1");
+      // Use a small delay to ensure modal closes and state updates
       setTimeout(() => {
-        console.log("[AuthModal/handleResetPassword] Redirecting to /dashboard?password_reset_success=1");
-        // Full reload redirect so AuthContext re-initializes with the updated session
         window.location.href = "/dashboard?password_reset_success=1";
-      }, 1200);
+      }, 100);
     } catch (error: unknown) {
       console.error("[AuthModal/handleResetPassword] Password reset error:", error);
       let errorMessage = "An unknown error occurred";
@@ -534,7 +643,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
                     {loading
                       ? "Loading..."
                       : mode === "reset-password" && resetSuccess
-                        ? "Password updated, redirecting..."
+                        ? "Redirecting..."
                         : getPrimaryCta()}
                     <span className="ml-2">›</span>
                   </Button>
