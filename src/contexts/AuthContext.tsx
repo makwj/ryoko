@@ -67,40 +67,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           hashType: hashParams.get('type'),
         });
 
-        // Try to get session, with retry logic for post-password-reset scenarios
-        let session = null;
-        let error = null;
-        let attempts = 0;
-        const maxAttempts = 3;
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        while (attempts < maxAttempts && !session) {
-          attempts++;
-          console.log(`[AuthContext] getSession attempt ${attempts}/${maxAttempts}`);
-          
-          const sessionResult = await supabase.auth.getSession();
-          session = sessionResult.data?.session;
-          error = sessionResult.error;
-          
-          if (session) {
-            console.log("[AuthContext] Session found on attempt", attempts);
-            break;
-          }
-          
-          if (error) {
-            console.error("[AuthContext] Error getting session:", error);
-            // If it's not the last attempt, wait a bit before retrying
-            if (attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          } else if (attempts < maxAttempts) {
-            // No session and no error - might be timing issue, retry
-            console.log("[AuthContext] No session found, retrying...");
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-        
-        if (error && !session) {
-          console.error("[AuthContext] Error getting session after retries:", error);
+        if (error) {
+          console.error("[AuthContext] Error getting session:", error);
           clearTimeout(timeoutId);
           setUser(null);
           setLoading(false);
@@ -111,7 +81,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           hasSession: !!session,
           userId: session?.user?.id,
           isRecovery,
-          attempts,
         });
         
         // Don't set user for recovery sessions - user should only be logged in after resetting password
@@ -154,7 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userId: session?.user?.id,
         });
 
-        // If the user just updated (e.g. finished password reset), set the user and handle redirect
+        // If the user just updated (e.g. finished password reset), redirect them
+        // to the dashboard when this happens in the password recovery flow.
         if (event === 'USER_UPDATED') {
           const hash = window.location.hash;
           const urlParams = new URLSearchParams(window.location.search);
@@ -168,28 +138,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             search: window.location.search,
             hash,
             isRecovery,
-            hasSession: !!session,
-            userId: session?.user?.id,
           });
 
-          // If this is a recovery flow and we have a session, set the user first, then redirect
           if (isRecovery && session?.user) {
-            console.log("[AuthContext] Detected password recovery USER_UPDATED, setting user and redirecting");
-            
-            // Set the user first so they're logged in
-            const isBanned = await checkAndHandleBannedUser(session.user.id);
-            if (!isBanned) {
-              setUser(session.user);
-              setLoading(false);
-            }
-            
-            // Clean URL and redirect
+            console.log("[AuthContext] Detected password recovery USER_UPDATED, redirecting to dashboard");
+            // Clean URL and redirect so the app re-initializes with the new session
             window.history.replaceState({}, document.title, window.location.pathname);
             window.location.href = "/dashboard?password_reset_success=1";
             return;
           }
-          
-          // For non-recovery USER_UPDATED events, continue to set user below
         }
 
         // Don't set user for PASSWORD_RECOVERY event - this is a temporary recovery session
