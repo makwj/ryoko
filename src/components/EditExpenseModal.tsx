@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -52,6 +52,14 @@ const expenseCategories = [
   { value: 'other', label: 'Other', color: 'bg-gray-100 text-dark-medium' }
 ];
 
+// Helper function to format date in local timezone as YYYY-MM-DD
+const formatDateLocal = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function EditExpenseModal({ 
   open, 
   onClose, 
@@ -66,7 +74,7 @@ export default function EditExpenseModal({
     category: 'food',
     paidBy: '',
     splitWith: 'everyone',
-    expenseDate: new Date().toISOString().split('T')[0]
+    expenseDate: formatDateLocal(new Date())
   });
   const [loading, setLoading] = useState(false);
   const [openExpenseDate, setOpenExpenseDate] = useState(false);
@@ -171,6 +179,9 @@ export default function EditExpenseModal({
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Expense</DialogTitle>
+          <DialogDescription>
+            Update the details for this expense
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-6">
@@ -326,7 +337,7 @@ export default function EditExpenseModal({
                   selected={formData.expenseDate ? new Date(formData.expenseDate) : undefined}
                   captionLayout="dropdown"
                   onSelect={(date: Date | undefined) => {
-                    handleInputChange('expenseDate', date ? date.toISOString().slice(0,10) : '');
+                    handleInputChange('expenseDate', date ? formatDateLocal(date) : '');
                     setOpenExpenseDate(false);
                   }}
               />

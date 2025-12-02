@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { motion } from "framer-motion";
-import { getMockEnhancedRecommendations, getMockChatResponse, getMockNearbyAttractions, getMockNearbyAccommodations } from "@/lib/mockApiData";
 import { RealtimeCursors } from "@/components/RealtimeCursors";
 import { 
   MapPin, 
@@ -735,7 +734,6 @@ export default function TripPage() {
   const [newCommentText, setNewCommentText] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [useMockData, setUseMockData] = useState(false); // Toggle for mock API data
 
   // Helper function to show confirmation dialog
   const showConfirmation = (title: string, description: string, onConfirm: () => void, variant: 'danger' | 'warning' = 'danger', confirmText?: string, cancelText?: string) => {
@@ -744,13 +742,25 @@ export default function TripPage() {
       description,
       onConfirm: async () => {
         setConfirmationConfig(prev => prev ? { ...prev, isLoading: true } : null);
+        
+        // Create a safety timeout to ensure loading state is always reset
+        const safetyTimeout = setTimeout(() => {
+          console.warn('Confirmation action exceeded safety timeout, resetting loading state');
+          setConfirmationConfig(prev => prev ? { ...prev, isLoading: false } : null);
+          setShowConfirmationDialog(false);
+          setConfirmationConfig(null);
+        }, 30000); // 30 second safety timeout
+
         try {
           await onConfirm();
+          clearTimeout(safetyTimeout);
           setShowConfirmationDialog(false);
           setConfirmationConfig(null);
         } catch (error) {
+          clearTimeout(safetyTimeout);
           console.error('Confirmation action failed:', error);
           setConfirmationConfig(prev => prev ? { ...prev, isLoading: false } : null);
+          // Don't close dialog on error so user can see the error message
         }
       },
       variant,
@@ -787,48 +797,34 @@ export default function TripPage() {
     setAiMessages(prev => [...prev, userMessage]);
 
     try {
-      let data;
-      
-      if (useMockData) {
-        // Use mock data
-        const tripData = trip ? {
-          destination: trip.destination,
-          interests: trip.interests || [],
-          numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
-          numberOfParticipants: participants.length,
-          startDate: trip.start_date
-        } : undefined;
-        data = getMockChatResponse(message, tripData);
-      } else {
-        // Use real API
-        const response = await fetch('/api/chat-recommendations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            tripData: trip ? {
-              destination: trip.destination,
-              interests: trip.interests || [],
-              numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
-              numberOfParticipants: participants.length,
-              startDate: trip.start_date
-            } : undefined,
-            question: message,
-            selectedPlace: {
-              name: selectedDestination,
-              location: trip?.destination || '',
-              description: `Information about ${selectedDestination}`
-            }
-          }),
-        });
+      // Use real API
+      const response = await fetch('/api/chat-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tripData: trip ? {
+            destination: trip.destination,
+            interests: trip.interests || [],
+            numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+            numberOfParticipants: participants.length,
+            startDate: trip.start_date
+          } : undefined,
+          question: message,
+          selectedPlace: {
+            name: selectedDestination,
+            location: trip?.destination || '',
+            description: `Information about ${selectedDestination}`
+          }
+        }),
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to get AI response');
-        }
-
-        data = await response.json();
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
       }
+
+      const data = await response.json();
       
       if (data.error) {
         throw new Error(data.error);
@@ -887,32 +883,25 @@ export default function TripPage() {
     setAiMessages(prev => [...prev, userMessage]);
 
     try {
-      let data;
-      
-      if (useMockData) {
-        // Use mock data
-        data = getMockNearbyAttractions(trip.destination, selectedDestination);
-      } else {
-        // Use real API
-        const response = await fetch('/api/nearby-attractions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            destination: trip.destination,
-            placeName: selectedDestination,
-            refreshToken: `${Date.now()}`
-          }),
-        });
+      // Use real API
+      const response = await fetch('/api/nearby-attractions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          destination: trip.destination,
+          placeName: selectedDestination,
+          refreshToken: `${Date.now()}`
+        }),
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby attractions'}`);
-        }
-
-        data = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby attractions'}`);
       }
+
+      const data = await response.json();
       
       if (data.error) {
         throw new Error(data.error);
@@ -947,30 +936,23 @@ export default function TripPage() {
     setAiMessages(prev => [...prev, userMessage]);
 
     try {
-      let data;
-      
-      if (useMockData) {
-        // Use mock data
-        data = getMockNearbyAccommodations(trip.destination, selectedDestination);
-      } else {
-        // Use real API
-        const response = await fetch('/api/nearby-accommodations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            destination: trip.destination,
-            placeName: selectedDestination,
-            refreshToken: `${Date.now()}`
-          }),
-        });
+      // Use real API
+      const response = await fetch('/api/nearby-accommodations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: trip.destination,
+          placeName: selectedDestination,
+          refreshToken: `${Date.now()}`
+        }),
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby accommodations'}`);
-        }
-
-        data = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to get nearby accommodations'}`);
       }
+
+      const data = await response.json();
       if (data.error) throw new Error(data.error);
 
       if (data.success && data.accommodations) {
@@ -1163,6 +1145,40 @@ export default function TripPage() {
   const [user, setUser] = useState<{ id: string; email?: string; name?: string } | null>(null);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [recommendations, setRecommendations] = useState<TripRecommendation[]>([]);
+
+  // Helper functions for localStorage caching
+  const getRecommendationsCacheKey = (tripId: string) => `ryoko_recommendations_${tripId}`;
+  
+  const saveRecommendationsToCache = (tripId: string, recommendations: TripRecommendation[]) => {
+    try {
+      const cacheKey = getRecommendationsCacheKey(tripId);
+      localStorage.setItem(cacheKey, JSON.stringify(recommendations));
+    } catch (error) {
+      console.warn('Failed to save recommendations to cache:', error);
+    }
+  };
+
+  const loadRecommendationsFromCache = (tripId: string): TripRecommendation[] => {
+    try {
+      const cacheKey = getRecommendationsCacheKey(tripId);
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (error) {
+      console.warn('Failed to load recommendations from cache:', error);
+    }
+    return [];
+  };
+
+  const clearRecommendationsCache = (tripId: string) => {
+    try {
+      const cacheKey = getRecommendationsCacheKey(tripId);
+      localStorage.removeItem(cacheKey);
+    } catch (error) {
+      console.warn('Failed to clear recommendations cache:', error);
+    }
+  };
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
@@ -1682,9 +1698,18 @@ export default function TripPage() {
     }
   }, [user, trip]);
 
-  // Reset recommendations when trip changes
+  // Load recommendations from cache when trip loads, or reset when trip changes
   useEffect(() => {
-    setRecommendations([]);
+    if (trip?.id) {
+      const cachedRecommendations = loadRecommendationsFromCache(trip.id);
+      if (cachedRecommendations.length > 0) {
+        setRecommendations(cachedRecommendations);
+      } else {
+        setRecommendations([]);
+      }
+    } else {
+      setRecommendations([]);
+    }
   }, [trip?.id]);
 
   // Subscribe to profile changes to refresh participants when avatars are updated
@@ -1921,31 +1946,42 @@ export default function TripPage() {
 
     const activityIds = Array.from(selectedActivities);
 
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Bulk delete operation timed out. Please try again.')), 30000);
+    });
+
     try {
-      const response = await fetch('/api/activities/bulk-delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          activityIds: activityIds,
-          tripId: trip?.id,
-          userId: user?.id
-        })
-      });
+      await Promise.race([
+        (async () => {
+          const response = await fetch('/api/activities/bulk-delete', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              activityIds: activityIds,
+              tripId: trip?.id,
+              userId: user?.id
+            })
+          });
 
-      const result = await response.json();
+          const result = await response.json();
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to delete activities');
-      }
+          if (!response.ok) {
+            throw new Error(result.error || 'Failed to delete activities');
+          }
 
-      // Refresh activities from database to ensure sync
-      await handleActivityAdded();
-      setSelectedActivities(new Set());
-      setIsMultiSelectMode(false);
-      
-      toast.success(`Successfully deleted ${activityIds.length} activities`);
+          // Refresh activities from database to ensure sync (non-blocking)
+          handleActivityAdded().catch(err => {
+            console.error('Error refreshing activities:', err);
+          });
+          setSelectedActivities(new Set());
+          setIsMultiSelectMode(false);
+          
+          toast.success(`Successfully deleted ${activityIds.length} activities`);
+        })(),
+        timeoutPromise
+      ]);
     } catch (error) {
       console.error('Bulk delete error:', error);
       toast.error(`Failed to delete activities: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -2231,25 +2267,43 @@ export default function TripPage() {
       'Delete Expense',
       `Are you sure you want to delete "${expenseTitle}"? This action cannot be undone.`,
       async () => {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Delete operation timed out. Please try again.')), 20000);
+        });
+
         try {
-          const { error } = await supabase
-            .from('expenses')
-            .delete()
-            .eq('id', expenseId);
+          await Promise.race([
+            (async () => {
+              const { error } = await supabase
+                .from('expenses')
+                .delete()
+                .eq('id', expenseId);
 
-          if (error) throw error;
+              if (error) {
+                console.error('Error deleting expense:', error);
+                throw new Error(`Failed to delete expense: ${error.message}`);
+              }
 
-          // Log the activity
-          if (trip && user) {
-            await ActivityLogger.expenseDeleted(trip.id, user.id, expenseTitle);
-          }
+              // Log the activity (non-blocking)
+              if (trip && user) {
+                ActivityLogger.expenseDeleted(trip.id, user.id, expenseTitle)
+                  .catch(err => console.error('Error logging expense deletion:', err));
+              }
 
-          toast.success('Expense deleted successfully');
-          await handleExpenseAdded();
+              toast.success('Expense deleted successfully');
+              
+              // Refresh expenses (non-blocking)
+              handleExpenseAdded().catch(err => {
+                console.error('Error refreshing expenses:', err);
+              });
+            })(),
+            timeoutPromise
+          ]);
         } catch (error: unknown) {
+          console.error('Delete expense error:', error);
           const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-          toast.error(errorMessage);
-          throw error; // Re-throw to trigger error handling in showConfirmation
+          toast.error(`Failed to delete expense: ${errorMessage}`);
+          throw error;
         }
       }
     );
@@ -2581,22 +2635,34 @@ export default function TripPage() {
       'Archive Trip',
       `Are you sure you want to archive "${trip?.title}"? It will be hidden from your active trips.`,
       async () => {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Archive operation timed out. Please try again.')), 15000);
+        });
+
         try {
-      const { error } = await supabase
-        .from('trips')
-        .update({ archived: true })
-        .eq('id', trip?.id);
+          await Promise.race([
+            (async () => {
+              const { error } = await supabase
+                .from('trips')
+                .update({ archived: true })
+                .eq('id', trip?.id);
 
-      if (error) throw error;
+              if (error) {
+                console.error('Error archiving trip:', error);
+                throw new Error(`Failed to archive trip: ${error.message}`);
+              }
 
-      toast.success('Trip archived successfully!');
-      router.push('/dashboard');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      console.error('Archive error:', errorMessage);
-      toast.error(errorMessage);
-          throw error; // Re-throw to trigger error handling in showConfirmation
-    }
+              toast.success('Trip archived successfully!');
+              router.push('/dashboard');
+            })(),
+            timeoutPromise
+          ]);
+        } catch (error: unknown) {
+          console.error('Archive trip error:', error);
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(`Failed to archive trip: ${errorMessage}`);
+          throw error;
+        }
       },
       'warning',
       'Yes, archive it',
@@ -2609,21 +2675,35 @@ export default function TripPage() {
       'Complete Trip',
       `Are you sure you want to mark "${trip?.title}" as completed?`,
       async () => {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Complete operation timed out. Please try again.')), 15000);
+        });
+
         try {
-      const { error } = await supabase
-        .from('trips')
-        .update({ completed: true })
-        .eq('id', trip?.id);
+          await Promise.race([
+            (async () => {
+              const { error } = await supabase
+                .from('trips')
+                .update({ completed: true })
+                .eq('id', trip?.id);
 
-      if (error) throw error;
+              if (error) {
+                console.error('Error completing trip:', error);
+                throw new Error(`Failed to complete trip: ${error.message}`);
+              }
 
-      toast.success('Trip marked as completed!');
-          handleTripUpdated('completed');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      console.error('Complete error:', errorMessage);
-      toast.error(errorMessage);
-          throw error; // Re-throw to trigger error handling in showConfirmation
+              toast.success('Trip marked as completed!');
+              handleTripUpdated('completed').catch(err => {
+                console.error('Error updating trip:', err);
+              });
+            })(),
+            timeoutPromise
+          ]);
+        } catch (error: unknown) {
+          console.error('Complete trip error:', error);
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(`Failed to complete trip: ${errorMessage}`);
+          throw error;
         }
       },
       'warning',
@@ -2637,24 +2717,38 @@ export default function TripPage() {
       'Activate Trip',
       `Are you sure you want to set "${trip?.title}" as active? This will remove it from archived/completed status.`,
       async () => {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Activate operation timed out. Please try again.')), 15000);
+        });
+
         try {
-          const { error } = await supabase
-            .from('trips')
-            .update({ 
-              completed: false,
-              archived: false 
-            })
-            .eq('id', trip?.id);
+          await Promise.race([
+            (async () => {
+              const { error } = await supabase
+                .from('trips')
+                .update({ 
+                  completed: false,
+                  archived: false 
+                })
+                .eq('id', trip?.id);
 
-          if (error) throw error;
+              if (error) {
+                console.error('Error activating trip:', error);
+                throw new Error(`Failed to activate trip: ${error.message}`);
+              }
 
-          toast.success('Trip set as active!');
-          handleTripUpdated('activated');
+              toast.success('Trip set as active!');
+              handleTripUpdated('activated').catch(err => {
+                console.error('Error updating trip:', err);
+              });
+            })(),
+            timeoutPromise
+          ]);
         } catch (error: unknown) {
+          console.error('Activate trip error:', error);
           const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-          console.error('Activate error:', errorMessage);
-          toast.error(errorMessage);
-          throw error; // Re-throw to trigger error handling in showConfirmation
+          toast.error(`Failed to activate trip: ${errorMessage}`);
+          throw error;
         }
       },
       'warning',
@@ -2668,22 +2762,34 @@ export default function TripPage() {
       'Delete Trip',
       `Are you sure you want to delete "${trip?.title}"? This action cannot be undone and will delete all activities, expenses, and ideas.`,
       async () => {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Delete operation timed out. Please try again.')), 20000);
+        });
+
         try {
-      const { error } = await supabase
-        .from('trips')
-        .delete()
-        .eq('id', trip?.id);
+          await Promise.race([
+            (async () => {
+              const { error } = await supabase
+                .from('trips')
+                .delete()
+                .eq('id', trip?.id);
 
-      if (error) throw error;
+              if (error) {
+                console.error('Error deleting trip:', error);
+                throw new Error(`Failed to delete trip: ${error.message}`);
+              }
 
-      toast.success('Trip deleted successfully!');
-      router.push('/dashboard');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      console.error('Delete error:', errorMessage);
-      toast.error(errorMessage);
-          throw error; // Re-throw to trigger error handling in showConfirmation
-    }
+              toast.success('Trip deleted successfully!');
+              router.push('/dashboard');
+            })(),
+            timeoutPromise
+          ]);
+        } catch (error: unknown) {
+          console.error('Delete trip error:', error);
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(`Failed to delete trip: ${errorMessage}`);
+          throw error;
+        }
       }
     );
   };
@@ -2755,21 +2861,36 @@ export default function TripPage() {
       'Delete Comment',
       'Are you sure you want to delete this comment? This action cannot be undone.',
       async () => {
-    try {
-      const { error } = await supabase
-        .from('idea_comments')
-        .delete()
-        .eq('id', commentId);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Delete operation timed out. Please try again.')), 15000);
+        });
 
-      if (error) throw error;
+        try {
+          await Promise.race([
+            (async () => {
+              const { error } = await supabase
+                .from('idea_comments')
+                .delete()
+                .eq('id', commentId);
 
-      toast.success('Comment deleted!');
-      handleCommentsUpdated();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(errorMessage);
-          throw error; // Re-throw to trigger error handling in showConfirmation
-    }
+              if (error) {
+                console.error('Error deleting comment:', error);
+                throw new Error(`Failed to delete comment: ${error.message}`);
+              }
+
+              toast.success('Comment deleted!');
+              handleCommentsUpdated().catch(err => {
+                console.error('Error refreshing comments:', err);
+              });
+            })(),
+            timeoutPromise
+          ]);
+        } catch (error: unknown) {
+          console.error('Delete comment error:', error);
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(`Failed to delete comment: ${errorMessage}`);
+          throw error;
+        }
       }
     );
   };
@@ -2787,25 +2908,43 @@ export default function TripPage() {
       'Delete Idea',
       `Are you sure you want to delete "${ideaTitle}"? This action cannot be undone.`,
       async () => {
-    try {
-      const { error } = await supabase
-        .from('ideas')
-        .delete()
-        .eq('id', ideaId);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Delete operation timed out. Please try again.')), 20000);
+        });
 
-      if (error) throw error;
+        try {
+          await Promise.race([
+            (async () => {
+              const { error } = await supabase
+                .from('ideas')
+                .delete()
+                .eq('id', ideaId);
 
-          // Log the activity
-          if (trip && user) {
-            await ActivityLogger.ideaDeleted(trip.id, user.id, ideaTitle);
-          }
+              if (error) {
+                console.error('Error deleting idea:', error);
+                throw new Error(`Failed to delete idea: ${error.message}`);
+              }
 
-      toast.success('Idea deleted successfully!');
-      handleIdeaAdded(); // Refresh ideas
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(errorMessage);
-          throw error; // Re-throw to trigger error handling in showConfirmation
+              // Log the activity (non-blocking)
+              if (trip && user) {
+                ActivityLogger.ideaDeleted(trip.id, user.id, ideaTitle)
+                  .catch(err => console.error('Error logging idea deletion:', err));
+              }
+
+              toast.success('Idea deleted successfully!');
+              
+              // Refresh ideas (non-blocking)
+              handleIdeaAdded().catch(err => {
+                console.error('Error refreshing ideas:', err);
+              });
+            })(),
+            timeoutPromise
+          ]);
+        } catch (error: unknown) {
+          console.error('Delete idea error:', error);
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(`Failed to delete idea: ${errorMessage}`);
+          throw error;
         }
       }
     );
@@ -2959,28 +3098,28 @@ export default function TripPage() {
         startDate: trip.start_date,
       };
       
-      let data;
-      
-      if (useMockData) {
-        // Use mock data
-        data = getMockEnhancedRecommendations(tripData);
-      } else {
-        // Use real API
-        const response = await fetch('/api/enhanced-recommendations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ tripData }),
-        });
+      // Use real API
+      const response = await fetch('/api/enhanced-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tripData }),
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to generate recommendations');
-        }
-
-        data = await response.json();
+      if (!response.ok) {
+        throw new Error('Failed to generate recommendations');
       }
-      setRecommendations(data.recommendations || []);
+
+      const data = await response.json();
+      const newRecommendations = data.recommendations || [];
+      setRecommendations(newRecommendations);
+      
+      // Save to cache
+      if (trip?.id) {
+        saveRecommendationsToCache(trip.id, newRecommendations);
+      }
+      
       toast.success('Recommendations generated successfully!');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
@@ -3010,40 +3149,32 @@ export default function TripPage() {
         excludePlaceIds
       };
       
-      let data;
-      
-      if (useMockData) {
-        // Use mock data (exclude already shown places)
-        const mockData = getMockEnhancedRecommendations({
-          destination: trip.destination,
-          interests: trip.interests || [],
-          numberOfDays: tripData.numberOfDays,
-          numberOfParticipants: participants.length
-        });
-        // Filter out already shown recommendations
-        data = {
-          ...mockData,
-          recommendations: mockData.recommendations.filter(rec => !excludePlaceIds.includes(rec.place_id))
-        };
-      } else {
-        // Use real API
-        const response = await fetch('/api/enhanced-recommendations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ tripData }),
-        });
+      // Use real API
+      const response = await fetch('/api/enhanced-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tripData }),
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to generate more recommendations');
-        }
-
-        data = await response.json();
+      if (!response.ok) {
+        throw new Error('Failed to generate more recommendations');
       }
+
+      const data = await response.json();
       
       // Append new recommendations to existing ones
-      setRecommendations(prev => [...prev, ...data.recommendations]);
+      setRecommendations(prev => {
+        const updated = [...prev, ...data.recommendations];
+        
+        // Save to cache
+        if (trip?.id) {
+          saveRecommendationsToCache(trip.id, updated);
+        }
+        
+        return updated;
+      });
       toast.success(`Added ${data.recommendations.length} more recommendations!`);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
@@ -3179,6 +3310,12 @@ export default function TripPage() {
   // Function to move recommendation to ideas
   const moveRecommendationToIdeas = async (recommendation: TripRecommendation) => {
     try {
+      // Ensure user is available (session issues can make clicks appear "dead")
+      if (!user) {
+        toast.error('Your session seems to have expired. Please refresh and sign in again to add ideas.');
+        return;
+      }
+
       // Guard against double-triggering
       if (movingRecommendationIds.has(recommendation.id)) return;
       setMovingRecommendationIds(prev => new Set(prev).add(recommendation.id));
@@ -3198,7 +3335,7 @@ export default function TripPage() {
             link_description: recommendation.description,
             link_image: recommendation.image_url,
             tags: [mappedTag],
-            added_by: user?.id
+            added_by: user.id
           }
         ]);
 
@@ -3219,7 +3356,16 @@ export default function TripPage() {
       }
 
       // Remove from recommendations
-      setRecommendations(prev => prev.filter(rec => rec.id !== recommendation.id));
+      setRecommendations(prev => {
+        const updated = prev.filter(rec => rec.id !== recommendation.id);
+        
+        // Save to cache
+        if (trip?.id) {
+          saveRecommendationsToCache(trip.id, updated);
+        }
+        
+        return updated;
+      });
       
       // Show success toast
       toast.success(`"${recommendation.title}" added to Ideas!`);
@@ -3367,39 +3513,79 @@ export default function TripPage() {
       'Delete Activity',
       `Are you sure you want to delete "${activityTitle}"? This action cannot be undone.`,
       async () => {
-    try {
-      // First, get the activity to find its attachments
-      const { data: activityData } = await supabase
-        .from('activities')
-        .select('attachments')
-        .eq('id', activityId)
-        .single();
+        // Helper function to create timeout promise
+        const createTimeout = (duration: number, message: string) => {
+          return new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(message)), duration);
+          });
+        };
 
-      // Delete files from storage if they exist
-      if (activityData?.attachments && activityData.attachments.length > 0) {
-        await deleteActivityFiles(activityData.attachments);
-      }
+        try {
+          // First, get the activity to find its attachments (with separate timeout - 15 seconds)
+          const fetchResult = await Promise.race([
+            supabase
+              .from('activities')
+              .select('attachments')
+              .eq('id', activityId)
+              .single(),
+            createTimeout(15000, 'Failed to fetch activity data. Please try again.')
+          ]) as { data: any; error: any };
 
-      // Delete the activity from database
-      const { error } = await supabase
-        .from('activities')
-        .delete()
-        .eq('id', activityId);
+          const { data: activityData, error: fetchError } = fetchResult;
 
-      if (error) throw error;
-
-          // Log the activity
-          if (trip && user) {
-            await ActivityLogger.activityDeleted(trip.id, user.id, activityTitle, activity?.day_number || 1);
+          if (fetchError && fetchError.code !== 'PGRST116') {
+            console.error('Error fetching activity:', fetchError);
+            throw new Error(`Failed to fetch activity: ${fetchError.message}`);
           }
 
-      toast.success('Activity deleted successfully!');
-      handleActivityAdded(); // Refresh activities
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(errorMessage);
+          // Delete files from storage if they exist (with separate timeout - 30 seconds for file operations)
+          if (activityData?.attachments && activityData.attachments.length > 0) {
+            try {
+              await Promise.race([
+                deleteActivityFiles(activityData.attachments),
+                createTimeout(30000, 'File deletion is taking longer than expected. The activity will still be deleted.')
+              ]);
+            } catch (fileError) {
+              console.warn('Error deleting files (continuing with activity deletion):', fileError);
+              // Continue with activity deletion even if file deletion fails or times out
+            }
+          }
+
+          // Delete the activity from database (with separate timeout - 20 seconds)
+          const deleteResult = await Promise.race([
+            supabase
+              .from('activities')
+              .delete()
+              .eq('id', activityId),
+            createTimeout(20000, 'Delete operation timed out. Please check your connection and try again.')
+          ]) as { error: any };
+
+          const { error: deleteError } = deleteResult;
+
+          if (deleteError) {
+            console.error('Error deleting activity:', deleteError);
+            throw new Error(`Failed to delete activity: ${deleteError.message}`);
+          }
+
+          // Log the activity (non-blocking)
+          if (trip && user) {
+            ActivityLogger.activityDeleted(trip.id, user.id, activityTitle, activity?.day_number || 1)
+              .catch(err => console.error('Error logging activity deletion:', err));
+          }
+
+          toast.success('Activity deleted successfully!');
+          
+          // Refresh activities (non-blocking)
+          handleActivityAdded().catch(err => {
+            console.error('Error refreshing activities:', err);
+            // Still show success since deletion worked
+          });
+        } catch (error: unknown) {
+          console.error('Delete activity error:', error);
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+          toast.error(`Failed to delete activity: ${errorMessage}`);
           throw error; // Re-throw to trigger error handling in showConfirmation
-    }
+        }
       }
     );
   };
@@ -3517,25 +3703,6 @@ export default function TripPage() {
               Back to trip selection
             </button>
             
-            {/* API Toggle */}
-            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
-              <span className="text-sm text-gray-600">Use Mock Data:</span>
-              <button
-                onClick={() => setUseMockData(!useMockData)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  useMockData ? 'bg-[#ff5a58]' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    useMockData ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-              <span className={`text-xs font-medium ${useMockData ? 'text-[#ff5a58]' : 'text-gray-500'}`}>
-                {useMockData ? 'ON' : 'OFF'}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -3755,7 +3922,12 @@ export default function TripPage() {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-dark">Group Interests</h3>
                 <button 
-                  onClick={() => setShowUpdateInterestsModal(true)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowUpdateInterestsModal(true);
+                  }}
+                  type="button"
                   className="cursor-pointer text-sm text-gray-500 hover:text-[#ff5a58] transition-colors font-medium"
                 >
                   Update Interests
@@ -4105,7 +4277,12 @@ export default function TripPage() {
                                 
                                 {selectedActivities.size > 0 && (
                                 <button 
-                                    onClick={handleBulkDelete}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleBulkDelete();
+                                    }}
+                                    type="button"
                                     className="cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -4145,7 +4322,12 @@ export default function TripPage() {
                           Share Itinerary
                         </button>
                         <button 
-                          onClick={() => setShowAddActivityModal(true)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowAddActivityModal(true);
+                          }}
+                          type="button"
                           className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
@@ -4245,8 +4427,13 @@ export default function TripPage() {
                       </div>
                         <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setShowAddIdeaModal(true)}
-                            className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowAddIdeaModal(true);
+                        }}
+                        type="button"
+                        className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
                             Add Idea
@@ -4682,7 +4869,7 @@ export default function TripPage() {
                                             type.trim() === 'culture' ? 'bg-indigo-100 text-indigo-800' :
                                             'bg-gray-100 text-gray-800'
                                           }`}>
-                                            {type.trim()}
+                                            {type.trim().charAt(0).toUpperCase() + type.trim().slice(1)}
                                           </span>
                                         ))}
                                       </div>
@@ -4940,7 +5127,12 @@ export default function TripPage() {
                             <p className="text-sm text-gray-500">{expenses.length} expenses recorded</p>
                           </div>
                           <button
-                            onClick={() => setShowAddExpenseModal(true)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowAddExpenseModal(true);
+                            }}
+                            type="button"
                             className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
                           >
                             Add Expense
@@ -5061,7 +5253,12 @@ export default function TripPage() {
                             <h3 className="text-lg font-medium text-dark mb-2">No expenses yet</h3>
                             <p className="text-form mb-6">Start tracking your trip expenses to keep everyone in the loop.</p>
                             <button
-                              onClick={() => setShowAddExpenseModal(true)}
+                              onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowAddExpenseModal(true);
+                            }}
+                            type="button"
                               className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
                             >
                               Add First Expense
@@ -5129,9 +5326,6 @@ export default function TripPage() {
                                                   size="sm"
                                                   showTooltip={true}
                                                 />
-                                                <span className="font-medium text-gray-900">
-                                                  {fromParticipant?.name || 'Unknown'}
-                                                </span>
                                               </div>
                                               <span className="text-gray-400">→</span>
                                               <div className="flex items-center gap-2">
@@ -5142,9 +5336,6 @@ export default function TripPage() {
                                                   size="sm"
                                                   showTooltip={true}
                                                 />
-                                                <span className="font-medium text-gray-900">
-                                                  {toParticipant?.name || 'Unknown'}
-                                                </span>
                                               </div>
                                             </div>
                                           </div>
@@ -5264,15 +5455,13 @@ export default function TripPage() {
         </div>
 
         {/* Modals */}
-        {showAddActivityModal && (
         <AddActivityModal
           open={showAddActivityModal}
           onClose={() => setShowAddActivityModal(false)}
-            tripId={trip?.id || ''}
+          tripId={trip?.id || ''}
           dayNumber={activeDay}
           onActivityAdded={handleActivityAdded}
         />
-        )}
 
         {showUpdateInterestsModal && trip && (
         <UpdateInterestsModal
@@ -5396,6 +5585,8 @@ export default function TripPage() {
           <ConfirmationDialog
             open={showConfirmationDialog}
             onClose={() => {
+              // Reset loading state when dialog is closed
+              setConfirmationConfig(prev => prev ? { ...prev, isLoading: false } : null);
               setShowConfirmationDialog(false);
               setConfirmationConfig(null);
             }}
@@ -5632,7 +5823,7 @@ export default function TripPage() {
                     key={index}
                     onClick={() => sendAIMessage(question)}
                     disabled={aiLoading}
-                    className="w-full text-left p-2 text-sm text-gray-700 hover:bg-white hover:text-gray-900 rounded-md transition-colors"
+                    className="w-full text-left p-2 text-sm text-gray-700 hover:bg-white hover:text-gray-900 rounded-md transition-colors cursor-pointer disabled:cursor-not-allowed"
                   >
                     {question}
                   </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
@@ -14,6 +14,7 @@ interface ConfirmationDialogProps {
   cancelText?: string;
   variant?: 'danger' | 'warning';
   isLoading?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function ConfirmationDialog({
@@ -25,18 +26,34 @@ export default function ConfirmationDialog({
   confirmText = "Yes, delete it",
   cancelText = "No, don't delete",
   variant = 'danger',
-  isLoading = false
+  isLoading = false,
+  onOpenChange
 }: ConfirmationDialogProps) {
   const handleConfirm = () => {
-    onConfirm();
+    if (!isLoading) {
+      onConfirm();
+    }
   };
 
   const handleCancel = () => {
-    onClose();
+    if (!isLoading) {
+      onClose();
+    }
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen && !isLoading) {
+      // Only allow closing if not loading
+      if (onOpenChange) {
+        onOpenChange(false);
+      } else {
+        onClose();
+      }
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
               <DialogTitle className="text-lg font-semibold text-gray-900">

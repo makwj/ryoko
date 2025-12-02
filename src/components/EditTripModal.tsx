@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
@@ -35,6 +35,14 @@ interface TripFormData {
   start_date: string;
   end_date: string;
 }
+
+// Helper function to format date in local timezone as YYYY-MM-DD
+const formatDateLocal = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function EditTripModal({ 
   open, 
@@ -120,6 +128,9 @@ export default function EditTripModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Trip Details</DialogTitle>
+          <DialogDescription>
+            Update your trip information
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-6">
@@ -176,7 +187,7 @@ export default function EditTripModal({
                         selected={formData.start_date ? new Date(formData.start_date) : undefined}
                         captionLayout="dropdown"
                         onSelect={(date: Date | undefined) => {
-                          handleInputChange('start_date', date ? date.toISOString().slice(0,10) : '');
+                          handleInputChange('start_date', date ? formatDateLocal(date) : '');
                           setOpenStart(false);
                         }}
                       />
@@ -205,7 +216,7 @@ export default function EditTripModal({
                         selected={formData.end_date ? new Date(formData.end_date) : undefined}
                         captionLayout="dropdown"
                         onSelect={(date: Date | undefined) => {
-                          handleInputChange('end_date', date ? date.toISOString().slice(0,10) : '');
+                          handleInputChange('end_date', date ? formatDateLocal(date) : '');
                           setOpenEnd(false);
                         }}
                       />

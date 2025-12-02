@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Send, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -102,6 +102,9 @@ export default function CommentModal({
             <MessageCircle className="w-5 h-5 text-gray-500" />
             Comments for "{ideaTitle}"
           </DialogTitle>
+          <DialogDescription>
+            View and add comments for this idea
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col h-full">

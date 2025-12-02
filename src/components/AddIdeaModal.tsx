@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
 interface AddIdeaModalProps {
@@ -160,13 +160,19 @@ export default function AddIdeaModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg text-center">Add an Idea</DialogTitle>
+          <DialogDescription className="text-center">
+            Share an idea for your trip
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-6">
           {/* Title */}
           <div>
-            <Label htmlFor="title" className="text-sm font-medium text-gray-700">
-              Idea Title
+            <Label htmlFor="title" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>Idea Title</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Input
               id="title"

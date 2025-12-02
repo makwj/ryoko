@@ -734,6 +734,7 @@ export default function Dashboard() {
                         )}
                         <DestinationImage 
                           destination={trip.destination || ''}
+                          tripImageUrl={trip.trip_image_url}
                           className="h-48"
                           fallbackClassName={`bg-gradient-to-br ${getGradientClass(index)}`}
                         />

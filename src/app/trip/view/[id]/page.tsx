@@ -331,62 +331,52 @@ export default function ViewSharedTripPage() {
       return <Navbar />;
     }
     
-    // Landing page style navbar for visitors
+    // Landing page style navbar for visitors (without navigation links on view page)
     return (
       <motion.header
-        className="fixed top-4 inset-x-0 z-30 flex justify-center pointer-events-none"
+        className="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
+        transition={{ duration: 0.6 }}
       >
-        <div className="pointer-events-auto mx-auto w-full max-w-[1200px] px-3">
-          <motion.div
-            className="px-4 py-2 rounded-full bg-white shadow-lg shadow-black/5 flex items-center justify-between"
-            transition={{ duration: 0.2 }}
-          >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
             <motion.div
-              className="flex items-center gap-2"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
+              className="flex items-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
             >
               <button onClick={() => router.push('/')}>
-                <Image src="/assets/ryokolong.png" alt="Ryoko logo" width={120} height={40} className="hidden sm:block" />
-                <Image src="/assets/ryokoicon.png" alt="Ryoko logo" width={40} height={40} className="block sm:hidden" />
+                <Image src="/assets/ryokolong.png" alt="Ryoko logo" width={120} height={40} />
               </button>
             </motion.div>
             <motion.div
-              className="flex items-center gap-3"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.8 }}
+              className="flex items-center gap-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
             >
-              <motion.button
-                className="h-9 px-4 text-sm font-bold hover:text-[#ff5a58] cursor-pointer"
+              <button
+                className="text-sm font-medium text-gray-700 hover:text-[#ff5a58] transition-colors cursor-pointer"
                 onClick={() => {
                   setAuthMode("login");
                   setAuthOpen(true);
                 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.2 }}
               >
-                SIGN IN
-              </motion.button>
-              <motion.button
-                className="h-9 px-4 rounded-full text-sm font-bold text-white bg-[#ff5a58] hover:bg-[#ff4a47] cursor-pointer"
+                Sign In
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#ff5a58] hover:bg-[#ff4a47] transition-colors shadow-sm cursor-pointer"
                 onClick={() => {
                   setAuthMode("register");
                   setAuthOpen(true);
                 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.2 }}
               >
-                GET STARTED
-              </motion.button>
+                Get Started
+              </button>
             </motion.div>
-          </motion.div>
+          </div>
         </div>
       </motion.header>
     );

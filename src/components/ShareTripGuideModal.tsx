@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Calendar, Users } from "lucide-react";
 import toast from "react-hot-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -209,6 +209,9 @@ export default function ShareTripGuideModal({
           <DialogTitle>
             {isCurrentlyShared ? 'Edit Trip Guide' : 'Share Trip as Guide'}
           </DialogTitle>
+          <DialogDescription>
+            {isCurrentlyShared ? 'Update your shared trip guide' : 'Share your trip guide with others'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-4">

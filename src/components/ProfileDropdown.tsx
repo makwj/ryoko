@@ -51,13 +51,26 @@ export default function ProfileDropdown({ user, onProfileUpdated }: ProfileDropd
     };
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    // Close dropdown immediately
+    setIsOpen(false);
+    
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
       toast.success("Logged out successfully!");
-      router.push("/");
+      // Use full reload to avoid any stale client state after logout
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      } else {
+        router.push("/");
+      }
     } catch (error) {
       console.error("Logout error:", error);
       toast.error("Failed to logout");
@@ -116,7 +129,12 @@ export default function ProfileDropdown({ user, onProfileUpdated }: ProfileDropd
             {/* Menu Items */}
             <div className="py-1">
               <button
-                onClick={handleEditProfile}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleEditProfile();
+                }}
                 className="cursor-pointer w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <User className="w-4 h-4" />
@@ -124,7 +142,8 @@ export default function ProfileDropdown({ user, onProfileUpdated }: ProfileDropd
               </button>
               
               <button
-                onClick={handleLogout}
+                type="button"
+                onClick={(e) => handleLogout(e)}
                 className="cursor-pointer w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
               >
                 <LogOut className="w-4 h-4" />
@@ -221,7 +240,7 @@ function EditProfileModal({ open, user, onClose, onProfileUpdated }: EditProfile
     setLoading(true);
 
     try {
-      let avatarUrl = user.avatar_url;
+      let avatarUrl: string | null | undefined = user.avatar_url;
 
       // Handle avatar removal
       if (removeAvatar) {

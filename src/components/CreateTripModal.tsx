@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 
@@ -45,6 +45,14 @@ const interestCategories = [
   "Adventure", "Food", "Culture", "Shopping", "Art", "Relaxation",
   "History", "Photography", "Music", "Sports", "Nature", "Nightlife"
 ];
+
+// Helper function to format date in local timezone as YYYY-MM-DD
+const formatDateLocal = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function CreateTripModal({ open, onClose, onTripCreated }: CreateTripModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -238,7 +246,7 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
                           selected={formData.startDate ? new Date(formData.startDate) : undefined}
                           captionLayout="dropdown"
                           onSelect={(date: Date | undefined) => {
-                            handleInputChange('startDate', date ? date.toISOString().slice(0,10) : '');
+                            handleInputChange('startDate', date ? formatDateLocal(date) : '');
                             setOpenStart(false);
                           }}
                         />
@@ -266,7 +274,7 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
                           selected={formData.endDate ? new Date(formData.endDate) : undefined}
                           captionLayout="dropdown"
                           onSelect={(date: Date | undefined) => {
-                            handleInputChange('endDate', date ? date.toISOString().slice(0,10) : '');
+                            handleInputChange('endDate', date ? formatDateLocal(date) : '');
                             setOpenEnd(false);
                           }}
                         />
@@ -444,6 +452,7 @@ export default function CreateTripModal({ open, onClose, onTripCreated }: Create
       <DialogContent className="max-w-4xl h-[600px] p-0 overflow-hidden border-0 bg-[#EEEEEE]">
         <DialogHeader className="sr-only">
           <DialogTitle>Create New Trip</DialogTitle>
+          <DialogDescription>Plan your next adventure</DialogDescription>
         </DialogHeader>
         
         <div className="grid md:grid-cols-[1fr_1.3fr] h-full">

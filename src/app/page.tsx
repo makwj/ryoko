@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import AuthModal from "@/components/AuthModal";
 import PublicRoute from "@/components/PublicRoute";
 import UserProfileDialog from "@/components/UserProfileDialog";
+import Avatar from "@/components/ui/avatar";
 import { ArrowRight, MapPin, Sparkles, Calendar, MessageCircle, Globe, Zap, Clock, Pencil, Users } from "lucide-react";
 import Loading from "@/components/Loading";
 import toast from "react-hot-toast";
@@ -296,24 +297,42 @@ export default function Home() {
                     </>
                   ) : (
                     <>
-                      <a
-                        href="#features"
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const element = document.getElementById('features');
+                          if (element) {
+                            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
+                        }}
                         className="text-sm text-gray-600 hover:text-[#ff5a58] transition-colors cursor-pointer"
                       >
                         Features
-                      </a>
-                      <a
-                        href="#guides"
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const element = document.getElementById('guides');
+                          if (element) {
+                            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
+                        }}
                         className="text-sm text-gray-600 hover:text-[#ff5a58] transition-colors cursor-pointer"
                       >
                         Guides
-                      </a>
-                      <a
-                        href="#about"
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const element = document.getElementById('about');
+                          if (element) {
+                            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
+                        }}
                         className="text-sm text-gray-600 hover:text-[#ff5a58] transition-colors cursor-pointer"
                       >
                         About
-                      </a>
+                      </button>
                     </>
                   )}
                 </motion.nav>
@@ -841,15 +860,15 @@ export default function Home() {
                       {[
                         {
                           id: 1,
-                          image: "/assets/feature1-placeholder.gif",
+                          image: "/assets/feature1.gif",
                         },
                         {
                           id: 2,
-                          image: "/assets/feature2-placeholder.gif",
+                          image: "/assets/feature2.gif",
                         },
                         {
                           id: 3,
-                          image: "/assets/feature3-placeholder.gif",
+                          image: "/assets/feature3.gif",
                         },
                       ].map((feature) => (
                         <div
@@ -1102,11 +1121,12 @@ function FeaturedGuidesGrid({ containerVariants, cardVariants }: { containerVari
                       }
                     }}
                   >
-                    {g.author?.avatar_url ? (
-                      <img src={g.author.avatar_url} alt={g.author.name || 'User'} className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-200" />
-                    )}
+                    <Avatar
+                      name={g.author?.name || 'User'}
+                      imageUrl={g.author?.avatar_url || undefined}
+                      size="sm"
+                      showTooltip={false}
+                    />
                     <span className="text-sm text-gray-600">by {g.author?.name || 'User'}</span>
                   </div>
                 </div>

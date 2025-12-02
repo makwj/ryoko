@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
 import { X, Clock, MapPin, FileText, Plus, Upload, Trash2, Sunrise, Sun, Moon } from "lucide-react";
 import toast from "react-hot-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -285,6 +285,9 @@ export default function MoveToItineraryModal({
       <DialogContent className="w-full max-w-2xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-dark">Move Idea to Itinerary</DialogTitle>
+          <DialogDescription>
+            Convert this idea into a scheduled activity
+          </DialogDescription>
         </DialogHeader>
             
             <div className="max-h-[60vh] overflow-y-auto px-2 space-y-3">

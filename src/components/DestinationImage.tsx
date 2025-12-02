@@ -13,6 +13,7 @@ import { useState, useEffect } from "react";
 
 interface DestinationImageProps {
   destination: string;
+  tripImageUrl?: string | null;
   className?: string;
   fallbackClassName?: string;
   children?: React.ReactNode;
@@ -20,6 +21,7 @@ interface DestinationImageProps {
 
 export default function DestinationImage({ 
   destination, 
+  tripImageUrl,
   className = "", 
   fallbackClassName = "",
   children 
@@ -27,9 +29,21 @@ export default function DestinationImage({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [customImageError, setCustomImageError] = useState(false);
 
   useEffect(() => {
     const fetchDestinationImage = async () => {
+      // If custom trip image is provided, use it immediately
+      if (tripImageUrl && !customImageError) {
+        setImageUrl(tripImageUrl);
+        setLoading(false);
+        setError(false);
+        return;
+      }
+
+      // If custom image failed to load, fall through to API images
+
+      // If no custom image and no destination, show fallback
       if (!destination || destination.trim() === '') {
         setLoading(false);
         return;
@@ -96,7 +110,18 @@ export default function DestinationImage({
     };
 
     fetchDestinationImage();
-  }, [destination]);
+  }, [destination, tripImageUrl, customImageError]);
+
+  // Handle image load error for uploaded images
+  const handleCustomImageError = () => {
+    if (tripImageUrl) {
+      setCustomImageError(true);
+      setImageUrl(null);
+      // Trigger re-fetch with API images
+      setLoading(true);
+      setError(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -114,11 +139,33 @@ export default function DestinationImage({
     );
   }
 
+  // If we have a custom image, use an img element to detect load errors
+  if (tripImageUrl && !customImageError && imageUrl === tripImageUrl) {
+    return (
+      <div className={`${className} relative overflow-hidden`}>
+        <img
+          src={tripImageUrl}
+          alt=""
+          className="w-full h-full object-cover"
+          onError={handleCustomImageError}
+          onLoad={() => {
+            setLoading(false);
+            setError(false);
+          }}
+        />
+        <div className="absolute inset-0 bg-black/20"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+        {children}
+      </div>
+    );
+  }
+
+  // For API images or fallback, use background-image
   return (
     <div 
       className={`${className} relative overflow-hidden`}
       style={{
-        backgroundImage: `url(${imageUrl})`,
+        backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -130,5 +177,3 @@ export default function DestinationImage({
     </div>
   );
 }
-
-

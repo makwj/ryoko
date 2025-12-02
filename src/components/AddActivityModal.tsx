@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, Clock, MapPin, FileText, Plus, Upload, Trash2, Edit3, Sunrise, Sun, Moon, ExternalLink } from "lucide-react";
 import toast from "react-hot-toast";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
 interface AddActivityModalProps {
@@ -77,6 +77,14 @@ export default function AddActivityModal({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Reset loading state when modal closes
+  useEffect(() => {
+    if (!open) {
+      setLoading(false);
+      setUploadingFiles(false);
+    }
+  }, [open]);
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length > 0) {
@@ -107,24 +115,58 @@ export default function AddActivityModal({
   const uploadFiles = async (filesWithNames: FileWithCustomName[]): Promise<string[]> => {
     const uploadedUrls: string[] = [];
     
+    if (!tripId) {
+      throw new Error('Trip ID is missing. Cannot upload files.');
+    }
+    
     for (const { file, customName } of filesWithNames) {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `trip-attachments/${tripId}/${fileName}`;
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `trip-attachments/${tripId}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('trip-files')
-        .upload(filePath, file);
+        // Create upload promise with timeout
+        const uploadPromise = supabase.storage
+          .from('trip-files')
+          .upload(filePath, file);
 
-      if (uploadError) {
-        throw new Error(`Failed to upload ${customName}: ${uploadError.message}`);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('File upload timed out')), 20000); // 20 second timeout per file
+        });
+
+        const { error: uploadError } = await Promise.race([
+          uploadPromise,
+          timeoutPromise.then(() => { throw new Error('Upload timeout'); })
+        ]) as { error: any };
+
+        if (uploadError) {
+          console.error('File upload error:', uploadError);
+          if (uploadError.message?.includes('duplicate') || uploadError.message?.includes('already exists')) {
+            // File already exists, try to get existing URL
+            const { data: existingUrl } = supabase.storage
+              .from('trip-files')
+              .getPublicUrl(filePath);
+            if (existingUrl?.publicUrl) {
+              uploadedUrls.push(existingUrl.publicUrl);
+              continue;
+            }
+          }
+          throw new Error(`Failed to upload ${customName || file.name}: ${uploadError.message || 'Unknown error'}`);
+        }
+
+        const { data } = supabase.storage
+          .from('trip-files')
+          .getPublicUrl(filePath);
+
+        if (!data?.publicUrl) {
+          throw new Error(`Failed to get public URL for ${customName || file.name}`);
+        }
+
+        uploadedUrls.push(data.publicUrl);
+      } catch (error) {
+        console.error(`Error uploading file ${customName || file.name}:`, error);
+        throw error;
       }
-
-      const { data } = supabase.storage
-        .from('trip-files')
-        .getPublicUrl(filePath);
-
-      uploadedUrls.push(data.publicUrl);
     }
 
     return uploadedUrls;
@@ -136,34 +178,89 @@ export default function AddActivityModal({
       return;
     }
 
+    if (!tripId) {
+      toast.error('Trip ID is missing. Please refresh the page and try again.');
+      return;
+    }
+
+    // Validate and normalize URL if provided
+    let normalizedLinkUrl = formData.link_url.trim();
+    if (normalizedLinkUrl) {
+      try {
+        // If it doesn't start with http/https, add https://
+        if (!normalizedLinkUrl.startsWith('http://') && !normalizedLinkUrl.startsWith('https://')) {
+          normalizedLinkUrl = `https://${normalizedLinkUrl}`;
+        }
+        // Validate URL format
+        new URL(normalizedLinkUrl);
+      } catch (error) {
+        toast.error('Please enter a valid URL');
+        return;
+      }
+    }
+
     setLoading(true);
+    setUploadingFiles(false);
+
+    // Helper function to create timeout promise
+    const createTimeout = (duration: number, message: string) => {
+      return new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(message)), duration);
+      });
+    };
 
     try {
-      // Upload files if any
+      // Upload files if any (with separate timeout - 60 seconds for file uploads)
       let attachments: {url: string, customName: string}[] = [];
       if (formData.attachments.length > 0) {
         setUploadingFiles(true);
-        const uploadedUrls = await uploadFiles(formData.attachments);
-        attachments = uploadedUrls.map((url, index) => ({
-          url,
-          customName: formData.attachments[index]?.customName || ''
-        }));
-        setUploadingFiles(false);
+        try {
+          const uploadedUrls = await Promise.race([
+            uploadFiles(formData.attachments),
+            createTimeout(60000, 'File upload timed out. Large files may take longer. Please try again or reduce file size.')
+          ]);
+          attachments = uploadedUrls.map((url, index) => ({
+            url,
+            customName: formData.attachments[index]?.customName || ''
+          }));
+        } catch (uploadError) {
+          const uploadErrorMessage = uploadError instanceof Error ? uploadError.message : "Failed to upload files";
+          throw new Error(`File upload failed: ${uploadErrorMessage}`);
+        } finally {
+          setUploadingFiles(false);
+        }
       }
 
-      // Get the next order index for this day
-      const { data: lastActivity } = await supabase
-        .from('activities')
-        .select('order_index')
-        .eq('trip_id', tripId)
-        .eq('day_number', dayNumber)
-        .order('order_index', { ascending: false })
-        .limit(1)
-        .single();
+      // Get the next order index for this day (with separate timeout - 15 seconds)
+      let nextOrderIndex = 0;
+      try {
+        const orderIndexQuery = Promise.race([
+          supabase
+            .from('activities')
+            .select('order_index')
+            .eq('trip_id', tripId)
+            .eq('day_number', dayNumber)
+            .order('order_index', { ascending: false })
+            .limit(1)
+            .single(),
+          createTimeout(15000, 'Query timed out')
+        ]) as Promise<{ data: any; error: any }>;
 
-      const nextOrderIndex = lastActivity ? lastActivity.order_index + 1 : 0;
+        const { data: lastActivity, error: queryError } = await orderIndexQuery;
+        
+        if (queryError && queryError.code !== 'PGRST116') { // PGRST116 is "no rows returned" which is fine
+          console.error('Error fetching last activity order:', queryError);
+          // Continue with order_index 0 if query fails
+        } else if (lastActivity) {
+          nextOrderIndex = lastActivity.order_index + 1;
+        }
+      } catch (queryTimeoutError) {
+        console.warn('Order index query timed out, using default order_index 0');
+        // Continue with order_index 0
+      }
 
-      const { error } = await supabase
+      // Insert activity (with separate timeout - 30 seconds)
+      const insertPromise = supabase
         .from('activities')
         .insert([
           {
@@ -175,19 +272,45 @@ export default function AddActivityModal({
             location: formData.location.trim() || null,
             activity_type: formData.activity_type,
             note: formData.note.trim() || null,
-            link_url: formData.link_url.trim() || null,
+            link_url: normalizedLinkUrl || null,
             attachments: attachments.length > 0 ? attachments : null,
             order_index: nextOrderIndex
           }
         ]);
 
-      if (error) throw error;
+      const insertResult = await Promise.race([
+        insertPromise,
+        createTimeout(30000, 'Database operation timed out. Please check your connection and try again.')
+      ]);
 
+      const { error: insertError } = insertResult as { data: any; error: any };
+
+      if (insertError) {
+        console.error('Supabase insert error:', insertError);
+        
+        // Provide more specific error messages
+        if (insertError.code === '23503') {
+          throw new Error('Invalid trip or day number. Please refresh the page and try again.');
+        } else if (insertError.code === '23505') {
+          throw new Error('This activity already exists. Please refresh the page.');
+        } else if (insertError.code === '42501') {
+          throw new Error('Permission denied. You may not have access to add activities to this trip.');
+        } else if (insertError.message) {
+          throw new Error(`Failed to add activity: ${insertError.message}`);
+        } else {
+          throw new Error('Failed to add activity. Please try again.');
+        }
+      }
+
+      // If there's no error, the insert was successful
+      // Supabase doesn't return data by default unless .select() is chained
+      // We don't need the data since we refresh activities via onActivityAdded()
       toast.success('Activity added successfully!');
-      onActivityAdded({ title: formData.title, dayNumber });
-      onClose();
       
-      // Reset form
+      // Store title before resetting form
+      const activityTitle = formData.title.trim();
+      
+      // Reset form before closing
       setFormData({
         title: '',
         description: '',
@@ -198,7 +321,11 @@ export default function AddActivityModal({
         link_url: '',
         attachments: []
       });
+      
+      onActivityAdded({ title: activityTitle, dayNumber });
+      onClose();
     } catch (error: unknown) {
+      console.error('Error adding activity:', error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       toast.error(errorMessage);
     } finally {
@@ -207,13 +334,29 @@ export default function AddActivityModal({
     }
   };
 
-  if (!open) return null;
-
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) {
+        // Reset form when closing
+        setFormData({
+          title: '',
+          description: '',
+          time_period: 'morning',
+          location: '',
+          activity_type: 'activity',
+          note: '',
+          link_url: '',
+          attachments: []
+        });
+        onClose();
+      }
+    }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg text-center">Adding an activity for Day {dayNumber}</DialogTitle>
+          <DialogDescription className="text-center">
+            Fill in the details for your activity on day {dayNumber}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -221,8 +364,11 @@ export default function AddActivityModal({
             <div className="space-y-6">
               {/* Activity Title */}
               <div className="space-y-3">
-                <Label htmlFor="title" className="text-sm font-medium text-gray-700 block">
-                  Activity Title
+                <Label htmlFor="title" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+                  <span>Activity Title</span>
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                    Required
+                  </span>
                 </Label>
                 <Input
                   id="title"
@@ -320,12 +466,12 @@ export default function AddActivityModal({
                   Note
                 </Label>
                 <div className="relative">
-                  <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-400 pointer-events-none z-0" />
                   <Textarea
                     id="note"
                     value={formData.note}
                     onChange={(e) => handleInputChange("note", e.target.value)}
-                    className="h-20 pl-10 resize-none focus-visible:ring-[#ff5a58] focus-visible:ring-2"
+                    className="h-20 pl-10 resize-none focus-visible:ring-[#ff5a58] focus-visible:ring-2 relative z-10"
                     placeholder="Add any important notes..."
                     rows={2}
                   />
@@ -341,7 +487,7 @@ export default function AddActivityModal({
                   <ExternalLink className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                   <Input
                     id="link_url"
-                    type="url"
+                    type="text"
                     value={formData.link_url}
                     onChange={(e) => handleInputChange("link_url", e.target.value)}
                     className="pl-10 focus-visible:ring-[#ff5a58] focus-visible:ring-2"
@@ -425,7 +571,12 @@ export default function AddActivityModal({
                 Cancel
               </Button>
               <Button
-                onClick={handleSubmit}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSubmit();
+                }}
+                type="button"
                 disabled={loading || !formData.title.trim()}
                 className="flex-1 h-12 bg-[#ff5a58] hover:bg-[#ff4a47] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium cursor-pointer"
               >
