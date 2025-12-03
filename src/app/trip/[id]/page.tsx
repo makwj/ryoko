@@ -3098,32 +3098,47 @@ export default function TripPage() {
         startDate: trip.start_date,
       };
       
-      // Use real API
-      const response = await fetch('/api/enhanced-recommendations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tripData }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate recommendations');
-      }
-
-      const data = await response.json();
-      const newRecommendations = data.recommendations || [];
-      setRecommendations(newRecommendations);
+      // Use real API with timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout (just under Vercel's limit)
       
-      // Save to cache
-      if (trip?.id) {
-        saveRecommendationsToCache(trip.id, newRecommendations);
+      try {
+        const response = await fetch('/api/enhanced-recommendations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ tripData }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || errorData.details || 'Failed to generate recommendations');
+        }
+
+        const data = await response.json();
+        const newRecommendations = data.recommendations || [];
+        setRecommendations(newRecommendations);
+        
+        // Save to cache
+        if (trip?.id) {
+          saveRecommendationsToCache(trip.id, newRecommendations);
+        }
+        
+        toast.success('Recommendations generated successfully!');
+      } finally {
+        clearTimeout(timeoutId);
       }
-      
-      toast.success('Recommendations generated successfully!');
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(`Failed to generate recommendations: ${errorMessage}`);
+      if (error instanceof Error && error.name === 'AbortError') {
+        toast.error('Request timed out. The recommendation generation is taking longer than expected. Please try again.');
+      } else {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        toast.error(`Failed to generate recommendations: ${errorMessage}`);
+      }
     } finally {
       setGeneratingRecommendations(false);
     }
@@ -3149,36 +3164,51 @@ export default function TripPage() {
         excludePlaceIds
       };
       
-      // Use real API
-      const response = await fetch('/api/enhanced-recommendations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tripData }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate more recommendations');
-      }
-
-      const data = await response.json();
+      // Use real API with timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout
       
-      // Append new recommendations to existing ones
-      setRecommendations(prev => {
-        const updated = [...prev, ...data.recommendations];
-        
-        // Save to cache
-        if (trip?.id) {
-          saveRecommendationsToCache(trip.id, updated);
+      try {
+        const response = await fetch('/api/enhanced-recommendations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ tripData }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || errorData.details || 'Failed to generate more recommendations');
         }
+
+        const data = await response.json();
         
-        return updated;
-      });
-      toast.success(`Added ${data.recommendations.length} more recommendations!`);
+        // Append new recommendations to existing ones
+        setRecommendations(prev => {
+          const updated = [...prev, ...data.recommendations];
+          
+          // Save to cache
+          if (trip?.id) {
+            saveRecommendationsToCache(trip.id, updated);
+          }
+          
+          return updated;
+        });
+        toast.success(`Added ${data.recommendations.length} more recommendations!`);
+      } finally {
+        clearTimeout(timeoutId);
+      }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast.error(`Failed to generate more recommendations: ${errorMessage}`);
+      if (error instanceof Error && error.name === 'AbortError') {
+        toast.error('Request timed out. The recommendation generation is taking longer than expected. Please try again.');
+      } else {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        toast.error(`Failed to generate more recommendations: ${errorMessage}`);
+      }
     } finally {
       setGeneratingMore(false);
     }

@@ -11,6 +11,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Increase timeout for this route (Vercel Pro: up to 300 seconds)
+// This route makes many API calls and can take time
+export const maxDuration = 60; // 60 seconds for Vercel Pro, adjust based on your plan
+
 // Types for Google Places API responses
 interface GooglePlaceResponse {
   results: GooglePlaceResult[];
@@ -392,25 +396,19 @@ export async function POST(request: NextRequest) {
 
 
     // Step 1: Generate search queries based on interests
+    // Limit queries to reduce API calls and improve performance
     const placeTypes = getPlacesTypesFromInterests(interests);
     const placesQueries = [
-      // Use more natural language queries
-      ...interests.map(interest => `best ${interest} in ${destination}`),
-      ...interests.map(interest => `popular ${interest} in ${destination}`),
-      ...interests.map(interest => `top ${interest} ${destination}`),
+      // Use more natural language queries - limit to avoid too many API calls
+      ...interests.slice(0, 3).map(interest => `best ${interest} in ${destination}`), // Limit to top 3 interests
       `tourist attractions in ${destination}`,
       `popular places in ${destination}`,
-      `things to do in ${destination}`,
-      `must visit places in ${destination}`
+      `things to do in ${destination}`
     ];
 
     // Only include accommodation searches if accommodation is explicitly in interests
     if (interests.includes('accommodation')) {
-      placesQueries.push(
-        `best hotels ${destination}`,
-        `accommodation ${destination}`,
-        `lodging ${destination}`
-      );
+      placesQueries.push(`best hotels ${destination}`);
     }
 
 
@@ -452,7 +450,8 @@ export async function POST(request: NextRequest) {
     const destinationFilteredPlaces = initialPlaces;
 
     // Step 4: Take top places for detailed analysis
-    const topPlaces = destinationFilteredPlaces.slice(0, 30);
+    // Reduce from 30 to 20 to improve performance and reduce API calls
+    const topPlaces = destinationFilteredPlaces.slice(0, 20);
     
     // Step 5: Get detailed information for top places
     const placesWithDetails = await Promise.all(
@@ -774,6 +773,10 @@ ABSOLUTE REQUIREMENTS:
       statusCode = 200; // This is actually a valid response, just no results
       errorMessage = 'No recommendations found';
       errorDetails = 'No places were found for the specified destination and criteria.';
+    } else if (error.message?.includes('timeout') || error.message?.includes('TIMEOUT') || error.name === 'TimeoutError') {
+      statusCode = 504;
+      errorMessage = 'Request timed out';
+      errorDetails = 'The recommendation generation is taking longer than expected. This may happen with complex queries. Please try again or simplify your search criteria.';
     }
     
     return NextResponse.json(

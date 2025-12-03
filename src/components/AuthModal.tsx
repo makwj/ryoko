@@ -93,8 +93,11 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
         return;
       }
 
+      // Use environment variable for production, fallback to window.location.origin for local dev
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+
       const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
-        redirectTo: `${window.location.origin}`,
+        redirectTo: siteUrl,
       });
 
       if (error) throw error;
