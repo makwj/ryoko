@@ -717,6 +717,29 @@ function SortableActivityItem({
 export default function TripPage() {
   const params = useParams();
   const router = useRouter();
+  
+  // Global error handler to catch unhandled promise rejections that could break event handlers
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      // Prevent the error from breaking the app
+      event.preventDefault();
+    };
+    
+    const handleError = (event: ErrorEvent) => {
+      console.error('Global error:', event.error);
+      // Don't prevent default - let React handle it, but log it
+    };
+    
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleError);
+    
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
+  
   const [trip, setTrip] = useState<Trip | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -760,7 +783,11 @@ export default function TripPage() {
           clearTimeout(safetyTimeout);
           console.error('Confirmation action failed:', error);
           setConfirmationConfig(prev => prev ? { ...prev, isLoading: false } : null);
-          // Don't close dialog on error so user can see the error message
+          // Close dialog after a short delay to allow user to see error, but ensure it closes
+          setTimeout(() => {
+            setShowConfirmationDialog(false);
+            setConfirmationConfig(null);
+          }, 2000);
         }
       },
       variant,
@@ -3080,7 +3107,11 @@ export default function TripPage() {
 
   // Function to generate AI recommendations
   const generateRecommendations = async (browseInterests?: string[]) => {
-    if (!trip) return;
+    // Capture trip and participants at the start to avoid stale closures
+    const currentTrip = trip;
+    const currentParticipants = participants;
+    
+    if (!currentTrip) return;
 
     setGeneratingRecommendations(true);
 
@@ -3088,14 +3119,14 @@ export default function TripPage() {
       // Use selected interests if provided, otherwise use trip interests
       const interestsToUse = browseInterests && browseInterests.length > 0 
         ? browseInterests 
-        : (trip.interests || []);
+        : (currentTrip.interests || []);
 
       const tripData = {
-        destination: trip.destination,
+        destination: currentTrip.destination,
         interests: interestsToUse,
-        numberOfDays: Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
-        numberOfParticipants: participants.length,
-        startDate: trip.start_date,
+        numberOfDays: Math.ceil((new Date(currentTrip.end_date).getTime() - new Date(currentTrip.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+        numberOfParticipants: currentParticipants.length,
+        startDate: currentTrip.start_date,
       };
       
       // Use real API with timeout handling
@@ -3123,9 +3154,9 @@ export default function TripPage() {
         const newRecommendations = data.recommendations || [];
         setRecommendations(newRecommendations);
         
-        // Save to cache
-        if (trip?.id) {
-          saveRecommendationsToCache(trip.id, newRecommendations);
+        // Save to cache - use captured trip ID to avoid stale closure
+        if (currentTrip?.id) {
+          saveRecommendationsToCache(currentTrip.id, newRecommendations);
         }
         
         toast.success('Recommendations generated successfully!');
@@ -3140,6 +3171,7 @@ export default function TripPage() {
         toast.error(`Failed to generate recommendations: ${errorMessage}`);
       }
     } finally {
+      // Always reset loading state, even if component unmounts
       setGeneratingRecommendations(false);
     }
   };
@@ -3339,24 +3371,31 @@ export default function TripPage() {
 
   // Function to move recommendation to ideas
   const moveRecommendationToIdeas = async (recommendation: TripRecommendation) => {
+    // Guard against double-triggering - check first before any async operations
+    if (movingRecommendationIds.has(recommendation.id)) return;
+    
+    // Capture values at start to avoid stale closures
+    const currentUser = user;
+    const currentTripId = trip?.id;
+    const tripId = params.id;
+    
+    // Ensure user is available BEFORE adding to moving set to avoid stuck state
+    if (!currentUser) {
+      toast.error('Your session seems to have expired. Please refresh and sign in again to add ideas.');
+      return;
+    }
+
+    // Add to moving set after validation
+    setMovingRecommendationIds(prev => new Set(prev).add(recommendation.id));
+    
     try {
-      // Ensure user is available (session issues can make clicks appear "dead")
-      if (!user) {
-        toast.error('Your session seems to have expired. Please refresh and sign in again to add ideas.');
-        return;
-      }
-
-      // Guard against double-triggering
-      if (movingRecommendationIds.has(recommendation.id)) return;
-      setMovingRecommendationIds(prev => new Set(prev).add(recommendation.id));
-
       const mappedTag = mapActivityTypeToTag(recommendation.activity_type);
       
       const { error } = await supabase
         .from('ideas')
         .insert([
           {
-            trip_id: params.id,
+            trip_id: tripId,
             title: recommendation.title,
             description: recommendation.description,
             location: recommendation.location,
@@ -3365,7 +3404,7 @@ export default function TripPage() {
             link_description: recommendation.description,
             link_image: recommendation.image_url,
             tags: [mappedTag],
-            added_by: user.id
+            added_by: currentUser.id
           }
         ]);
 
@@ -3375,7 +3414,7 @@ export default function TripPage() {
       const { data: ideasData, error: ideasError } = await supabase
         .from('ideas')
         .select('*')
-        .eq('trip_id', params.id)
+        .eq('trip_id', tripId)
         .order('created_at', { ascending: false });
 
       if (!ideasError) {
@@ -3389,9 +3428,9 @@ export default function TripPage() {
       setRecommendations(prev => {
         const updated = prev.filter(rec => rec.id !== recommendation.id);
         
-        // Save to cache
-        if (trip?.id) {
-          saveRecommendationsToCache(trip.id, updated);
+        // Save to cache - use captured trip ID to avoid stale closure
+        if (currentTripId) {
+          saveRecommendationsToCache(currentTripId, updated);
         }
         
         return updated;
@@ -3404,6 +3443,7 @@ export default function TripPage() {
       console.error('Error moving recommendation to ideas:', errorMessage);
       toast.error(`Failed to add "${recommendation.title}" to Ideas: ${errorMessage}`);
     } finally {
+      // Always clear moving state, even on error
       setMovingRecommendationIds(prev => {
         const next = new Set(prev);
         next.delete(recommendation.id);
@@ -4099,8 +4139,8 @@ export default function TripPage() {
                                     }
 
                                     toast.success('Collaborator removed');
-                                    // Optimistically update
-                                    setTrip({ ...(trip as any), collaborators: updated } as any);
+                                    // Optimistically update using functional form to avoid stale closure issues
+                                    setTrip(prev => prev ? { ...prev, collaborators: updated } : null);
                                     refreshParticipants();
                                   } catch (e) {
                                     console.error('Failed to remove collaborator:', e);
@@ -4701,7 +4741,16 @@ export default function TripPage() {
                                     <div className="flex flex-row items-center justify-between md:justify-start gap-3 w-full md:w-auto">
                                       {/* Move to Itinerary is its own row on mobile, inline on desktop */}
                                       <button
-                                        onClick={() => handleMoveToItinerary(idea)}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          try {
+                                            handleMoveToItinerary(idea);
+                                          } catch (err) {
+                                            console.error('Unhandled error in handleMoveToItinerary:', err);
+                                            toast.error('Failed to open move dialog. Please try again.');
+                                          }
+                                        }}
                                         className="order-2 md:order-1 cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 
                                           w-auto mb-0"
                                       >
@@ -4830,7 +4879,13 @@ export default function TripPage() {
                         <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
                       </div>
                       <button
-                        onClick={() => generateRecommendations()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          generateRecommendations().catch(err => {
+                            console.error('Unhandled error in generateRecommendations:', err);
+                          });
+                        }}
                         disabled={generatingRecommendations}
                         className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white text-sm px-6 py-3 rounded-lg font-medium transition-all duration-200 transform disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2 self-end md:self-auto"
                       >
@@ -4931,7 +4986,13 @@ export default function TripPage() {
                                   {/* Action Button */}
                                   <div className="ml-4">
                                     <button
-                                      onClick={() => moveRecommendationToIdeas(recommendation)}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        moveRecommendationToIdeas(recommendation).catch(err => {
+                                          console.error('Unhandled error in moveRecommendationToIdeas:', err);
+                                        });
+                                      }}
                                       className="cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                                     >
                                       <Plus className="w-4 h-4 cursor-pointer" />
@@ -5619,6 +5680,14 @@ export default function TripPage() {
               setConfirmationConfig(prev => prev ? { ...prev, isLoading: false } : null);
               setShowConfirmationDialog(false);
               setConfirmationConfig(null);
+            }}
+            onOpenChange={(open) => {
+              // Ensure dialog state is properly synced
+              if (!open) {
+                setConfirmationConfig(prev => prev ? { ...prev, isLoading: false } : null);
+                setShowConfirmationDialog(false);
+                setConfirmationConfig(null);
+              }
             }}
             onConfirm={confirmationConfig.onConfirm}
             title={confirmationConfig.title}
