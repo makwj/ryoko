@@ -10,7 +10,6 @@ import toast from "react-hot-toast";
 import Navbar from "@/components/Navbar";
 import PostCard, { PostRecord } from "@/components/PostCard";
 import PostComposer from "@/components/PostComposer";
-import UserSearch from "@/components/UserSearch";
 import SharedTripCard from "@/components/SharedTripCard";
 import UserProfileDialog from "@/components/UserProfileDialog";
 import EditPostModal from "@/components/EditPostModal";
@@ -27,7 +26,6 @@ function SocialPageInner() {
   const [loading, setLoading] = useState(false);
   const pageRef = useRef<{ from?: string; size: number }>({ size: 10 });
   const searchParams = useSearchParams();
-  const [showUserSearch, setShowUserSearch] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'explore' | 'following' | 'your-posts'>('following');
   const [editingPost, setEditingPost] = useState<PostRecord | null>(null);
@@ -63,7 +61,7 @@ function SocialPageInner() {
 
     const guidesPromise = supabase
       .from('trips')
-      .select('*')
+      .select('*, owner_id, collaborators')
       .eq('shared_to_social', true)
       .eq('archived', false)
       .eq('is_featured_social', true)
@@ -179,12 +177,33 @@ function SocialPageInner() {
       pageRef.current.from = undefined;
     }
 
+    // If there's a search query, find matching users first
+    let matchingUserIds: string[] | null = null;
+    if (query.trim()) {
+      const { data: matchingUsers } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('name', `%${query.trim()}%`);
+      matchingUserIds = matchingUsers?.map(u => u.id) || [];
+      if (matchingUserIds.length === 0) {
+        // No matching users, show empty feed
+        setFeed([]);
+        setLoading(false);
+        return;
+      }
+    }
+
     // Get all posts (latest first), excluding featured posts
     const postsBase = supabase
       .from('posts')
       .select('*, author:profiles(name, avatar_url), images:post_images(*)')
       .neq('is_featured', true)
       .order('created_at', { ascending: false });
+
+    // Filter by author if search query exists
+    if (matchingUserIds && matchingUserIds.length > 0) {
+      postsBase.in('author_id', matchingUserIds);
+    }
 
     if (!reset && pageRef.current.from) {
       postsBase.lt('created_at', pageRef.current.from);
@@ -193,11 +212,16 @@ function SocialPageInner() {
     // Get all shared trips (latest shared first, use updated_at), excluding featured guides
     const tripsBase = supabase
       .from('trips')
-      .select('*')
+      .select('*, owner_id, collaborators')
       .eq('shared_to_social', true)
       .eq('archived', false)
       .neq('is_featured_social', true)
       .order('updated_at', { ascending: false });
+
+    // Filter by owner if search query exists
+    if (matchingUserIds && matchingUserIds.length > 0) {
+      tripsBase.in('owner_id', matchingUserIds);
+    }
 
     if (!reset && pageRef.current.from) {
       tripsBase.lt('updated_at', pageRef.current.from);
@@ -261,7 +285,7 @@ function SocialPageInner() {
     }
 
     setLoading(false);
-  }, []);
+  }, [query]);
 
   // Load Following feed (posts from users you follow)
   const loadFollowingFeed = useCallback(async (reset = false) => {
@@ -292,7 +316,23 @@ function SocialPageInner() {
       return;
     }
 
-    const followingIds = followingData.map(f => f.following_id);
+    let followingIds = followingData.map(f => f.following_id);
+
+    // If there's a search query, filter followingIds by matching names
+    if (query.trim()) {
+      const { data: matchingUsers } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('id', followingIds)
+        .ilike('name', `%${query.trim()}%`);
+      const matchingIds = matchingUsers?.map(u => u.id) || [];
+      if (matchingIds.length === 0) {
+        setFeed([]);
+        setLoading(false);
+        return;
+      }
+      followingIds = matchingIds;
+    }
 
     // Fetch posts from followed users
     const postsBase = supabase
@@ -308,7 +348,7 @@ function SocialPageInner() {
     // Fetch shared trips from followed users
     const tripsBase = supabase
       .from('trips')
-      .select('*')
+      .select('*, owner_id, collaborators')
       .eq('shared_to_social', true)
       .eq('archived', false)
       .in('owner_id', followingIds)
@@ -373,7 +413,7 @@ function SocialPageInner() {
     }
 
     setLoading(false);
-  }, []);
+  }, [query]);
 
   // Load Your Posts feed
   const loadYourPostsFeed = useCallback(async (reset = false) => {
@@ -392,6 +432,26 @@ function SocialPageInner() {
       return;
     }
 
+    // For "Your Posts", search doesn't apply (it's always your own posts)
+    // But we can filter by matching your own name if search query exists
+    let shouldShow = true;
+    if (query.trim()) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', user.id)
+        .single();
+      if (profile?.name && !profile.name.toLowerCase().includes(query.trim().toLowerCase())) {
+        shouldShow = false;
+      }
+    }
+
+    if (!shouldShow) {
+      setFeed([]);
+      setLoading(false);
+      return;
+    }
+
     const postsBase = supabase
       .from('posts')
       .select('*, author:profiles(name, avatar_url), images:post_images(*)')
@@ -405,7 +465,7 @@ function SocialPageInner() {
     // Fetch shared trips from current user
     const tripsBase = supabase
       .from('trips')
-      .select('*')
+      .select('*, owner_id, collaborators')
       .eq('shared_to_social', true)
       .eq('archived', false)
       .eq('owner_id', user.id)
@@ -470,7 +530,7 @@ function SocialPageInner() {
     }
 
     setLoading(false);
-  }, []);
+  }, [query]);
 
   const loadFeed = useCallback(async (reset = false) => {
     setLoading((prevLoading) => {
@@ -495,7 +555,7 @@ function SocialPageInner() {
     // Fetch shared trips
     const tripsBase = supabase
       .from('trips')
-      .select('*')
+      .select('*, owner_id, collaborators')
       .eq('shared_to_social', true)
       .eq('archived', false)
       .order('created_at', { ascending: false });
@@ -566,13 +626,15 @@ function SocialPageInner() {
   useEffect(() => {
     if (activeTab === 'explore') {
       loadExploreFeed(true);
-      loadFeatured();
+      if (!query.trim()) {
+        loadFeatured();
+      }
     } else if (activeTab === 'following') {
       loadFollowingFeed(true);
     } else if (activeTab === 'your-posts') {
       loadYourPostsFeed(true);
     }
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, query]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // realtime subscriptions for posts and trips
@@ -772,16 +834,12 @@ function SocialPageInner() {
               <div className="relative">
                 <input
                   className="border border-gray-300 rounded-md px-3 py-2 w-64"
-                  placeholder="Search users..."
+                  placeholder="Search posts by username..."
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
-                    setShowUserSearch(true);
                   }}
-                  onFocus={() => setShowUserSearch(true)}
-                  onBlur={() => setTimeout(() => setShowUserSearch(false), 200)}
                 />
-                {showUserSearch && <UserSearch query={query} onClose={() => setShowUserSearch(false)} />}
               </div>
               <button className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-md" onClick={() => setShowComposer(true)}>
                 <PlusCircle className="w-4 h-4 inline mr-1" /> New Post

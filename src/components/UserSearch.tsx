@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Search, User } from "lucide-react";
+import { User } from "lucide-react";
 import Link from "next/link";
 
 interface UserSearchResult {
@@ -24,17 +24,24 @@ export default function UserSearch({ query, onClose }: { query: string; onClose:
     const searchUsers = async () => {
       setLoading(true);
       try {
+        const searchTerm = `%${query.trim()}%`;
+        
+        // Search by name (most common case)
         const { data, error } = await supabase
           .from('profiles')
           .select('id, name, avatar_url')
-          .or(`name.ilike.%${query}%,id.ilike.%${query}%`)
+          .ilike('name', searchTerm)
           .limit(10);
 
-        if (!error && data) {
-          setResults(data);
+        if (error) {
+          console.error('Search error:', error);
+          setResults([]);
+        } else {
+          setResults(data || []);
         }
       } catch (err) {
         console.error('Search error:', err);
+        setResults([]);
       } finally {
         setLoading(false);
       }

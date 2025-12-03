@@ -207,7 +207,11 @@ export default function Dashboard() {
                 .in('id', Array.from(allIds));
               const profileMap: Record<string, { id: string; name: string; avatar_url?: string }> = {};
               (profiles || []).forEach((p: any) => {
-                profileMap[p.id] = { id: p.id, name: p.name || 'Unknown', avatar_url: p.avatar_url || undefined };
+                profileMap[p.id] = { 
+                  id: p.id, 
+                  name: p.name || p.id || 'User', 
+                  avatar_url: (p.avatar_url && typeof p.avatar_url === 'string' && p.avatar_url.trim() !== '') ? p.avatar_url : undefined 
+                };
               });
               const next: Record<string, { id: string; name: string; avatar_url?: string }[]> = {};
               (tripsData || []).forEach((t) => {

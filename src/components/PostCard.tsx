@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Bookmark, MessageCircle, MoreVertical, Edit, Trash2, X, ChevronLeft, ChevronRight } from "lucide-react";
+import AvatarStack from "@/components/ui/avatar-stack";
 
 export interface PostImage {
   id: string;
@@ -182,6 +183,7 @@ export default function PostCard({ post, onUserClick, onEdit, onDelete }: PostCa
     dislike: post.dislike_count ?? 0,
     comment: post.comment_count ?? 0,
   }));
+  const [participants, setParticipants] = useState<Array<{ id: string; name: string; avatar_url?: string }>>([]);
 
   // Check if current user is the post owner
   useEffect(() => {
@@ -191,6 +193,85 @@ export default function PostCard({ post, onUserClick, onEdit, onDelete }: PostCa
     };
     checkOwner();
   }, [post.author_id]);
+
+  // Fetch participants for trip posts
+  useEffect(() => {
+    const fetchParticipants = async () => {
+      if (!post.trip_id) {
+        // For regular posts, just show the author
+        if (post.author) {
+          setParticipants([{
+            id: post.author_id,
+            name: post.author.name || 'User',
+            avatar_url: post.author.avatar_url || undefined
+          }]);
+        }
+        return;
+      }
+
+      try {
+        // Fetch trip details
+        const { data: tripData } = await supabase
+          .from('trips')
+          .select('owner_id, collaborators')
+          .eq('id', post.trip_id)
+          .single();
+
+        if (!tripData) {
+          // Fallback to just author
+          if (post.author) {
+            setParticipants([{
+              id: post.author_id,
+              name: post.author.name || 'User',
+              avatar_url: post.author.avatar_url || undefined
+            }]);
+          }
+          return;
+        }
+
+        // Get all participant IDs (owner + collaborators)
+        const participantIds = [
+          tripData.owner_id,
+          ...(Array.isArray(tripData.collaborators) ? tripData.collaborators : [])
+        ].filter(Boolean);
+
+        // Fetch participant profiles
+        if (participantIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, name, avatar_url')
+            .in('id', participantIds);
+
+          if (profiles) {
+            // Order: owner first, then collaborators
+            const ordered = participantIds
+              .map(id => profiles.find(p => p.id === id))
+              .filter(Boolean)
+              .map((p: any) => ({
+                id: p.id,
+                name: p.name || p.id || 'User',
+                avatar_url: (p.avatar_url && typeof p.avatar_url === 'string' && p.avatar_url.trim() !== '') 
+                  ? p.avatar_url 
+                  : undefined
+              }));
+            setParticipants(ordered);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching participants:', error);
+        // Fallback to just author
+        if (post.author) {
+          setParticipants([{
+            id: post.author_id,
+            name: post.author.name || 'User',
+            avatar_url: post.author.avatar_url || undefined
+          }]);
+        }
+      }
+    };
+
+    fetchParticipants();
+  }, [post.trip_id, post.author_id, post.author]);
 
   // Subscribe to counts updates
   useEffect(() => {
@@ -346,29 +427,23 @@ export default function PostCard({ post, onUserClick, onEdit, onDelete }: PostCa
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-3">
-        {post.author?.avatar_url ? (
-          <img 
-            src={post.author.avatar_url} 
-            alt="avatar" 
-            width={32} 
-            height={32} 
-            className="w-8 h-8 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-[#ff5a58] transition-all" 
-            onClick={() => onUserClick?.(post.author_id)}
-          />
-        ) : (
-          <div 
-            className="w-8 h-8 rounded-full bg-gray-200 cursor-pointer hover:ring-2 hover:ring-[#ff5a58] transition-all" 
-            onClick={() => onUserClick?.(post.author_id)}
-          />
-        )}
-        <div className="flex-1">
-          <div 
-            className="text-sm font-medium cursor-pointer hover:text-[#ff5a58] transition-colors"
-            onClick={() => onUserClick?.(post.author_id)}
-          >
-            {post.author?.name || 'User'}
+        <div className="flex-1 flex items-center gap-3">
+          {participants.length > 0 && (
+            <AvatarStack
+              participants={participants}
+              maxVisible={3}
+              size="sm"
+            />
+          )}
+          <div>
+            <div 
+              className="text-sm font-medium cursor-pointer hover:text-[#ff5a58] transition-colors"
+              onClick={() => onUserClick?.(post.author_id)}
+            >
+              {post.author?.name || 'User'}
+            </div>
+            <div className="text-xs text-gray-500">{new Date(post.created_at).toLocaleString()}</div>
           </div>
-          <div className="text-xs text-gray-500">{new Date(post.created_at).toLocaleString()}</div>
         </div>
         <div className="flex items-center gap-2">
           {countryPill}
@@ -470,21 +545,6 @@ export default function PostCard({ post, onUserClick, onEdit, onDelete }: PostCa
               <div className="text-gray-500 text-sm text-center py-4">Be the first to comment.</div>
             ) : comments.map((c) => (
               <div key={c.id} className="flex gap-3">
-                {c.author?.avatar_url ? (
-                  <img 
-                    src={c.author.avatar_url} 
-                    alt="avatar" 
-                    width={32} 
-                    height={32} 
-                    className="w-8 h-8 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-[#ff5a58] transition-all flex-shrink-0" 
-                    onClick={() => onUserClick?.(c.user_id)}
-                  />
-                ) : (
-                  <div 
-                    className="w-8 h-8 rounded-full bg-gray-200 cursor-pointer hover:ring-2 hover:ring-[#ff5a58] transition-all flex-shrink-0" 
-                    onClick={() => onUserClick?.(c.user_id)}
-                  />
-                )}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm">
                     <span 

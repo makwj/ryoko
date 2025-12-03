@@ -70,7 +70,10 @@ export default function Avatar({
   showTooltip = true,
   tooltipPosition = "top"
 }: AvatarProps) {
-  const [imageError, setImageError] = useState(false);
+  // Initialize imageError based on whether we have a valid imageUrl
+  const [imageError, setImageError] = useState(() => {
+    return !(imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '');
+  });
   
   const sizeClasses = getSizeClasses(size);
   const colorClass = generateColorFromName(name);
@@ -82,10 +85,16 @@ export default function Avatar({
   
   // Reset image error state when imageUrl changes
   useEffect(() => {
-    if (imageUrl) {
+    if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
       setImageError(false);
+    } else {
+      // If imageUrl is empty/null/undefined, ensure we show fallback
+      setImageError(true);
     }
   }, [imageUrl]);
+
+  // Check if we should show image or fallback
+  const shouldShowImage = imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '' && !imageError;
 
   const avatarContent = (
     <div
@@ -98,12 +107,13 @@ export default function Avatar({
         transition-all duration-200 
         hover:scale-105 
         overflow-hidden
+        ${!shouldShowImage ? colorClass : ''}
         ${onClick ? 'hover:ring-2 hover:ring-blue-200' : ''}
         ${className}
       `}
       onClick={onClick}
     >
-      {imageUrl && !imageError ? (
+      {shouldShowImage ? (
         <img
           src={imageUrl}
           alt={name}
@@ -111,7 +121,7 @@ export default function Avatar({
           onError={handleImageError}
         />
       ) : (
-        <div className={`${sizeClasses} ${colorClass} rounded-full flex items-center justify-center`}>
+        <div className={`w-full h-full ${colorClass} rounded-full flex items-center justify-center`}>
           {initials}
         </div>
       )}

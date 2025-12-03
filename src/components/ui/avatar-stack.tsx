@@ -36,8 +36,14 @@ export default function AvatarStack({
             style={{ zIndex: visibleParticipants.length - index }}
           >
             <Avatar
-              name={participant.name}
-              imageUrl={participant.avatar_url}
+              name={participant.name || participant.id || 'User'}
+              imageUrl={
+                participant.avatar_url && 
+                typeof participant.avatar_url === 'string' && 
+                participant.avatar_url.trim() !== '' 
+                  ? participant.avatar_url 
+                  : undefined
+              }
               size={size}
               className="border-2 border-white"
             />

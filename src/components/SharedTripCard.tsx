@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import TripComments from "./TripComments";
+import AvatarStack from "@/components/ui/avatar-stack";
 
 interface SharedTrip {
   id: string;
@@ -28,6 +29,7 @@ interface SharedTrip {
     avatar_url?: string | null;
   };
   activity_count?: number;
+  collaborators?: string[] | null;
 }
 
 interface SharedTripCardProps {
@@ -49,6 +51,7 @@ export default function SharedTripCard({ trip, onOpenComments, onUserClick }: Sh
     comment: 0,
   });
   const [showComments, setShowComments] = useState(false);
+  const [participants, setParticipants] = useState<Array<{ id: string; name: string; avatar_url?: string }>>([]);
 
   // Fetch destination image from Unsplash/Pixabay if no trip_image_url
   useEffect(() => {
@@ -222,6 +225,19 @@ export default function SharedTripCard({ trip, onOpenComments, onUserClick }: Sh
     
     checkBookmark();
   }, [trip.id]);
+
+  // Set participants to only show the author (who shared the trip guide)
+  useEffect(() => {
+    if (trip.author) {
+      setParticipants([{
+        id: trip.owner_id,
+        name: trip.author.name || 'User',
+        avatar_url: (trip.author.avatar_url && typeof trip.author.avatar_url === 'string' && trip.author.avatar_url.trim() !== '') 
+          ? trip.author.avatar_url 
+          : undefined
+      }]);
+    }
+  }, [trip.owner_id, trip.author]);
 
   const handleCopyTrip = async () => {
     setCopying(true);
@@ -400,29 +416,23 @@ export default function SharedTripCard({ trip, onOpenComments, onUserClick }: Sh
     <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full">
       {/* Author header - like PostCard */}
       <div className="flex items-center gap-3 mb-3">
-        {trip.author?.avatar_url ? (
-          <img 
-            src={trip.author.avatar_url} 
-            alt={trip.author.name || 'User'} 
-            width={32} 
-            height={32} 
-            className="w-8 h-8 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-[#ff5a58] transition-all" 
-            onClick={() => onUserClick?.(trip.owner_id)}
-          />
-        ) : (
-          <div 
-            className="w-8 h-8 rounded-full bg-gray-200 cursor-pointer hover:ring-2 hover:ring-[#ff5a58] transition-all"
-            onClick={() => onUserClick?.(trip.owner_id)}
-          />
-        )}
-        <div className="flex-1">
-          <div 
-            className="text-sm font-medium cursor-pointer hover:text-[#ff5a58] transition-colors"
-            onClick={() => onUserClick?.(trip.owner_id)}
-          >
-            {trip.author?.name || 'User'}
+        <div className="flex-1 flex items-center gap-3">
+          {participants.length > 0 && (
+            <AvatarStack
+              participants={participants}
+              maxVisible={3}
+              size="sm"
+            />
+          )}
+          <div>
+            <div 
+              className="text-sm font-medium cursor-pointer hover:text-[#ff5a58] transition-colors"
+              onClick={() => onUserClick?.(trip.owner_id)}
+            >
+              {trip.author?.name || 'User'}
+            </div>
+            <div className="text-xs text-gray-500">{new Date(tripCreatedAt).toLocaleString()}</div>
           </div>
-          <div className="text-xs text-gray-500">{new Date(tripCreatedAt).toLocaleString()}</div>
         </div>
         {countryPill && <div className="ml-auto">{countryPill}</div>}
       </div>
@@ -439,9 +449,9 @@ export default function SharedTripCard({ trip, onOpenComments, onUserClick }: Sh
         className="relative w-full rounded-lg overflow-hidden mb-3 border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
         onClick={() => router.push(`/trip/view/${trip.id}`)}
       >
-        <div className="flex">
+        <div className="flex items-stretch max-h-[250px]">
           {/* Trip Image */}
-          <div className="relative w-2/5 h-48 flex-shrink-0">
+          <div className="relative w-2/5 flex-shrink-0 h-full">
             {(trip.trip_image_url || dynamicImageUrl) && !imageError ? (
               <img 
                 src={trip.trip_image_url || dynamicImageUrl || ''} 
@@ -465,21 +475,21 @@ export default function SharedTripCard({ trip, onOpenComments, onUserClick }: Sh
           </div>
 
           {/* Trip Details Section */}
-          <div className="flex-1 bg-white p-4 flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-xl text-gray-900 mb-3">{trip.title}</h3>
+          <div className="flex-1 bg-white p-4 flex flex-col justify-between overflow-hidden">
+            <div className="overflow-y-auto flex-1 min-h-0">
+              <h3 className="font-bold text-lg text-gray-900 mb-2">{trip.title}</h3>
               
-              <div className="space-y-2 text-sm text-gray-700">
+              <div className="space-y-1.5 text-sm text-gray-700">
                 {trip.destination && (
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-gray-500" />
-                    <span>{trip.destination}</span>
+                    <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <span className="truncate">{trip.destination}</span>
                   </div>
                 )}
                 {(trip.start_date || trip.end_date) && (
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-500" />
-                    <span>
+                    <Calendar className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <span className="truncate">
                       {trip.start_date && new Date(trip.start_date).toLocaleDateString()}
                       {trip.start_date && trip.end_date && ' - '}
                       {trip.end_date && new Date(trip.end_date).toLocaleDateString()}
@@ -489,7 +499,7 @@ export default function SharedTripCard({ trip, onOpenComments, onUserClick }: Sh
                 )}
                 {trip.activity_count !== undefined && trip.activity_count > 0 && (
                   <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-gray-500" />
+                    <Users className="w-4 h-4 text-gray-500 flex-shrink-0" />
                     <span>{trip.activity_count} activities</span>
                   </div>
                 )}
@@ -498,7 +508,7 @@ export default function SharedTripCard({ trip, onOpenComments, onUserClick }: Sh
 
             {/* Interests at bottom */}
             {trip.interests && trip.interests.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100">
+              <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-100 flex-shrink-0">
                 {trip.interests.slice(0, 3).map((interest, idx) => (
                   <span 
                     key={idx} 
