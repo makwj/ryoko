@@ -168,7 +168,7 @@ export default function AddIdeaModal({
         <div className="space-y-6">
           {/* Title */}
           <div>
-            <Label htmlFor="title" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+            <Label htmlFor="title" className="text-sm font-medium text-gray-700 flex items-center justify-between mb-2">
               <span>Idea Title</span>
               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
                 Required
@@ -267,9 +267,14 @@ export default function AddIdeaModal({
                   variant={formData.tags.includes(category.value) ? 'default' : 'outline'}
                   className={`cursor-pointer py-2 px-4 rounded-full text-sm font-medium ${
                     formData.tags.includes(category.value)
-                      ? 'bg-[#ff5a58] text-white cursor-pointer'
+                      ? 'bg-[#ff5a58] text-white cursor-pointer hover:bg-[#ff4a47]'
                       : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200 cursor-pointer'
                   }`}
+                  style={{
+                    backgroundColor: formData.tags.includes(category.value) ? '#ff5a58' : '#f3f4f6',
+                    border: 'none',
+                    outline: 'none'
+                  }}
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{category.label}</span>

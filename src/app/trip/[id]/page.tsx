@@ -1222,8 +1222,14 @@ export default function TripPage() {
 
 
   // Drag and drop sensors
+  // FIX: Add activation constraints to prevent simple clicks from being interpreted as drag attempts
+  // This allows normal button clicks to pass through while still enabling drag functionality
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Drag only starts after moving 8px. Clicks pass through.
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -3992,9 +3998,7 @@ export default function TripPage() {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-dark">Group Interests</h3>
                 <button 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                  onClick={() => {
                     setShowUpdateInterestsModal(true);
                   }}
                   type="button"
@@ -4347,9 +4351,7 @@ export default function TripPage() {
                                 
                                 {selectedActivities.size > 0 && (
                                 <button 
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
+                                    onClick={() => {
                                       handleBulkDelete();
                                     }}
                                     type="button"
@@ -4392,9 +4394,7 @@ export default function TripPage() {
                           Share Itinerary
                         </button>
                         <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                          onClick={() => {
                             setShowAddActivityModal(true);
                           }}
                           type="button"
@@ -4497,9 +4497,7 @@ export default function TripPage() {
                       </div>
                         <div className="flex items-center gap-2">
                       <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
+                        onClick={() => {
                           setShowAddIdeaModal(true);
                         }}
                         type="button"
@@ -4520,6 +4518,11 @@ export default function TripPage() {
                             ? 'bg-red-500 text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
+                        style={{ 
+                          backgroundColor: selectedCategory === 'all' ? '#ef4444' : '#f3f4f6',
+                          border: 'none',
+                          outline: 'none'
+                        }}
                       >
                         All
                       </button>
@@ -4532,6 +4535,11 @@ export default function TripPage() {
                               ? 'bg-red-500 text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
+                          style={{ 
+                            backgroundColor: selectedCategory === category ? '#ef4444' : '#f3f4f6',
+                            border: 'none',
+                            outline: 'none'
+                          }}
                         >
                           {category}
                         </button>
@@ -4742,8 +4750,7 @@ export default function TripPage() {
                                       {/* Move to Itinerary is its own row on mobile, inline on desktop */}
                                       <button
                                         onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
+                                          e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
                                           try {
                                             handleMoveToItinerary(idea);
                                           } catch (err) {
@@ -4880,8 +4887,7 @@ export default function TripPage() {
                       </div>
                       <button
                         onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
+                          e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
                           generateRecommendations().catch(err => {
                             console.error('Unhandled error in generateRecommendations:', err);
                           });
@@ -4987,8 +4993,7 @@ export default function TripPage() {
                                   <div className="ml-4">
                                     <button
                                       onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
+                                        e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
                                         moveRecommendationToIdeas(recommendation).catch(err => {
                                           console.error('Unhandled error in moveRecommendationToIdeas:', err);
                                         });
@@ -5218,9 +5223,7 @@ export default function TripPage() {
                             <p className="text-sm text-gray-500">{expenses.length} expenses recorded</p>
                           </div>
                           <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
+                            onClick={() => {
                               setShowAddExpenseModal(true);
                             }}
                             type="button"
@@ -5344,9 +5347,7 @@ export default function TripPage() {
                             <h3 className="text-lg font-medium text-dark mb-2">No expenses yet</h3>
                             <p className="text-form mb-6">Start tracking your trip expenses to keep everyone in the loop.</p>
                             <button
-                              onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
+                              onClick={() => {
                               setShowAddExpenseModal(true);
                             }}
                             type="button"

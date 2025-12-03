@@ -688,11 +688,27 @@ function ImageDetailModal({
       >
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-dark">Day {image.day_number}</h3>
-            <p className="text-sm text-gray-500">
-              by {image.uploader_name}
-            </p>
+          <div className="flex items-center gap-3">
+            {(() => {
+              const uploader = participants.find(p => p.id === image.uploaded_by);
+              return (
+                <>
+                  <Avatar
+                    name={uploader?.name || image.uploader_name || 'Unknown'}
+                    imageUrl={uploader?.avatar_url}
+                    size="sm"
+                    showTooltip={false}
+                    className="flex-shrink-0"
+                  />
+                  <div>
+                    <h3 className="text-lg font-semibold text-dark">Day {image.day_number}</h3>
+                    <p className="text-sm text-gray-500">
+                      by {image.uploader_name}
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -808,9 +824,13 @@ function ImageDetailModal({
                   const commenter = participants.find(p => p.id === comment.user_id);
                   return (
                   <div key={comment.id} className="flex gap-3">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                      <User className="w-4 h-4 text-gray-500" />
-                    </div>
+                    <Avatar
+                      name={commenter?.name || comment.user?.name || 'Unknown'}
+                      imageUrl={commenter?.avatar_url}
+                      size="sm"
+                      showTooltip={false}
+                      className="flex-shrink-0"
+                    />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium text-dark">
@@ -837,7 +857,19 @@ function ImageDetailModal({
 
               {/* Add Comment */}
               <div className="p-4 border-t border-gray-200">
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                  {(() => {
+                    const currentUser = participants.find(p => p.id === userId);
+                    return (
+                      <Avatar
+                        name={currentUser?.name || 'You'}
+                        imageUrl={currentUser?.avatar_url}
+                        size="sm"
+                        showTooltip={false}
+                        className="flex-shrink-0"
+                      />
+                    );
+                  })()}
                   <input
                     type="text"
                     value={newComment[image.id] || ''}

@@ -194,8 +194,8 @@ export default function EditIdeaModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Idea</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg text-center">Edit Idea</DialogTitle>
+          <DialogDescription className="text-center">
             Update the details for this idea
           </DialogDescription>
         </DialogHeader>
@@ -203,8 +203,11 @@ export default function EditIdeaModal({
         <div className="space-y-6">
           {/* Title */}
           <div>
-            <Label htmlFor="title" className="text-sm font-medium text-gray-700">
-              Idea Title *
+            <Label htmlFor="title" className="text-sm font-medium text-gray-700 flex items-center justify-between mb-2">
+              <span>Idea Title</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                Required
+              </span>
             </Label>
             <Input
               id="title"
@@ -233,7 +236,6 @@ export default function EditIdeaModal({
           {/* Location */}
           <div>
             <Label htmlFor="location" className="text-sm font-medium text-gray-700">
-              <MapPin className="w-4 h-4 inline mr-1" />
               Location
             </Label>
             <Input
@@ -248,7 +250,6 @@ export default function EditIdeaModal({
           {/* Link URL */}
           <div>
             <Label htmlFor="linkUrl" className="text-sm font-medium text-gray-700">
-              <Link className="w-4 h-4 inline mr-1" />
               Link URL
             </Label>
             <Input
@@ -291,8 +292,7 @@ export default function EditIdeaModal({
           {/* Tags */}
           <div>
             <Label className="text-sm font-medium text-gray-700">
-              <Tag className="w-4 h-4 inline mr-1" />
-              Tags *
+               Add Tags (optional)
             </Label>
             <div className="grid grid-cols-3 gap-2">
               {ideaCategories.map((category) => (
@@ -300,14 +300,18 @@ export default function EditIdeaModal({
                   key={category.value}
                   onClick={() => handleTagToggle(category.value)}
                   variant={formData.tags.includes(category.value) ? 'default' : 'outline'}
-                  className={`p-3 ${
+                  className={`cursor-pointer py-2 px-4 rounded-full text-sm font-medium ${
                     formData.tags.includes(category.value)
-                      ? 'border-red-500 bg-red-50 text-red-700 hover:bg-red-100'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'bg-[#ff5a58] text-white cursor-pointer hover:bg-[#ff4a47]'
+                      : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200 cursor-pointer'
                   }`}
+                  style={{
+                    backgroundColor: formData.tags.includes(category.value) ? '#ff5a58' : '#f3f4f6',
+                    border: 'none',
+                    outline: 'none'
+                  }}
                 >
                   <div className="flex items-center gap-2">
-                    <Tag className="w-4 h-4" />
                     <span className="text-sm font-medium">{category.label}</span>
                   </div>
                 </Button>
