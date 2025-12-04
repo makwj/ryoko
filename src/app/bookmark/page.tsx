@@ -149,7 +149,7 @@ export default function BookmarkPage() {
                     <Users className="w-5 h-5 text-[#ff5a58]" />
                     Trip Guides ({trips.length})
                   </h2>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-4">
                     {trips.map((trip) => (
                       <SharedTripCard key={trip.id} trip={trip} />
                     ))}

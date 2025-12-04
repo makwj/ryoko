@@ -417,8 +417,20 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
 
           toast.success("Login successful!");
           onClose();
-          // Don't redirect here - let the auth state change trigger redirect in page.tsx
-          // This ensures the auth context is fully updated before navigation
+          // Wait for auth state to update, then redirect
+          // Use a small delay to ensure the auth context has processed the state change
+          setTimeout(async () => {
+            // Verify session exists before redirecting
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              router.push('/dashboard');
+            } else {
+              // If session not found, try again after a bit more time
+              setTimeout(() => {
+                router.push('/dashboard');
+              }, 200);
+            }
+          }, 150);
         }
       }
     } catch (error: unknown) {

@@ -2277,12 +2277,77 @@ export default function TripPage() {
     }
   };
 
-  const handleEditExpense = (expense: Expense) => {
+  const handleEditExpense = useCallback((expense: Expense) => {
     setSelectedExpense(expense);
     setShowEditExpenseModal(true);
+  }, []);
+
+  const calculateExpenseSummary = (expensesList: Expense[]) => {
+    if (!user || participants.length === 0) return;
+
+    let totalExpenses = 0;
+    let userPaid = 0;
+    let userShare = 0;
+
+    expensesList.forEach(expense => {
+      totalExpenses += expense.amount;
+      
+      if (expense.paid_by === user.id) {
+        userPaid += expense.amount;
+      }
+
+      // Calculate user's share based on split type
+      if (expense.split_with === 'everyone') {
+        // Split equally among all participants
+        const shareAmount = expense.amount / participants.length;
+        userShare += shareAmount;
+      } else if (Array.isArray(expense.split_with)) {
+        // Check if custom amounts are provided
+        if (expense.split_amounts && Object.keys(expense.split_amounts).length > 0) {
+          // Use custom amount for this user
+          const customAmount = expense.split_amounts[user.id];
+          if (customAmount) {
+            userShare += customAmount;
+          }
+        } else {
+          // Split equally among selected participants
+          if (expense.split_with.includes(user.id)) {
+            const shareAmount = expense.amount / expense.split_with.length;
+            userShare += shareAmount;
+          }
+        }
+      }
+    });
+
+    setExpenseSummary({
+      totalExpenses,
+      userPaid,
+      userShare
+    });
   };
 
-  const handleExpenseUpdated = async (expenseData?: { title: string; amount: number; userId: string }) => {
+  const handleExpenseAdded = useCallback(async (expenseData?: { title: string; amount: number; userId: string }) => {
+    // Refresh expenses data
+    if (params.id) {
+      const { data: expensesData, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('trip_id', params.id)
+        .order('expense_date', { ascending: false });
+
+      if (!error) {
+        setExpenses(expensesData || []);
+        calculateExpenseSummary(expensesData || []);
+      }
+    }
+
+    // Log the activity if data is provided
+    if (expenseData && trip && user) {
+      await ActivityLogger.expenseAdded(trip.id, user.id, expenseData.title, expenseData.amount);
+    }
+  }, [params.id, trip, user, participants]);
+
+  const handleExpenseUpdated = useCallback(async (expenseData?: { title: string; amount: number; userId: string }) => {
     // Refresh expenses data
     await handleExpenseAdded();
     
@@ -2290,7 +2355,7 @@ export default function TripPage() {
     if (expenseData && trip && user) {
       await ActivityLogger.expenseEdited(trip.id, user.id, expenseData.title, expenseData.amount);
     }
-  };
+  }, [handleExpenseAdded, trip, user]);
 
   const handleDeleteExpense = async (expenseId: string) => {
     const expense = expenses.find(e => e.id === expenseId);
@@ -2342,50 +2407,6 @@ export default function TripPage() {
     );
   };
 
-  const calculateExpenseSummary = (expensesList: Expense[]) => {
-    if (!user || participants.length === 0) return;
-
-    let totalExpenses = 0;
-    let userPaid = 0;
-    let userShare = 0;
-
-    expensesList.forEach(expense => {
-      totalExpenses += expense.amount;
-      
-      if (expense.paid_by === user.id) {
-        userPaid += expense.amount;
-      }
-
-      // Calculate user's share based on split type
-      if (expense.split_with === 'everyone') {
-        // Split equally among all participants
-        const shareAmount = expense.amount / participants.length;
-        userShare += shareAmount;
-      } else if (Array.isArray(expense.split_with)) {
-        // Check if custom amounts are provided
-        if (expense.split_amounts && Object.keys(expense.split_amounts).length > 0) {
-          // Use custom amount for this user
-          const customAmount = expense.split_amounts[user.id];
-          if (customAmount) {
-            userShare += customAmount;
-          }
-        } else {
-          // Split equally among selected participants
-          if (expense.split_with.includes(user.id)) {
-            const shareAmount = expense.amount / expense.split_with.length;
-            userShare += shareAmount;
-          }
-        }
-      }
-    });
-
-    setExpenseSummary({
-      totalExpenses,
-      userPaid,
-      userShare
-    });
-  };
-
   const handleTripUpdated = async (updateType?: string) => {
     // Refresh trip data
     if (params.id) {
@@ -2415,12 +2436,45 @@ export default function TripPage() {
     await refreshParticipants();
   };
 
-  const handleInterestsUpdated = async () => {
+  const handleInterestsUpdated = useCallback(async () => {
     // Refresh trip data after interests are updated
     await handleTripUpdated('interests');
-  };
+  }, [handleTripUpdated]);
 
-  const handleActivityAdded = async (activityData?: { title: string; dayNumber: number }) => {
+  // Stable modal close handlers
+  const closeAddActivityModal = useCallback(() => {
+    setShowAddActivityModal(false);
+  }, []);
+
+  const closeEditActivityModal = useCallback(() => {
+    setShowEditActivityModal(false);
+    setSelectedActivity(null);
+  }, []);
+
+  const closeAddExpenseModal = useCallback(() => {
+    setShowAddExpenseModal(false);
+  }, []);
+
+  const closeEditExpenseModal = useCallback(() => {
+    setShowEditExpenseModal(false);
+    setSelectedExpense(null);
+  }, []);
+
+  const closeAddIdeaModal = useCallback(() => {
+    setShowAddIdeaModal(false);
+  }, []);
+
+  const closeEditIdeaModal = useCallback(() => {
+    setShowEditIdeaModal(false);
+    setSelectedIdea(null);
+  }, []);
+
+  const closeMoveToItineraryModal = useCallback(() => {
+    setShowMoveToItineraryModal(false);
+    setSelectedIdea(null);
+  }, []);
+
+  const handleActivityAdded = useCallback(async (activityData?: { title: string; dayNumber: number }) => {
     // Refresh activities data
     if (params.id) {
       const { data: activitiesData, error } = await supabase
@@ -2439,7 +2493,7 @@ export default function TripPage() {
     if (activityData && trip && user) {
       await ActivityLogger.activityAdded(trip.id, user.id, activityData.title, activityData.dayNumber);
     }
-  };
+  }, [params.id, trip, user]);
 
   const fetchWeatherData = useCallback(async (destination: string, startDate: string, endDate: string) => {
     if (!destination || !startDate || !endDate) return;
@@ -2473,28 +2527,7 @@ export default function TripPage() {
     }
   }, []);
 
-  const handleExpenseAdded = async (expenseData?: { title: string; amount: number; userId: string }) => {
-    // Refresh expenses data
-    if (params.id) {
-      const { data: expensesData, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('trip_id', params.id)
-        .order('expense_date', { ascending: false });
-
-      if (!error) {
-        setExpenses(expensesData || []);
-        calculateExpenseSummary(expensesData || []);
-      }
-    }
-
-    // Log the activity if data is provided
-    if (expenseData && trip && user) {
-      await ActivityLogger.expenseAdded(trip.id, user.id, expenseData.title, expenseData.amount);
-    }
-  };
-
-  const handleIdeaAdded = async (ideaData?: { title: string }) => {
+  const handleIdeaAdded = useCallback(async (ideaData?: { title: string }) => {
     // Refresh ideas data
     if (params.id) {
       try {
@@ -2526,9 +2559,9 @@ export default function TripPage() {
     if (ideaData && trip && user) {
       await ActivityLogger.ideaAdded(trip.id, user.id, ideaData.title);
     }
-  };
+  }, [params.id, trip, user]);
 
-  const handleIdeaUpdated = async (ideaData?: { title: string }) => {
+  const handleIdeaUpdated = useCallback(async (ideaData?: { title: string }) => {
     // Refresh ideas data
     await handleIdeaAdded();
     
@@ -2536,9 +2569,9 @@ export default function TripPage() {
     if (ideaData && trip && user) {
       await ActivityLogger.ideaEdited(trip.id, user.id, ideaData.title);
     }
-  };
+  }, [handleIdeaAdded, trip, user]);
 
-  const handleVoteIdea = async (ideaId: string, voteType: 'upvote' | 'downvote') => {
+  const handleVoteIdea = useCallback(async (ideaId: string, voteType: 'upvote' | 'downvote') => {
     if (!user) return;
 
     try {
@@ -2624,12 +2657,12 @@ export default function TripPage() {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       toast.error(errorMessage);
     }
-  };
+  }, [user, ideaVotes, ideas, handleIdeaAdded]);
 
-  const handleMoveToItinerary = (idea: Idea) => {
+  const handleMoveToItinerary = useCallback((idea: Idea) => {
     setSelectedIdea(idea);
     setShowMoveToItineraryModal(true);
-  };
+  }, []);
 
   const refreshParticipants = async () => {
     // Refresh participants data
@@ -2836,7 +2869,7 @@ export default function TripPage() {
     return diffDays;
   };
 
-  const handleCommentsUpdated = async () => {
+  const handleCommentsUpdated = useCallback(async () => {
     // Refresh comments for all ideas
     if (ideas.length > 0) {
       try {
@@ -2853,19 +2886,21 @@ export default function TripPage() {
         console.warn('Failed to refresh comments:', error);
       }
     }
-  };
+  }, [ideas]);
 
-  const handleToggleComments = (ideaId: string) => {
-    const newExpanded = new Set(expandedComments);
-    if (newExpanded.has(ideaId)) {
-      newExpanded.delete(ideaId);
-    } else {
-      newExpanded.add(ideaId);
-    }
-    setExpandedComments(newExpanded);
-  };
+  const handleToggleComments = useCallback((ideaId: string) => {
+    setExpandedComments(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(ideaId)) {
+        newExpanded.delete(ideaId);
+      } else {
+        newExpanded.add(ideaId);
+      }
+      return newExpanded;
+    });
+  }, []);
 
-  const handleAddComment = async (ideaId: string) => {
+  const handleAddComment = useCallback(async (ideaId: string) => {
     const commentText = newCommentText[ideaId];
     if (!commentText?.trim() || !user) return;
 
@@ -2887,7 +2922,7 @@ export default function TripPage() {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       toast.error(errorMessage);
     }
-  };
+  }, [newCommentText, user, handleCommentsUpdated]);
 
   const handleDeleteComment = async (commentId: string) => {
     showConfirmation(
@@ -2928,10 +2963,10 @@ export default function TripPage() {
     );
   };
 
-  const handleEditIdea = (idea: Idea) => {
+  const handleEditIdea = useCallback((idea: Idea) => {
     setSelectedIdea(idea);
     setShowEditIdeaModal(true);
-  };
+  }, []);
 
   const handleDeleteIdea = async (ideaId: string) => {
     const idea = ideas.find(i => i.id === ideaId);
@@ -3566,12 +3601,12 @@ export default function TripPage() {
     return settlements;
   };
 
-  const handleEditActivity = (activity: Activity) => {
+  const handleEditActivity = useCallback((activity: Activity) => {
     setSelectedActivity(activity);
     setShowEditActivityModal(true);
-  };
+  }, []);
 
-  const handleActivityUpdated = async (activityData?: { title: string; dayNumber: number }) => {
+  const handleActivityUpdated = useCallback(async (activityData?: { title: string; dayNumber: number }) => {
     // Refresh activities data
     await handleActivityAdded();
     
@@ -3579,7 +3614,7 @@ export default function TripPage() {
     if (activityData && trip && user) {
       await ActivityLogger.activityEdited(trip.id, user.id, activityData.title, activityData.dayNumber);
     }
-  };
+  }, [handleActivityAdded, trip, user]);
 
   const handleDeleteActivity = async (activityId: string) => {
     const activity = activities.find(a => a.id === activityId);
@@ -5549,7 +5584,7 @@ export default function TripPage() {
         {/* Modals */}
         <AddActivityModal
           open={showAddActivityModal}
-          onClose={() => setShowAddActivityModal(false)}
+          onClose={closeAddActivityModal}
           tripId={trip?.id || ''}
           dayNumber={activeDay}
           onActivityAdded={handleActivityAdded}
@@ -5568,10 +5603,7 @@ export default function TripPage() {
         {showEditActivityModal && selectedActivity && (
           <EditActivityModal
             open={showEditActivityModal}
-            onClose={() => {
-              setShowEditActivityModal(false);
-              setSelectedActivity(null);
-            }}
+            onClose={closeEditActivityModal}
             activity={selectedActivity}
             onActivityUpdated={handleActivityUpdated}
           />
@@ -5580,7 +5612,7 @@ export default function TripPage() {
         {showAddExpenseModal && (
           <AddExpenseModal
             open={showAddExpenseModal}
-            onClose={() => setShowAddExpenseModal(false)}
+            onClose={closeAddExpenseModal}
             tripId={params.id as string}
             participants={participants}
             onExpenseAdded={handleExpenseAdded}
@@ -5590,10 +5622,7 @@ export default function TripPage() {
         {showEditExpenseModal && selectedExpense && (
           <EditExpenseModal
             open={showEditExpenseModal}
-            onClose={() => {
-              setShowEditExpenseModal(false);
-              setSelectedExpense(null);
-            }}
+            onClose={closeEditExpenseModal}
             expense={selectedExpense}
             participants={participants}
             onExpenseUpdated={handleExpenseUpdated}
@@ -5603,7 +5632,7 @@ export default function TripPage() {
         {showAddIdeaModal && (
           <AddIdeaModal
             open={showAddIdeaModal}
-            onClose={() => setShowAddIdeaModal(false)}
+            onClose={closeAddIdeaModal}
             tripId={params.id as string}
             onIdeaAdded={handleIdeaAdded}
           />
@@ -5612,10 +5641,7 @@ export default function TripPage() {
         {showEditIdeaModal && selectedIdea && (
           <EditIdeaModal
             open={showEditIdeaModal}
-            onClose={() => {
-              setShowEditIdeaModal(false);
-              setSelectedIdea(null);
-            }}
+            onClose={closeEditIdeaModal}
             idea={selectedIdea}
             onIdeaUpdated={handleIdeaUpdated}
           />
@@ -5624,10 +5650,7 @@ export default function TripPage() {
         {showMoveToItineraryModal && selectedIdea && (
           <MoveToItineraryModal
             open={showMoveToItineraryModal}
-            onClose={() => {
-              setShowMoveToItineraryModal(false);
-              setSelectedIdea(null);
-            }}
+            onClose={closeMoveToItineraryModal}
             idea={selectedIdea}
             tripDays={getTripDays()}
             onActivityAdded={handleActivityAdded}

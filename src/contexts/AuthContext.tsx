@@ -45,12 +45,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Get initial session
     const getInitialSession = async () => {
-      // Safety timeout to prevent infinite loading
+      // Safety timeout to prevent infinite loading - reduced from 10s to 5s
       const timeoutId = setTimeout(() => {
         console.warn("[AuthContext] Timeout reached in getInitialSession, clearing loading state");
         setUser(null);
         setLoading(false);
-      }, 10000); // 10 second timeout
+      }, 5000); // 5 second timeout
 
       try {
         // Check if this is a recovery session (password reset flow)

@@ -30,6 +30,9 @@ export default function RootLayout({
         </AuthProvider>
         <Toaster
           position="top-right"
+          containerStyle={{
+            zIndex: 10000, // Higher than modal z-index (9999)
+          }}
           toastOptions={{
             duration: 4000,
             style: {
