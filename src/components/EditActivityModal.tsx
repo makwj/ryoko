@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { hasUrls } from "@/lib/linkUtils";
 
 interface EditActivityModalProps {
@@ -297,8 +296,11 @@ export default function EditActivityModal({
             <div className="space-y-4">
               {/* Activity Title */}
               <div>
-                <Label htmlFor="title" className="text-sm font-medium text-gray-700">
-                  Activity Title *
+                <Label htmlFor="title" className="text-sm font-medium text-gray-700 flex items-center justify-between">
+                  <span>Activity Title</span>
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-600">
+                    Required
+                  </span>
                 </Label>
                 <Input
                   id="title"
@@ -306,6 +308,7 @@ export default function EditActivityModal({
                   value={formData.title}
                   onChange={(e) => handleInputChange("title", e.target.value)}
                   placeholder="e.g., Visit Colosseum"
+                  className="mt-2"
                   required
                 />
               </div>
@@ -316,15 +319,13 @@ export default function EditActivityModal({
                   Activity Type
                 </Label>
                 <Select value={formData.activity_type} onValueChange={(value) => handleInputChange("activity_type", value)}>
-                  <SelectTrigger id="activity-type">
+                  <SelectTrigger id="activity-type" className="mt-2">
                     <SelectValue placeholder="Select activity type" />
                   </SelectTrigger>
                   <SelectContent>
                     {activityTypes.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
-                        <div className="flex items-center gap-2">
-                          <Badge className={type.color}>{type.label}</Badge>
-                        </div>
+                        {type.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -341,16 +342,13 @@ export default function EditActivityModal({
                     value={formData.time_period}
                     onValueChange={(value) => handleInputChange("time_period", value)}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full mt-2">
                       <SelectValue placeholder="Select time period" />
                     </SelectTrigger>
                     <SelectContent>
                       {timePeriods.map((period) => (
                         <SelectItem key={period.value} value={period.value}>
-                          <div className="flex items-center gap-2">
-                            {period.icon}
-                            <span>{period.label}</span>
-                          </div>
+                          {period.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -360,7 +358,7 @@ export default function EditActivityModal({
                   <Label htmlFor="location" className="text-sm font-medium text-gray-700">
                     Location
                   </Label>
-                  <div className="relative">
+                  <div className="relative mt-2">
                     <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <Input
                       id="location"
@@ -383,7 +381,7 @@ export default function EditActivityModal({
                   id="description"
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  className="h-24 resize-none"
+                  className="h-24 resize-none mt-2"
                   placeholder="Add details about this activity..."
                   rows={3}
                 />
@@ -394,7 +392,7 @@ export default function EditActivityModal({
                 <Label htmlFor="note" className="text-sm font-medium text-gray-700">
                   Note
                 </Label>
-                <div className="relative">
+                <div className="relative mt-2">
                   <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                   <Textarea
                     id="note"
@@ -412,7 +410,7 @@ export default function EditActivityModal({
                 <Label htmlFor="link_url" className="text-sm font-medium text-gray-700">
                   Link
                 </Label>
-                <div className="relative">
+                <div className="relative mt-2">
                   <ExternalLink className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                   <Input
                     id="link_url"

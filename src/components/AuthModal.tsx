@@ -63,7 +63,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
           setError("Session expired. Please request a new password reset link.");
         }
       };
-      
+
       verifySession();
     }
   }, [open, mode]);
@@ -166,7 +166,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
       while (sessionAttempts < maxAttempts && !session) {
         sessionAttempts++;
         console.log(`[AuthModal/handleResetPassword] Session attempt ${sessionAttempts}/${maxAttempts}`);
-        
+
         try {
           const sessionResult = await Promise.race([
             supabase.auth.getSession(),
@@ -176,9 +176,9 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
               }, 5000); // 5 second timeout per attempt
             })
           ]);
-          
+
           session = sessionResult.data?.session;
-          
+
           if (session) {
             console.log("[AuthModal/handleResetPassword] Session found!", {
               userId: session.user?.id,
@@ -206,11 +206,11 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
       // Use event listener approach since updateUser promise sometimes doesn't resolve
       console.log("[AuthModal/handleResetPassword] Setting up USER_UPDATED event listener");
       console.log("[AuthModal/handleResetPassword] Password length:", formData.password.length);
-      
+
       // Create a promise that resolves when USER_UPDATED event fires
       const waitForUserUpdate = new Promise<{ success: boolean; error?: any }>((resolve) => {
         let resolved = false;
-        
+
         // Set up one-time listener for USER_UPDATED event
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
           if (event === 'USER_UPDATED' && !resolved) {
@@ -220,7 +220,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
             resolve({ success: true });
           }
         });
-        
+
         // Also set up timeout
         setTimeout(() => {
           if (!resolved) {
@@ -231,7 +231,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
           }
         }, 10000); // 10 second timeout
       });
-      
+
       // Start the password update (don't await it - we'll use the event instead)
       console.log("[AuthModal/handleResetPassword] Calling supabase.auth.updateUser");
       const updatePromise = supabase.auth.updateUser({
@@ -241,11 +241,11 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
         console.error("[AuthModal/handleResetPassword] updateUser promise rejected:", error);
         return { error };
       });
-      
+
       // Wait for either the event or timeout
       console.log("[AuthModal/handleResetPassword] Waiting for USER_UPDATED event or timeout...");
       const eventResult = await waitForUserUpdate;
-      
+
       if (!eventResult.success) {
         // Check if updatePromise had an error
         const updateResult = await updatePromise;
@@ -256,7 +256,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
         // Otherwise, it was a timeout
         throw eventResult.error;
       }
-      
+
       console.log("[AuthModal/handleResetPassword] Password update successful (confirmed via USER_UPDATED event)!");
 
       // Clear password fields
@@ -290,7 +290,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
     } catch (error: unknown) {
       console.error("[AuthModal/handleResetPassword] Password reset error:", error);
       let errorMessage = "An unknown error occurred";
-      
+
       if (error instanceof Error) {
         errorMessage = error.message;
         // Handle Supabase AuthApiError specifically
@@ -298,7 +298,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
           errorMessage = (error as any).message;
         }
       }
-      
+
       setError(errorMessage);
       // Also show toast for visibility
       toast.error(errorMessage);
@@ -351,9 +351,9 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
 
         if (error) {
           // Handle specific Supabase errors
-          if (error.message.includes("User already registered") || 
-              error.message.includes("already been registered") ||
-              error.message.includes("already exists")) {
+          if (error.message.includes("User already registered") ||
+            error.message.includes("already been registered") ||
+            error.message.includes("already exists")) {
             setError("An account with this email already exists. Please sign in instead.");
             // Automatically switch to login mode after a short delay
             setTimeout(() => {
@@ -459,7 +459,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
       return (
         <span>
           Remember your password?{" "}
-          <span 
+          <span
             className="text-[#ff5a58] cursor-pointer hover:underline"
             onClick={() => {
               onModeChange("login");
@@ -476,7 +476,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
       return (
         <span>
           Remember your password?{" "}
-          <span 
+          <span
             className="text-[#ff5a58] cursor-pointer hover:underline"
             onClick={() => {
               onModeChange("login");
@@ -491,7 +491,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
     return mode === "login" ? (
       <span>
         Don&apos;t have an account?{" "}
-        <span 
+        <span
           className="text-[#ff5a58] cursor-pointer hover:underline"
           onClick={() => onModeChange("register")}
         >
@@ -501,7 +501,7 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
     ) : (
       <span>
         Already have an account?{" "}
-        <span 
+        <span
           className="text-[#ff5a58] cursor-pointer hover:underline"
           onClick={() => onModeChange("login")}
         >
@@ -535,139 +535,139 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
 
               <h2 className="text-2xl font-extrabold text-center mb-6">{getTitle()}</h2>
 
-                {error && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                    {error}
-                  </div>
-                )}
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                  {error}
+                </div>
+              )}
 
-                {resetEmailSent && mode === "forgot-password" && (
-                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
-                    Password reset link has been sent to {resetEmailAddress ?? formData.email}. Please check your email and click the link to reset your password.
-                  </div>
-                )}
+              {resetEmailSent && mode === "forgot-password" && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
+                  Password reset link has been sent to {resetEmailAddress ?? formData.email}. Please check your email and click the link to reset your password.
+                </div>
+              )}
 
-                {resetSuccess && mode === "reset-password" && (
-                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-                    Your password has been updated. Redirecting you to your dashboard...
-                  </div>
-                )}
+              {resetSuccess && mode === "reset-password" && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                  Your password has been updated. Redirecting you to your dashboard...
+                </div>
+              )}
 
-                <form onSubmit={
-                  mode === "forgot-password" ? handleForgotPassword :
+              <form onSubmit={
+                mode === "forgot-password" ? handleForgotPassword :
                   mode === "reset-password" ? handleResetPassword :
-                  handleSubmit
-                } className="space-y-4">
-                  {/* Back button for forgot/reset modes */}
-                  {(mode === "forgot-password" || mode === "reset-password") && (
-                    <button
+                    handleSubmit
+              } className="space-y-4">
+                {/* Back button for forgot/reset modes */}
+                {(mode === "forgot-password" || mode === "reset-password") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onModeChange("login");
+                      setResetEmailSent(false);
+                      setFormData({ name: "", email: "", password: "", confirmPassword: "" });
+                    }}
+                    className="flex items-center gap-2 text-sm text-[#666] hover:text-[#ff5a58] mb-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Login
+                  </button>
+                )}
+
+                {/* Name field - only for register */}
+                {mode === "register" && (
+                  <div>
+                    <Label className="text-xs font-medium text-[#666]">NAME</Label>
+                    <Input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                      className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0"
+                      placeholder="Ryoko"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Email field - for login, register, and forgot-password */}
+                {(mode === "login" || mode === "register" || mode === "forgot-password") && (
+                  <div>
+                    <Label className="text-xs font-medium text-[#666]">EMAIL</Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0"
+                      placeholder="ryoko@email.com"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Password field - for login, register, and reset-password */}
+                {(mode === "login" || mode === "register" || mode === "reset-password") && (
+                  <div>
+                    <Label className="text-xs font-medium text-[#666]">PASSWORD</Label>
+                    <Input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange("password", e.target.value)}
+                      className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Confirm Password - for register and reset-password */}
+                {(mode === "register" || mode === "reset-password") && (
+                  <div>
+                    <Label className="text-xs font-medium text-[#666]">CONFIRM PASSWORD</Label>
+                    <Input
+                      type="password"
+                      value={formData.confirmPassword}
+                      onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
+                      className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Forgot Password link - only for login */}
+                {mode === "login" && (
+                  <div className="flex justify-end -mt-1">
+                    <Button
                       type="button"
                       onClick={() => {
-                        onModeChange("login");
-                        setResetEmailSent(false);
-                        setFormData({ name: "", email: "", password: "", confirmPassword: "" });
+                        onModeChange("forgot-password");
+                        setFormData({ name: "", email: formData.email, password: "", confirmPassword: "" });
                       }}
-                      className="flex items-center gap-2 text-sm text-[#666] hover:text-[#ff5a58] mb-2"
+                      className="bg-transparent text-xs text-[#777] hover:bg-transparent cursor-pointer p-0 h-auto"
                     >
-                      <ArrowLeft className="w-4 h-4" />
-                      Back to Login
-                    </button>
-                  )}
+                      Forgot Password?
+                    </Button>
+                  </div>
+                )}
 
-                  {/* Name field - only for register */}
-                  {mode === "register" && (
-                    <div>
-                      <Label className="text-xs font-medium text-[#666]">NAME</Label>
-                      <Input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => handleInputChange("name", e.target.value)}
-                        className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0"
-                        placeholder="Ryoko"
-                        required
-                      />
-                    </div>
-                  )}
+                <Button
+                  type="submit"
+                  disabled={loading || (mode === "forgot-password" && resetEmailSent) || (mode === "reset-password" && resetSuccess)}
+                  className="cursor-pointer w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold disabled:opacity-50"
+                >
+                  {loading
+                    ? "Loading..."
+                    : mode === "reset-password" && resetSuccess
+                      ? "Redirecting..."
+                      : getPrimaryCta()}
+                  <span className="ml-2">›</span>
+                </Button>
 
-                  {/* Email field - for login, register, and forgot-password */}
-                  {(mode === "login" || mode === "register" || mode === "forgot-password") && (
-                    <div>
-                      <Label className="text-xs font-medium text-[#666]">EMAIL</Label>
-                      <Input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => handleInputChange("email", e.target.value)}
-                        className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0"
-                        placeholder="ryoko@email.com"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  {/* Password field - for login, register, and reset-password */}
-                  {(mode === "login" || mode === "register" || mode === "reset-password") && (
-                    <div>
-                      <Label className="text-xs font-medium text-[#666]">PASSWORD</Label>
-                      <Input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => handleInputChange("password", e.target.value)}
-                        className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0"
-                        placeholder="••••••••"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  {/* Confirm Password - for register and reset-password */}
-                  {(mode === "register" || mode === "reset-password") && (
-                    <div>
-                      <Label className="text-xs font-medium text-[#666]">CONFIRM PASSWORD</Label>
-                      <Input
-                        type="password"
-                        value={formData.confirmPassword}
-                        onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                        className="mt-1 w-full h-11 focus-visible:ring-[#ff5a58] focus-visible:ring-2 focus-visible:ring-offset-0"
-                        placeholder="••••••••"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  {/* Forgot Password link - only for login */}
-                  {mode === "login" && (
-                    <div className="flex justify-end -mt-1">
-                      <Button 
-                        type="button"
-                        onClick={() => {
-                          onModeChange("forgot-password");
-                          setFormData({ name: "", email: formData.email, password: "", confirmPassword: "" });
-                        }}
-                        className="bg-transparent text-xs text-[#777] hover:bg-transparent cursor-pointer p-0 h-auto"
-                      >
-                        Forgot Password?
-                      </Button>
-                    </div>
-                  )}
-
-                  <Button
-                    type="submit"
-                    disabled={loading || (mode === "forgot-password" && resetEmailSent) || (mode === "reset-password" && resetSuccess)}
-                    className="cursor-pointer w-full h-11 bg-[#ff5a58] hover:bg-[#ff4a47] text-white font-semibold disabled:opacity-50"
-                  >
-                    {loading
-                      ? "Loading..."
-                      : mode === "reset-password" && resetSuccess
-                        ? "Redirecting..."
-                        : getPrimaryCta()}
-                    <span className="ml-2">›</span>
-                  </Button>
-
-                  <div className="text-center text-xs text-[#666] mt-2">{getSwapPrompt()}</div>
-                </form>
-              </div>
+                <div className="text-center text-xs text-[#666] mt-2">{getSwapPrompt()}</div>
+              </form>
             </div>
           </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

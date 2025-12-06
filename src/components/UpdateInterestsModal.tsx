@@ -28,12 +28,12 @@ const interestCategories = [
   "History", "Photography", "Music", "Sports", "Nature", "Nightlife"
 ];
 
-export default function UpdateInterestsModal({ 
-  open, 
-  onClose, 
-  tripId, 
-  currentInterests, 
-  onInterestsUpdated 
+export default function UpdateInterestsModal({
+  open,
+  onClose,
+  tripId,
+  currentInterests,
+  onInterestsUpdated
 }: UpdateInterestsModalProps) {
   const [loading, setLoading] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>(currentInterests);
@@ -76,18 +76,17 @@ export default function UpdateInterestsModal({
             Get personalized recommendations from our smart recommendation system
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid grid-cols-4 gap-2 mb-6">
           {interestCategories.map((interest) => (
             <Button
               key={interest}
               onClick={() => toggleInterest(interest)}
               variant={selectedInterests.includes(interest) ? "default" : "outline"}
-              className={`h-10 px-2 text-xs font-medium cursor-pointer ${
-                selectedInterests.includes(interest)
+              className={`h-10 px-2 text-xs font-medium cursor-pointer ${selectedInterests.includes(interest)
                   ? 'bg-[#ff5a58] text-white hover:bg-[#ff4a47]'
                   : 'hover:bg-gray-200'
-              }`}
+                }`}
             >
               {interest}
             </Button>
