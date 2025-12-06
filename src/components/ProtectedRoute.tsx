@@ -67,22 +67,22 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
         const { data: profile, error } = result as any;
 
-        if (error) {
-          console.error('[ProtectedRoute] Error checking ban status:', error);
-          // If we can't check ban status, allow access but log the error
-          clearTimeout(timeoutId);
-          setCheckingBan(false);
-          return;
-        }
+          if (error) {
+            console.error('[ProtectedRoute] Error checking ban status:', error);
+            // If we can't check ban status, allow access but log the error
+            clearTimeout(timeoutId);
+            setCheckingBan(false);
+            return;
+          }
 
-        if (profile?.is_banned) {
-          // Sign out and redirect
-          await supabase.auth.signOut();
-          toast.error("Your account has been banned. Please contact support if you believe this is an error.");
-          router.push('/');
-          clearTimeout(timeoutId);
-          setCheckingBan(false);
-          return;
+          if (profile?.is_banned) {
+            // Sign out and redirect
+            await supabase.auth.signOut();
+            toast.error("Your account has been banned. Please contact support if you believe this is an error.");
+            router.push('/');
+            clearTimeout(timeoutId);
+            setCheckingBan(false);
+            return;
         }
 
         clearTimeout(timeoutId);

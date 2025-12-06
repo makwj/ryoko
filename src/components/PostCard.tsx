@@ -433,16 +433,16 @@ export default function PostCard({ post, onUserClick, onEdit, onDelete }: PostCa
               participants={participants}
               maxVisible={3}
               size="sm"
-            />
-          )}
+          />
+        )}
           <div>
-            <div 
-              className="text-sm font-medium cursor-pointer hover:text-[#ff5a58] transition-colors"
-              onClick={() => onUserClick?.(post.author_id)}
-            >
-              {post.author?.name || 'User'}
-            </div>
-            <div className="text-xs text-gray-500">{new Date(post.created_at).toLocaleString()}</div>
+          <div 
+            className="text-sm font-medium cursor-pointer hover:text-[#ff5a58] transition-colors"
+            onClick={() => onUserClick?.(post.author_id)}
+          >
+            {post.author?.name || 'User'}
+          </div>
+          <div className="text-xs text-gray-500">{new Date(post.created_at).toLocaleString()}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">

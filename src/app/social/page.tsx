@@ -627,7 +627,7 @@ function SocialPageInner() {
     if (activeTab === 'explore') {
       loadExploreFeed(true);
       if (!query.trim()) {
-        loadFeatured();
+      loadFeatured();
       }
     } else if (activeTab === 'following') {
       loadFollowingFeed(true);
