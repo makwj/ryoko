@@ -7,13 +7,13 @@ import { supabase } from "@/lib/supabase";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { motion } from "framer-motion";
 import { RealtimeCursors } from "@/components/RealtimeCursors";
-import {
-  MapPin,
-  Users,
-  Bookmark,
-  Calendar,
-  Clock,
-  Train,
+import { 
+  MapPin, 
+  Users, 
+  Bookmark, 
+  Calendar, 
+  Clock, 
+  Train, 
   MoreVertical,
   Plus,
   ArrowLeft,
@@ -132,7 +132,7 @@ interface Activity {
   activity_type: 'transportation' | 'accommodation' | 'activity' | 'food' | 'shopping' | 'entertainment' | 'other';
   note?: string;
   link_url?: string;
-  attachments?: (string | { url: string, customName: string })[];
+  attachments?: (string | {url: string, customName: string})[];
   order_index: number;
   created_at: string;
   updated_at: string;
@@ -254,13 +254,13 @@ const getWeatherIconComponent = (iconName: string) => {
     'snowflake': <Snowflake className="w-4 h-4" />,
     'cloud-fog': <CloudFog className="w-4 h-4" />
   };
-
+  
   return iconMap[iconName] || <Cloud className="w-4 h-4" />;
 };
 
 // Droppable Day Component
-function DroppableDay({
-  day,
+function DroppableDay({ 
+  day, 
   isActive,
   onDayClick,
   formatDate,
@@ -287,9 +287,9 @@ function DroppableDay({
   });
 
   // Get users currently viewing this specific day
-  const usersOnThisDay = onlineUsers?.filter(u =>
-    u.id !== currentUserId &&
-    u.currentTab === 'itinerary' &&
+  const usersOnThisDay = onlineUsers?.filter(u => 
+    u.id !== currentUserId && 
+    u.currentTab === 'itinerary' && 
     u.currentDay === day.day
   ) || [];
 
@@ -297,12 +297,13 @@ function DroppableDay({
     <button
       ref={setNodeRef}
       onClick={() => onDayClick(day.day)}
-      className={`cursor-pointer w-full text-left p-3 rounded-lg transition-colors ${isActive
-        ? 'bg-[#ff5a58] text-white'
-        : isOver
+      className={`cursor-pointer w-full text-left p-3 rounded-lg transition-colors ${
+        isActive
+          ? 'bg-[#ff5a58] text-white'
+          : isOver
           ? 'bg-blue-100 border-2 border-blue-400 border-dashed'
           : 'hover:bg-gray-50'
-        }`}
+      }`}
     >
       <div className="flex justify-between items-center">
         <div className="flex-1">
@@ -354,16 +355,18 @@ function DroppableDay({
                 );
               })}
               {usersOnThisDay.length > 3 && (
-                <div className={`w-5 h-5 rounded-full border-2 ${isActive ? 'border-white' : 'border-gray-100'
-                  } bg-gray-400 flex items-center justify-center text-xs font-medium text-white`}>
+                <div className={`w-5 h-5 rounded-full border-2 ${
+                  isActive ? 'border-white' : 'border-gray-100'
+                } bg-gray-400 flex items-center justify-center text-xs font-medium text-white`}>
                   +{usersOnThisDay.length - 3}
                 </div>
               )}
             </div>
           )}
           {/* Activity count */}
-          <div className={`w-6 h-6 text-white text-xs rounded-full flex items-center justify-center ${isActive ? 'bg-[#303030] text-[#303030]' : 'bg-red-500'
-            }`}>
+          <div className={`w-6 h-6 text-white text-xs rounded-full flex items-center justify-center ${
+            isActive ? 'bg-[#303030] text-[#303030]' : 'bg-red-500'
+          }`}>
             {day.activities}
           </div>
         </div>
@@ -380,7 +383,7 @@ function DroppableDay({
 // Drop Indicator Component
 function DropIndicator({ isVisible }: { isVisible: boolean }) {
   if (!isVisible) return null;
-
+  
   return (
     <div className="h-0.5 bg-blue-400 rounded-full mx-4 my-2 animate-pulse" />
   );
@@ -388,13 +391,13 @@ function DropIndicator({ isVisible }: { isVisible: boolean }) {
 
 
 // Insert Drop Zone Component
-function InsertDropZone({
-  id,
-  isVisible,
-  dragOverId
-}: {
-  id: string;
-  isVisible: boolean;
+function InsertDropZone({ 
+  id, 
+  isVisible, 
+  dragOverId 
+}: { 
+  id: string; 
+  isVisible: boolean; 
   dragOverId: string | null;
 }) {
   const { setNodeRef } = useDroppable({
@@ -404,10 +407,11 @@ function InsertDropZone({
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-[5px] transition-colors ${dragOverId === id
-        ? 'bg-blue-100 border-2 border-blue-400 border-dashed rounded'
-        : ''
-        }`}
+      className={`min-h-[5px] transition-colors ${
+        dragOverId === id 
+          ? 'bg-blue-100 border-2 border-blue-400 border-dashed rounded' 
+          : ''
+      }`}
     >
       <DropIndicator isVisible={isVisible} />
     </div>
@@ -415,17 +419,17 @@ function InsertDropZone({
 }
 
 // Time Period Section Component
-function TimePeriodSection({
-  period,
-  periodActivities,
-  activeDay,
-  dragOverId,
-  activeId,
-  selectedActivities,
-  toggleActivitySelection,
-  handleEditActivity,
-  handleDeleteActivity,
-  getTypeColor,
+function TimePeriodSection({ 
+  period, 
+  periodActivities, 
+  activeDay, 
+  dragOverId, 
+  activeId, 
+  selectedActivities, 
+  toggleActivitySelection, 
+  handleEditActivity, 
+  handleDeleteActivity, 
+  getTypeColor, 
   isMultiSelectMode,
   onAskAI
 }: {
@@ -458,21 +462,22 @@ function TimePeriodSection({
           </span>
         )}
       </div>
-
+      
       {/* Activities for this time period - Droppable Area */}
-      <div
+      <div 
         ref={setNodeRef}
-        className={`space-y-3 min-h-[60px] p-3 rounded-lg transition-colors ${dragOverId === `time-${activeDay}-${period.key}`
-          ? 'bg-blue-50 border-2 border-blue-300 border-dashed'
-          : 'border-2 border-transparent'
-          }`}
+        className={`space-y-3 min-h-[60px] p-3 rounded-lg transition-colors ${
+          dragOverId === `time-${activeDay}-${period.key}` 
+            ? 'bg-blue-50 border-2 border-blue-300 border-dashed' 
+            : 'border-2 border-transparent'
+        }`}
       >
         {periodActivities.length === 0 && dragOverId === `time-${activeDay}-${period.key}` && (
           <div className="text-center py-4 text-blue-600 font-medium">
             Drop activity here to add to {period.label}
           </div>
         )}
-
+        
         {periodActivities.map((activity, index) => (
           <div key={activity.id}>
             {/* Drop zone before each activity */}
@@ -481,7 +486,7 @@ function TimePeriodSection({
               isVisible={dragOverId === `insert-${activeDay}-${period.key}-${index}`}
               dragOverId={dragOverId}
             />
-
+            
             <SortableActivityItem
               activity={activity}
               isSelected={selectedActivities.has(activity.id)}
@@ -494,7 +499,7 @@ function TimePeriodSection({
             />
           </div>
         ))}
-
+        
         {/* Drop zone after the last activity */}
         <InsertDropZone
           id={`insert-${activeDay}-${period.key}-${periodActivities.length}`}
@@ -507,13 +512,13 @@ function TimePeriodSection({
 }
 
 // Sortable Activity Component
-function SortableActivityItem({
-  activity,
-  isSelected,
-  onToggleSelect,
-  onEdit,
-  onDelete,
-  getTypeColor,
+function SortableActivityItem({ 
+  activity, 
+  isSelected, 
+  onToggleSelect, 
+  onEdit, 
+  onDelete, 
+  getTypeColor, 
   isMultiSelectMode,
   onAskAI
 }: {
@@ -546,10 +551,11 @@ function SortableActivityItem({
     <motion.div
       ref={setNodeRef}
       style={style}
-      className={`bg-white border rounded-lg px-8 py-4 shadow-sm hover:shadow-md transition-all duration-200 ${isMultiSelectMode && isSelected
-        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-        : 'border-gray-200 hover:border-gray-300'
-        }`}
+      className={`bg-white border rounded-lg px-8 py-4 shadow-sm hover:shadow-md transition-all duration-200 ${
+        isMultiSelectMode && isSelected 
+          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+          : 'border-gray-200 hover:border-gray-300'
+      }`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -565,7 +571,7 @@ function SortableActivityItem({
           >
             <GripVertical className="w-4 h-4 cursor-pointer" />
           </div>
-
+          
           {/* Selection Checkbox - Only show in multi-select mode */}
           {isMultiSelectMode && (
             <button
@@ -579,16 +585,16 @@ function SortableActivityItem({
               )}
             </button>
           )}
-
+          
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(activity.activity_type)} whitespace-nowrap`}>
             {activity.activity_type.charAt(0).toUpperCase() + activity.activity_type.slice(1)}
           </span>
         </div>
         <div className="flex items-center gap-1">
-
+          
           <Popover>
             <PopoverTrigger asChild>
-              <button
+              <button 
                 className="cursor-pointer text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
                 title="More options"
               >
@@ -616,18 +622,18 @@ function SortableActivityItem({
           </Popover>
         </div>
       </div>
-      <LocationTooltip
-        locationText={activity.title}
-        onAskAI={() => onAskAI(activity.title)}
-      >
-        <h3 className="font-semibold text-xl text-dark truncate hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{activity.title}</h3>
-      </LocationTooltip>
+      <LocationTooltip 
+            locationText={activity.title} 
+            onAskAI={() => onAskAI(activity.title)}
+          >
+            <h3 className="font-semibold text-xl text-dark truncate hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{activity.title}</h3>
+          </LocationTooltip>
       {activity.description && (
         <p className="text-gray-600 text-sm mb-3">{activity.description}</p>
       )}
 
       <div className="flex items-center gap-4 mb-3">
-
+       
         {activity.location && (
           <div className="flex items-center gap-2 text-sm text-gray-500" data-location={activity.location}>
             <MapPin className="w-4 h-4" />
@@ -657,14 +663,14 @@ function SortableActivityItem({
             // Handle different attachment formats
             let url: string;
             let fileName: string;
-
+            
             // Check if attachment is a stringified JSON object
             if (typeof attachment === 'string' && attachment.startsWith('{')) {
               try {
                 const parsedAttachment = JSON.parse(attachment);
                 url = parsedAttachment.url;
-                fileName = (parsedAttachment.customName && parsedAttachment.customName.trim())
-                  ? parsedAttachment.customName
+                fileName = (parsedAttachment.customName && parsedAttachment.customName.trim()) 
+                  ? parsedAttachment.customName 
                   : parsedAttachment.url.split('/').pop() || `attachment-${index + 1}`;
               } catch {
                 // If parsing fails, treat as regular URL
@@ -678,17 +684,17 @@ function SortableActivityItem({
             } else {
               // Object format
               url = attachment.url;
-              fileName = (attachment.customName && attachment.customName.trim())
-                ? attachment.customName
+              fileName = (attachment.customName && attachment.customName.trim()) 
+                ? attachment.customName 
                 : attachment.url.split('/').pop() || `attachment-${index + 1}`;
             }
-
+            
             // Ensure url is a string
             if (typeof url !== 'string') {
               console.error('Invalid URL type:', typeof url, url);
               return null;
             }
-
+            
             return (
               <a
                 key={index}
@@ -711,7 +717,7 @@ function SortableActivityItem({
 export default function TripPage() {
   const params = useParams();
   const router = useRouter();
-
+  
   // Global error handler to catch unhandled promise rejections that could break event handlers
   useEffect(() => {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -719,21 +725,21 @@ export default function TripPage() {
       // Prevent the error from breaking the app
       event.preventDefault();
     };
-
+    
     const handleError = (event: ErrorEvent) => {
       console.error('Global error:', event.error);
       // Don't prevent default - let React handle it, but log it
     };
-
+    
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
     window.addEventListener('error', handleError);
-
+    
     return () => {
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       window.removeEventListener('error', handleError);
     };
   }, []);
-
+  
   const [trip, setTrip] = useState<Trip | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -759,7 +765,7 @@ export default function TripPage() {
       description,
       onConfirm: async () => {
         setConfirmationConfig(prev => prev ? { ...prev, isLoading: true } : null);
-
+        
         // Create a safety timeout to ensure loading state is always reset
         const safetyTimeout = setTimeout(() => {
           console.warn('Confirmation action exceeded safety timeout, resetting loading state');
@@ -802,7 +808,7 @@ export default function TripPage() {
   // Send AI message
   const sendAIMessage = async (message: string) => {
     if (!selectedDestination) return;
-
+    
     // Check if this is the nearby attractions question
     if (message === "What are the nearby attractions?") {
       await fetchNearbyAttractions();
@@ -812,7 +818,7 @@ export default function TripPage() {
       await fetchNearbyAccommodations();
       return;
     }
-
+    
     setAiLoading(true);
     const userMessage = { role: 'user' as const, content: message };
     setAiMessages(prev => [...prev, userMessage]);
@@ -846,11 +852,11 @@ export default function TripPage() {
       }
 
       const data = await response.json();
-
+      
       if (data.error) {
         throw new Error(data.error);
       }
-
+      
       const responseText: string = data.response || '';
 
       // Heuristic: if the AI response starts by bolding a specific place, e.g.
@@ -896,7 +902,7 @@ export default function TripPage() {
   // Fetch nearby attractions
   const fetchNearbyAttractions = async () => {
     if (!selectedDestination || !trip) return;
-
+    
     // Clear existing results while refreshing
     setNearbyAttractions([]);
     setAttractionsLoading(true);
@@ -923,16 +929,16 @@ export default function TripPage() {
       }
 
       const data = await response.json();
-
+      
       if (data.error) {
         throw new Error(data.error);
       }
-
+      
       if (data.success && data.attractions) {
         setNearbyAttractions(data.attractions);
-        const aiMessage = {
-          role: 'assistant' as const,
-          content: `Found ${data.attractions.length} nearby attractions! Check them out below and add any that interest you to your idea board.`
+        const aiMessage = { 
+          role: 'assistant' as const, 
+          content: `Found ${data.attractions.length} nearby attractions! Check them out below and add any that interest you to your idea board.` 
         };
         setAiMessages(prev => [...prev, aiMessage]);
       } else {
@@ -1101,67 +1107,6 @@ export default function TripPage() {
   };
   const [activeDay, setActiveDay] = useState(1);
   const [activeTab, setActiveTab] = useState('itinerary');
-
-  // Debug Panel Component
-  const DebugPanel = () => {
-    const [status, setStatus] = useState<string>('Ready');
-
-    const checkConnectivity = async () => {
-      setStatus('Checking connectivity...');
-      const start = Date.now();
-      try {
-        const { count, error } = await supabase.from('trips').select('*', { count: 'exact', head: true });
-        const duration = Date.now() - start;
-        if (error) throw error;
-        setStatus(`Connectivity OK (${duration}ms). Count: ${count}`);
-      } catch (err: any) {
-        setStatus(`Connectivity Error: ${err.message}`);
-      }
-    };
-
-    const checkWritePermission = async () => {
-      setStatus('Checking write permission...');
-      try {
-        if (!trip) {
-          setStatus('No trip loaded to test write against.');
-          return;
-        }
-
-        const { error } = await supabase
-          .from('trips')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('id', trip.id);
-
-        if (error) throw error;
-        setStatus('Write Permission OK (Update successful)');
-      } catch (err: any) {
-        setStatus(`Write Error: ${err.message}`);
-      }
-    };
-
-    return (
-      <div className="fixed bottom-4 right-4 z-50 p-4 bg-white border-2 border-red-500 rounded-lg shadow-xl w-80 text-xs">
-        <h3 className="font-bold text-red-600 mb-2">DEBUG MODE</h3>
-        <div className="space-y-1 mb-3">
-          <p><strong>User ID:</strong> <span className="font-mono">{user?.id || 'Not logged in'}</span></p>
-          <p><strong>Owner ID:</strong> <span className="font-mono">{trip?.owner_id || 'Unknown'}</span></p>
-          <p><strong>Trip ID:</strong> <span className="font-mono">{trip?.id || 'Unknown'}</span></p>
-          <p><strong>Match?</strong> {user?.id === trip?.owner_id ? '✅ Yes' : '❌ No'}</p>
-        </div>
-        <div className="space-y-2">
-          <button onClick={checkConnectivity} className="w-full bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded">
-            Test Connectivity (Read)
-          </button>
-          <button onClick={checkWritePermission} className="w-full bg-red-100 hover:bg-red-200 px-2 py-1 rounded">
-            Test Write Permission
-          </button>
-        </div>
-        <div className="mt-2 p-2 bg-gray-100 rounded break-words font-mono max-h-20 overflow-auto">
-          {status}
-        </div>
-      </div>
-    );
-  };
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [showUpdateInterestsModal, setShowUpdateInterestsModal] = useState(false);
   const [showEditActivityModal, setShowEditActivityModal] = useState(false);
@@ -1173,7 +1118,7 @@ export default function TripPage() {
   const [showEditTripModal, setShowEditTripModal] = useState(false);
   const [showInviteCollaboratorsModal, setShowInviteCollaboratorsModal] = useState(false);
   const [showShareTripGuideModal, setShowShareTripGuideModal] = useState(false);
-
+  
   // Map nearby attraction category to itinerary activity_type for consistent labeling
   const mapAttractionCategoryToActivityType = (category: string): Activity['activity_type'] => {
     const c = category.toLowerCase();
@@ -1196,7 +1141,7 @@ export default function TripPage() {
   } | null>(null);
   const [showAIChatSidebar, setShowAIChatSidebar] = useState(false);
   const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
-  const [aiMessages, setAiMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([]);
+  const [aiMessages, setAiMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [nearbyAttractions, setNearbyAttractions] = useState<Array<{
     name: string;
@@ -1230,7 +1175,7 @@ export default function TripPage() {
 
   // Helper functions for localStorage caching
   const getRecommendationsCacheKey = (tripId: string) => `ryoko_recommendations_${tripId}`;
-
+  
   const saveRecommendationsToCache = (tripId: string, recommendations: TripRecommendation[]) => {
     try {
       const cacheKey = getRecommendationsCacheKey(tripId);
@@ -1339,7 +1284,7 @@ export default function TripPage() {
             .select('*')
             .eq('trip_id', params.id)
             .order('expense_date', { ascending: false });
-
+          
           if (expensesError) {
             console.warn('Expenses table not found or error:', expensesError);
             expensesData = [];
@@ -1359,7 +1304,7 @@ export default function TripPage() {
             .select('*')
             .eq('trip_id', params.id)
             .order('created_at', { ascending: false });
-
+          
           if (settlementsError) {
             console.warn('Settlements table not found or error:', settlementsError);
             settlementsData = [];
@@ -1420,7 +1365,7 @@ export default function TripPage() {
             .select('*')
             .eq('trip_id', params.id)
             .order('created_at', { ascending: false });
-
+          
           if (ideasError) {
             console.warn('Ideas table not found or error:', ideasError);
             ideasData = [];
@@ -1434,7 +1379,7 @@ export default function TripPage() {
               .from('idea_votes')
               .select('*')
               .in('idea_id', ideasData.map(idea => idea.id));
-
+            
             if (!votesError) {
               votesData = votesResult || [];
             }
@@ -1447,7 +1392,7 @@ export default function TripPage() {
               .select('*')
               .in('idea_id', ideasData.map(idea => idea.id))
               .order('created_at', { ascending: true });
-
+            
             if (!commentsError) {
               commentsData = commentsResult || [];
             }
@@ -1500,13 +1445,13 @@ export default function TripPage() {
   useEffect(() => {
     if (!trip) return;
     if (!trip.destination || !trip.start_date || !trip.end_date) return;
-
+    
     // Only fetch if the weather key has actually changed
     const weatherKey = `${trip.destination}-${trip.start_date}-${trip.end_date}`;
     if (weatherFetchRef.current === weatherKey) {
       return; // Already fetched this exact weather data
     }
-
+    
     // Clear current weather and refetch for new date range
     setWeatherData([]);
     fetchWeatherData(trip.destination, trip.start_date, trip.end_date);
@@ -1515,7 +1460,7 @@ export default function TripPage() {
   // Realtime: as trip owner, see collaborators join immediately
   useEffect(() => {
     if (!trip?.id) return;
-
+    
     // Helper to reload trip and participants to reflect latest collaborators
     const reloadTripAndParticipants = async () => {
       try {
@@ -1553,7 +1498,7 @@ export default function TripPage() {
           // If the current user was removed from collaborators, notify and redirect
           const newRow = payload.new as any;
           const oldRow = payload.old as any;
-
+          
           if (user && newRow) {
             const isOwner = newRow.owner_id === user.id;
             const isCollaborator = Array.isArray(newRow.collaborators) && newRow.collaborators.includes(user.id);
@@ -1563,11 +1508,11 @@ export default function TripPage() {
               return;
             }
           }
-
+          
           // Check if collaborators actually changed
           const oldCollaborators = Array.isArray(oldRow?.collaborators) ? oldRow.collaborators : [];
           const newCollaborators = Array.isArray(newRow?.collaborators) ? newRow.collaborators : [];
-
+          
           // Only reload participants and show message if collaborators actually changed
           if (JSON.stringify(oldCollaborators.sort()) !== JSON.stringify(newCollaborators.sort())) {
             await reloadTripAndParticipants();
@@ -1696,25 +1641,13 @@ export default function TripPage() {
     };
   }, [trip?.id]);
 
-  // Create stable keys for array dependencies to prevent unnecessary re-subscriptions
-  const participantsKey = JSON.stringify(participants.map(p => p.id).sort());
-  const collaboratorsKey = JSON.stringify(trip?.collaborators || []);
-  const profileIdsKey = JSON.stringify([trip?.owner_id, ...(trip?.collaborators || [])].filter(Boolean));
-
   // Presence: show online collaborators viewing this trip with tab and day tracking
   const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string; currentTab: string; currentDay?: number }[]>([]);
   const presenceChannelRef = useRef<any>(null);
-
-  // Use ref to access latest participants without triggering re-subscription
-  const participantsRef = useRef(participants);
-  useEffect(() => {
-    participantsRef.current = participants;
-  }, [participants]);
-
+  
   useEffect(() => {
     if (!trip?.id || !user) return;
 
-    // Only subscribe to presence channel ONCE per trip/user session
     const presenceChannel = supabase.channel(`presence:trip:${trip.id}`, {
       config: { presence: { key: user.id } }
     });
@@ -1723,32 +1656,31 @@ export default function TripPage() {
     presenceChannel.on('presence', { event: 'sync' }, () => {
       const state = presenceChannel.presenceState() as Record<string, Array<{ id: string; name: string; currentTab: string; currentDay?: number }>>;
       const users = Object.values(state).flat();
-
+      
       // Only update if the data actually changed to prevent unnecessary re-renders
       setOnlineUsers(prev => {
         const prevIds = prev.map(u => u.id).sort();
         const newIds = users.map(u => u.id).sort();
         if (JSON.stringify(prevIds) === JSON.stringify(newIds)) {
-          return prev;
+          return prev; // No change in users, don't update
         }
         return users;
       });
     });
 
     presenceChannel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-      // No toast notification
+      // No toast notification - green dot indicator is sufficient
     });
 
     presenceChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
-      // No action needed
+      // No action needed - cursors are handled by broadcast events
     });
 
     presenceChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        const currentParticipants = participantsRef.current;
-        const displayName = (currentParticipants.find((p: any) => p.id === user.id)?.name || user.email || 'Someone') as string;
-        await presenceChannel.track({
-          id: user.id,
+        const displayName = (participants.find((p: any) => p.id === user.id)?.name || user.email || 'Someone') as string;
+        await presenceChannel.track({ 
+          id: user.id, 
           name: displayName,
           currentTab: activeTab,
           currentDay: activeTab === 'itinerary' ? activeDay : undefined
@@ -1759,31 +1691,24 @@ export default function TripPage() {
     return () => {
       supabase.removeChannel(presenceChannel);
     };
-    // CRITICAL: Remove 'participants' and 'activeTab' from here. Only 'trip.id' and 'user.id' should trigger re-subscription.
-    // Tracking updates are handled by the separate effect below.
-  }, [trip?.id, user?.id]);
+  }, [trip?.id, user?.id, participants]);
 
   // Update presence when active tab or day changes (debounced)
   useEffect(() => {
     if (presenceChannelRef.current && user) {
       const timeoutId = setTimeout(() => {
-        const currentParticipants = participantsRef.current;
-        const displayName = (currentParticipants.find((p: any) => p.id === user.id)?.name || user.email || 'Someone') as string;
-
-        // Check if channel is still subscribed before tracking
-        if (presenceChannelRef.current.state === 'closed') return;
-
-        presenceChannelRef.current.track({
-          id: user.id,
+        const displayName = (participants.find((p: any) => p.id === user.id)?.name || user.email || 'Someone') as string;
+        presenceChannelRef.current.track({ 
+          id: user.id, 
           name: displayName,
           currentTab: activeTab,
           currentDay: activeTab === 'itinerary' ? activeDay : undefined
         });
       }, 200); // Debounce tab/day changes
-
+      
       return () => clearTimeout(timeoutId);
     }
-  }, [activeTab, activeDay, user?.id, participantsKey]); // participantsKey is stable, safe to use here if nickname changes matter
+  }, [activeTab, activeDay, user?.id, participants]);
 
   // Calculate expense summary when expenses or participants change
   useEffect(() => {
@@ -1792,20 +1717,19 @@ export default function TripPage() {
     }
   }, [expenses, participants, user]);
 
-  // Refresh participants when trip data changes
-  // Use stable collaborator key to prevent loops
+  // Refresh participants when trip data changes (e.g., when someone accepts an invitation)
   useEffect(() => {
     if (trip && user) {
       refreshParticipants();
     }
-  }, [trip?.owner_id, collaboratorsKey, user]);
+  }, [trip?.owner_id, trip?.collaborators, user]);
 
   // Refresh participants when user becomes available
   useEffect(() => {
     if (trip && user && participants.length === 0) {
       refreshParticipants();
     }
-  }, [user, trip?.id]); // Changed from 'trip' to 'trip.id' to be more stable
+  }, [user, trip]);
 
   // Load recommendations from cache when trip loads, or reset when trip changes
   useEffect(() => {
@@ -1825,11 +1749,6 @@ export default function TripPage() {
   useEffect(() => {
     if (!trip?.id) return;
 
-    // Parse the stable key backend to array if needed, or just use the pre-calculated string for the filter?
-    // Actually better to reconstruct list from trip.id context if possible, but safely using the memoized string for dependency check is key.
-
-    const filterIds = [trip.owner_id, ...(trip.collaborators || [])].join(',');
-
     const profileChannel = supabase
       .channel(`profiles:${trip.id}`)
       .on(
@@ -1838,7 +1757,7 @@ export default function TripPage() {
           event: 'UPDATE',
           schema: 'public',
           table: 'profiles',
-          filter: `id=in.(${filterIds})`
+          filter: `id=in.(${[trip.owner_id, ...(trip.collaborators || [])].join(',')})`
         },
         (payload) => {
           // Refresh participants when any profile is updated
@@ -1848,14 +1767,14 @@ export default function TripPage() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(profileChannel);
+      profileChannel.unsubscribe();
     };
-  }, [trip?.id, profileIdsKey]); // Use stable key!
+  }, [trip?.id, trip?.owner_id, trip?.collaborators]);
 
   // Fetch activity logs when trip changes
   const fetchActivityLogsData = async () => {
     if (!trip?.id) return;
-
+    
     setLoadingActivityLogs(true);
     try {
       const logs = await fetchActivityLogs(trip.id);
@@ -1991,24 +1910,24 @@ export default function TripPage() {
         const timePeriodOrder = { morning: 0, afternoon: 1, evening: 2 };
         const aPeriod = timePeriodOrder[a.time_period] ?? 3;
         const bPeriod = timePeriodOrder[b.time_period] ?? 3;
-
+        
         if (aPeriod !== bPeriod) {
           return aPeriod - bPeriod;
         }
-
+        
         return a.order_index - b.order_index;
       });
   };
 
   const getActivitiesForDayGroupedByTime = (dayNumber: number) => {
     const dayActivities = activities.filter(activity => activity.day_number === dayNumber);
-
+    
     const grouped = {
       morning: dayActivities.filter(a => a.time_period === 'morning').sort((a, b) => a.order_index - b.order_index),
       afternoon: dayActivities.filter(a => a.time_period === 'afternoon').sort((a, b) => a.order_index - b.order_index),
       evening: dayActivities.filter(a => a.time_period === 'evening').sort((a, b) => a.order_index - b.order_index)
     };
-
+    
     return grouped;
   };
 
@@ -2038,7 +1957,7 @@ export default function TripPage() {
   const selectAllActivitiesForDay = () => {
     const dayActivities = getActivitiesForDay(activeDay);
     const allSelected = dayActivities.every(activity => selectedActivities.has(activity.id));
-
+    
     if (allSelected) {
       // Deselect all activities for this day
       const newSelected = new Set(selectedActivities);
@@ -2091,7 +2010,7 @@ export default function TripPage() {
           });
           setSelectedActivities(new Set());
           setIsMultiSelectMode(false);
-
+          
           toast.success(`Successfully deleted ${activityIds.length} activities`);
         })(),
         timeoutPromise
@@ -2134,15 +2053,15 @@ export default function TripPage() {
       if (typeof over.id === 'string' && !over.id.startsWith('day-') && !over.id.startsWith('time-') && !over.id.startsWith('insert-')) {
         const activityToMove = activities.find(activity => activity.id === active.id);
         const targetActivity = activities.find(activity => activity.id === over.id);
-
+        
         if (!activityToMove || !targetActivity) {
           throw new Error('Activity not found');
         }
 
         // Check if both activities are in the same day and time period
-        if (activityToMove.day_number === targetActivity.day_number &&
-          activityToMove.time_period === targetActivity.time_period) {
-
+        if (activityToMove.day_number === targetActivity.day_number && 
+            activityToMove.time_period === targetActivity.time_period) {
+          
           // Get all activities in the same time period
           const timePeriodActivities = activities
             .filter(a => a.day_number === activityToMove.day_number && a.time_period === activityToMove.time_period)
@@ -2182,7 +2101,7 @@ export default function TripPage() {
       if (typeof over.id === 'string' && over.id.startsWith('day-')) {
         const targetDay = parseInt(over.id.replace('day-', ''));
         const activityToMove = activities.find(activity => activity.id === active.id);
-
+        
         if (!activityToMove) {
           throw new Error('Activity not found');
         }
@@ -2199,7 +2118,7 @@ export default function TripPage() {
           const response = await fetch('/api/activities/reorder', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            body: JSON.stringify({ 
               activities: [{
                 id: activityToMove.id,
                 order_index: newOrderIndex,
@@ -2219,7 +2138,7 @@ export default function TripPage() {
         const [, targetDayStr, targetTimePeriod] = over.id.split('-');
         const targetDay = parseInt(targetDayStr);
         const activityToMove = activities.find(activity => activity.id === active.id);
-
+        
         if (!activityToMove) {
           throw new Error('Activity not found');
         }
@@ -2228,13 +2147,13 @@ export default function TripPage() {
         const targetTimeActivities = activities
           .filter(a => a.day_number === targetDay && a.time_period === targetTimePeriod)
           .sort((a, b) => a.order_index - b.order_index);
-
+        
         const newOrderIndex = targetTimeActivities.length + 1;
 
         const response = await fetch('/api/activities/reorder', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          body: JSON.stringify({ 
             activities: [{
               id: activityToMove.id,
               order_index: newOrderIndex,
@@ -2256,7 +2175,7 @@ export default function TripPage() {
         const targetDay = parseInt(targetDayStr);
         const insertIndex = parseInt(insertIndexStr);
         const activityToMove = activities.find(activity => activity.id === active.id);
-
+        
         if (!activityToMove) {
           throw new Error('Activity not found');
         }
@@ -2281,7 +2200,7 @@ export default function TripPage() {
 
         // Update order indices for activities that come after the insertion point
         const activitiesToUpdate = [];
-
+        
         // Add the moved activity
         activitiesToUpdate.push({
           id: activityToMove.id,
@@ -2318,7 +2237,7 @@ export default function TripPage() {
         // Same-day reorder
         const dayActivities = getActivitiesForDay(activeDay);
         const oldIndex = dayActivities.findIndex(activity => activity.id === active.id);
-
+        
         if (oldIndex === -1) {
           return;
         }
@@ -2372,7 +2291,7 @@ export default function TripPage() {
 
     expensesList.forEach(expense => {
       totalExpenses += expense.amount;
-
+      
       if (expense.paid_by === user.id) {
         userPaid += expense.amount;
       }
@@ -2431,7 +2350,7 @@ export default function TripPage() {
   const handleExpenseUpdated = useCallback(async (expenseData?: { title: string; amount: number; userId: string }) => {
     // Refresh expenses data
     await handleExpenseAdded();
-
+    
     // Log the activity if data is provided
     if (expenseData && trip && user) {
       await ActivityLogger.expenseEdited(trip.id, user.id, expenseData.title, expenseData.amount);
@@ -2441,7 +2360,7 @@ export default function TripPage() {
   const handleDeleteExpense = async (expenseId: string) => {
     const expense = expenses.find(e => e.id === expenseId);
     const expenseTitle = expense?.description || 'this expense';
-
+    
     showConfirmation(
       'Delete Expense',
       `Are you sure you want to delete "${expenseTitle}"? This action cannot be undone.`,
@@ -2470,7 +2389,7 @@ export default function TripPage() {
               }
 
               toast.success('Expense deleted successfully');
-
+              
               // Refresh expenses (non-blocking)
               handleExpenseAdded().catch(err => {
                 console.error('Error refreshing expenses:', err);
@@ -2578,21 +2497,21 @@ export default function TripPage() {
 
   const fetchWeatherData = useCallback(async (destination: string, startDate: string, endDate: string) => {
     if (!destination || !startDate || !endDate) return;
-
+    
     // Create a unique key for this weather fetch to prevent duplicate requests
     const weatherKey = `${destination}-${startDate}-${endDate}`;
     if (weatherFetchRef.current === weatherKey) {
       return; // Already fetched this exact weather data
     }
-
+    
     weatherFetchRef.current = weatherKey;
     setLoadingWeather(true);
-
+    
     try {
       const response = await fetch(
         `/api/weather?destination=${encodeURIComponent(destination)}&startDate=${startDate}&endDate=${endDate}`
       );
-
+      
       if (response.ok) {
         const data = await response.json();
         setWeatherData(data.weather || []);
@@ -2645,7 +2564,7 @@ export default function TripPage() {
   const handleIdeaUpdated = useCallback(async (ideaData?: { title: string }) => {
     // Refresh ideas data
     await handleIdeaAdded();
-
+    
     // Log the activity if data is provided
     if (ideaData && trip && user) {
       await ActivityLogger.ideaEdited(trip.id, user.id, ideaData.title);
@@ -2658,7 +2577,7 @@ export default function TripPage() {
     try {
       // Check if user already voted
       const existingVote = ideaVotes.find(vote => vote.idea_id === ideaId && vote.user_id === user.id);
-
+      
       if (existingVote) {
         if (existingVote.vote_type === voteType) {
           // Remove vote if clicking same vote type
@@ -2666,9 +2585,9 @@ export default function TripPage() {
             .from('idea_votes')
             .delete()
             .eq('id', existingVote.id);
-
+          
           if (error) throw error;
-
+          
           // Update vote counts in ideas table
           const idea = ideas.find(i => i.id === ideaId);
           if (idea) {
@@ -2679,7 +2598,7 @@ export default function TripPage() {
                 downvotes: voteType === 'downvote' ? idea.downvotes - 1 : idea.downvotes
               })
               .eq('id', ideaId);
-
+            
             if (updateError) throw updateError;
           }
         } else {
@@ -2688,9 +2607,9 @@ export default function TripPage() {
             .from('idea_votes')
             .update({ vote_type: voteType })
             .eq('id', existingVote.id);
-
+          
           if (error) throw error;
-
+          
           // Update vote counts in ideas table
           const idea = ideas.find(i => i.id === ideaId);
           if (idea) {
@@ -2701,7 +2620,7 @@ export default function TripPage() {
                 downvotes: voteType === 'downvote' ? idea.downvotes + 1 : idea.downvotes - 1
               })
               .eq('id', ideaId);
-
+            
             if (updateError) throw updateError;
           }
         }
@@ -2714,9 +2633,9 @@ export default function TripPage() {
             user_id: user.id,
             vote_type: voteType
           });
-
+        
         if (error) throw error;
-
+        
         // Update vote counts in ideas table
         const idea = ideas.find(i => i.id === ideaId);
         if (idea) {
@@ -2727,11 +2646,11 @@ export default function TripPage() {
               downvotes: voteType === 'downvote' ? idea.downvotes + 1 : idea.downvotes
             })
             .eq('id', ideaId);
-
+          
           if (updateError) throw updateError;
         }
       }
-
+      
       // Refresh ideas and votes to get updated counts
       await handleIdeaAdded();
     } catch (error: unknown) {
@@ -2754,8 +2673,8 @@ export default function TripPage() {
         if (user && !participantIds.includes(user.id)) {
           participantIds.push(user.id);
         }
-
-
+        
+        
         const { data: profilesData, error } = await supabase
           .from('profiles')
           .select('id, name, avatar_url')
@@ -2873,9 +2792,9 @@ export default function TripPage() {
             (async () => {
               const { error } = await supabase
                 .from('trips')
-                .update({
+                .update({ 
                   completed: false,
-                  archived: false
+                  archived: false 
                 })
                 .eq('id', trip?.id);
 
@@ -3081,7 +3000,7 @@ export default function TripPage() {
               }
 
               toast.success('Idea deleted successfully!');
-
+              
               // Refresh ideas (non-blocking)
               handleIdeaAdded().catch(err => {
                 console.error('Error refreshing ideas:', err);
@@ -3103,7 +3022,7 @@ export default function TripPage() {
   const getUnpaidSettlements = () => {
     const calculatedSettlements = calculateSettlements();
     return calculatedSettlements.filter(calculatedSettlement => {
-      return !settlements.some(settlement =>
+      return !settlements.some(settlement => 
         settlement.from_user_id === calculatedSettlement.fromId &&
         settlement.to_user_id === calculatedSettlement.toId &&
         Math.abs(settlement.amount - calculatedSettlement.amount) < 0.01 // Allow for small floating point differences
@@ -3232,15 +3151,15 @@ export default function TripPage() {
     // Capture trip and participants at the start to avoid stale closures
     const currentTrip = trip;
     const currentParticipants = participants;
-
+    
     if (!currentTrip) return;
 
     setGeneratingRecommendations(true);
 
     try {
       // Use selected interests if provided, otherwise use trip interests
-      const interestsToUse = browseInterests && browseInterests.length > 0
-        ? browseInterests
+      const interestsToUse = browseInterests && browseInterests.length > 0 
+        ? browseInterests 
         : (currentTrip.interests || []);
 
       const tripData = {
@@ -3250,11 +3169,11 @@ export default function TripPage() {
         numberOfParticipants: currentParticipants.length,
         startDate: currentTrip.start_date,
       };
-
+      
       // Use real API with timeout handling
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout (just under Vercel's limit)
-
+      
       try {
         const response = await fetch('/api/enhanced-recommendations', {
           method: 'POST',
@@ -3275,12 +3194,12 @@ export default function TripPage() {
         const data = await response.json();
         const newRecommendations = data.recommendations || [];
         setRecommendations(newRecommendations);
-
+        
         // Save to cache - use captured trip ID to avoid stale closure
         if (currentTrip?.id) {
           saveRecommendationsToCache(currentTrip.id, newRecommendations);
         }
-
+        
         toast.success('Recommendations generated successfully!');
       } finally {
         clearTimeout(timeoutId);
@@ -3317,11 +3236,11 @@ export default function TripPage() {
         startDate: trip.start_date,
         excludePlaceIds
       };
-
+      
       // Use real API with timeout handling
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout
-
+      
       try {
         const response = await fetch('/api/enhanced-recommendations', {
           method: 'POST',
@@ -3340,16 +3259,16 @@ export default function TripPage() {
         }
 
         const data = await response.json();
-
+        
         // Append new recommendations to existing ones
         setRecommendations(prev => {
           const updated = [...prev, ...data.recommendations];
-
+          
           // Save to cache
           if (trip?.id) {
             saveRecommendationsToCache(trip.id, updated);
           }
-
+          
           return updated;
         });
         toast.success(`Added ${data.recommendations.length} more recommendations!`);
@@ -3495,12 +3414,12 @@ export default function TripPage() {
   const moveRecommendationToIdeas = async (recommendation: TripRecommendation) => {
     // Guard against double-triggering - check first before any async operations
     if (movingRecommendationIds.has(recommendation.id)) return;
-
+    
     // Capture values at start to avoid stale closures
     const currentUser = user;
     const currentTripId = trip?.id;
     const tripId = params.id;
-
+    
     // Ensure user is available BEFORE adding to moving set to avoid stuck state
     if (!currentUser) {
       toast.error('Your session seems to have expired. Please refresh and sign in again to add ideas.');
@@ -3509,12 +3428,11 @@ export default function TripPage() {
 
     // Add to moving set after validation
     setMovingRecommendationIds(prev => new Set(prev).add(recommendation.id));
-
+    
     try {
       const mappedTag = mapActivityTypeToTag(recommendation.activity_type);
-
-      // Use Promise.race to enforce a timeout on the insert operation
-      const insertPromise = supabase
+      
+      const { error } = await supabase
         .from('ideas')
         .insert([
           {
@@ -3529,39 +3447,36 @@ export default function TripPage() {
             tags: [mappedTag],
             added_by: currentUser.id
           }
-        ])
-        .select()
-        .single();
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out')), 15000)
-      );
-
-      const { data: newIdea, error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+        ]);
 
       if (error) throw error;
 
-      // Optimistically update ideas state with the returned new idea
-      // This avoids a separate fetch call which might be getting blocked
-      if (newIdea) {
-        setIdeas(prev => {
-          const exists = prev.some(i => i.id === newIdea.id);
-          return exists ? prev : [newIdea, ...prev];
-        });
+      // Refresh ideas data
+      const { data: ideasData, error: ideasError } = await supabase
+        .from('ideas')
+        .select('*')
+        .eq('trip_id', tripId)
+        .order('created_at', { ascending: false });
+
+      if (!ideasError) {
+        const uniqueIdeas = (ideasData || []).filter((idea, index, self) =>
+          self.findIndex(i => i.id === idea.id) === index
+        );
+        setIdeas(uniqueIdeas);
       }
 
       // Remove from recommendations
       setRecommendations(prev => {
         const updated = prev.filter(rec => rec.id !== recommendation.id);
-
+        
         // Save to cache - use captured trip ID to avoid stale closure
         if (currentTripId) {
           saveRecommendationsToCache(currentTripId, updated);
         }
-
+        
         return updated;
       });
-
+      
       // Show success toast
       toast.success(`"${recommendation.title}" added to Ideas!`);
     } catch (error: unknown) {
@@ -3594,10 +3509,10 @@ export default function TripPage() {
     expenses.forEach(expense => {
       const splitWith = expense.split_with;
       const splitAmounts = expense.split_amounts || {};
-
+      
       // Add to paid by person
       balances[expense.paid_by] += expense.amount;
-
+      
       // Determine how to split the expense
       if (splitWith === 'everyone') {
         // Split equally among all participants
@@ -3647,12 +3562,12 @@ export default function TripPage() {
     debtors.sort((a, b) => b.amount - a.amount);
 
     // Generate optimized settlements
-    const settlements: {
-      fromId: string;
-      fromName: string;
-      toId: string;
-      toName: string;
-      amount: number
+    const settlements: { 
+      fromId: string; 
+      fromName: string; 
+      toId: string; 
+      toName: string; 
+      amount: number 
     }[] = [];
 
     let creditorIndex = 0;
@@ -3663,7 +3578,7 @@ export default function TripPage() {
       const debtor = debtors[debtorIndex];
 
       const settlementAmount = Math.min(creditor.amount, debtor.amount);
-
+      
       settlements.push({
         fromId: debtor.id,
         fromName: debtor.name,
@@ -3694,7 +3609,7 @@ export default function TripPage() {
   const handleActivityUpdated = useCallback(async (activityData?: { title: string; dayNumber: number }) => {
     // Refresh activities data
     await handleActivityAdded();
-
+    
     // Log the activity if data is provided
     if (activityData && trip && user) {
       await ActivityLogger.activityEdited(trip.id, user.id, activityData.title, activityData.dayNumber);
@@ -3704,7 +3619,7 @@ export default function TripPage() {
   const handleDeleteActivity = async (activityId: string) => {
     const activity = activities.find(a => a.id === activityId);
     const activityTitle = activity?.title || 'this activity';
-
+    
     showConfirmation(
       'Delete Activity',
       `Are you sure you want to delete "${activityTitle}"? This action cannot be undone.`,
@@ -3770,7 +3685,7 @@ export default function TripPage() {
           }
 
           toast.success('Activity deleted successfully!');
-
+          
           // Refresh activities (non-blocking)
           handleActivityAdded().catch(err => {
             console.error('Error refreshing activities:', err);
@@ -3786,17 +3701,17 @@ export default function TripPage() {
     );
   };
 
-  const deleteActivityFiles = async (attachments: (string | { url: string, customName: string })[]) => {
+  const deleteActivityFiles = async (attachments: (string | {url: string, customName: string})[]) => {
     try {
       for (const attachment of attachments) {
         // Handle both old format (string) and new format (object)
         const fileUrl = typeof attachment === 'string' ? attachment : attachment.url;
-
+        
         // Extract file path from URL
         const url = new URL(fileUrl);
         const pathParts = url.pathname.split('/');
         const filePath = pathParts.slice(-2).join('/'); // trip-attachments/activity-id/filename
-
+        
         const { error } = await supabase.storage
           .from('trip-files')
           .remove([filePath]);
@@ -3813,10 +3728,10 @@ export default function TripPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
     });
   };
 
@@ -3827,11 +3742,11 @@ export default function TripPage() {
 
   const generateDays = () => {
     if (!trip?.start_date || !trip?.end_date) return [];
-
+    
     const startDate = new Date(trip.start_date);
     const endDate = new Date(trip.end_date);
     const days = [];
-
+    
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dayNumber: number = days.length + 1;
       days.push({
@@ -3840,7 +3755,7 @@ export default function TripPage() {
         activities: getActivityCountForDay(dayNumber)
       });
     }
-
+    
     return days;
   };
 
@@ -3890,7 +3805,6 @@ export default function TripPage() {
 
         {/* Back Button and API Toggle */}
         <div className="pt-20 pb-4">
-          <DebugPanel />
           <div className="max-w-[1400px] mx-auto px-4 flex items-center justify-between">
             <button
               onClick={() => router.push('/dashboard')}
@@ -3899,7 +3813,7 @@ export default function TripPage() {
               <ArrowLeft className="w-4 h-4" />
               Back to trip selection
             </button>
-
+            
           </div>
         </div>
 
@@ -3927,10 +3841,10 @@ export default function TripPage() {
                   >
                     <MoreVertical className="w-4 h-4 text-gray-600 hover:text-gray-800 cursor-pointer" />
                   </button>
-
+                  
                   {showTripActionsMenu && typeof window !== 'undefined' && createPortal(
-                    <div
-                      className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[180px] z-[9999] max-h-[400px] overflow-y-auto"
+                    <div 
+                      className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[180px] z-[9999] max-h-[400px] overflow-y-auto" 
                       data-trip-menu
                       style={{
                         top: `${dropdownPosition.top}px`,
@@ -3963,10 +3877,10 @@ export default function TripPage() {
                       </button>
                       {/* Show different options based on trip status */}
                       {trip?.completed || trip?.archived ? (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                             handleActivateTrip();
                             setShowTripActionsMenu(false);
                           }}
@@ -3981,26 +3895,26 @@ export default function TripPage() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              handleCompleteTrip();
-                              setShowTripActionsMenu(false);
-                            }}
+                          handleCompleteTrip();
+                          setShowTripActionsMenu(false);
+                        }}
                             className="cursor-pointer w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                          >
-                            <CheckCircle className="w-4 h-4" />
+                      >
+                        <CheckCircle className="w-4 h-4" />
                             Mark Complete
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleArchiveTrip();
-                              setShowTripActionsMenu(false);
-                            }}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleArchiveTrip();
+                          setShowTripActionsMenu(false);
+                        }}
                             className="cursor-pointer w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                          >
-                            <Archive className="w-4 h-4" />
-                            Archive Trip
-                          </button>
+                      >
+                        <Archive className="w-4 h-4" />
+                        Archive Trip
+                      </button>
                         </>
                       )}
                       <hr className="my-1" />
@@ -4068,7 +3982,7 @@ export default function TripPage() {
                 className="hidden"
               />
 
-              <TripImageHeader
+              <TripImageHeader 
                 tripId={trip.id}
                 destination={trip.destination || ''}
                 tripImageUrl={trip.trip_image_url}
@@ -4099,7 +4013,7 @@ export default function TripPage() {
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 drop-shadow-sm" />
                     <span className="text-sm drop-shadow-sm">
-                      {trip.start_date && trip.end_date
+                      {trip.start_date && trip.end_date 
                         ? `${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`
                         : 'No dates set'
                       }
@@ -4118,7 +4032,7 @@ export default function TripPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-dark">Group Interests</h3>
-                <button
+                <button 
                   onClick={() => {
                     setShowUpdateInterestsModal(true);
                   }}
@@ -4151,7 +4065,7 @@ export default function TripPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-dark">Participants</h3>
-                <button
+                <button 
                   onClick={() => {
                     setShowInviteCollaboratorsModal(true);
                   }}
@@ -4164,7 +4078,7 @@ export default function TripPage() {
                 {/* Show trip owner as creator */}
                 {(() => {
                   const tripOwner = participants.find(p => p.id === trip.owner_id);
-
+                  
                   // If no trip owner found in participants, show a fallback
                   if (!tripOwner && participants.length === 0) {
                     return (
@@ -4177,20 +4091,21 @@ export default function TripPage() {
                       </div>
                     );
                   }
-
+                  
                   const isOnline = tripOwner ? onlineUsers.some(u => u.id === tripOwner.id) : false;
-
+                  
                   return (
                     <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="relative">
-                        <Avatar
-                          name={tripOwner?.name || 'Unknown'}
-                          imageUrl={tripOwner?.avatar_url}
-                          size="md"
-                          onClick={() => tripOwner && setSelectedUserId(tripOwner.id)}
-                        />
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'
-                          }`}></div>
+                      <Avatar 
+                        name={tripOwner?.name || 'Unknown'} 
+                        imageUrl={tripOwner?.avatar_url}
+                        size="md"
+                        onClick={() => tripOwner && setSelectedUserId(tripOwner.id)}
+                      />
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                          isOnline ? 'bg-green-500' : 'bg-gray-400'
+                        }`}></div>
                       </div>
                       <span className="text-sm text-gray-700 font-medium">
                         {tripOwner?.name || 'Trip Owner'}
@@ -4203,18 +4118,19 @@ export default function TripPage() {
                   trip.collaborators.map((collaboratorId, index) => {
                     const collaborator = participants.find(p => p.id === collaboratorId);
                     const isOnline = onlineUsers.some(u => u.id === collaboratorId);
-
+                    
                     return (
                       <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                         <div className="relative">
-                          <Avatar
-                            name={collaborator?.name || 'Unknown'}
-                            imageUrl={collaborator?.avatar_url}
-                            size="md"
-                            onClick={() => setSelectedUserId(collaboratorId)}
-                          />
-                          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'
-                            }`}></div>
+                        <Avatar 
+                          name={collaborator?.name || 'Unknown'} 
+                          imageUrl={collaborator?.avatar_url}
+                          size="md"
+                          onClick={() => setSelectedUserId(collaboratorId)}
+                        />
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                            isOnline ? 'bg-green-500' : 'bg-gray-400'
+                          }`}></div>
                         </div>
                         <span className="text-sm text-gray-700 font-medium">
                           {collaborator?.name || 'Unknown User'}
@@ -4231,7 +4147,7 @@ export default function TripPage() {
                                   try {
                                     const current = Array.isArray(trip.collaborators) ? trip.collaborators : [];
                                     const updated = current.filter((id: string) => id !== collaboratorId);
-
+                                    
                                     // Update trip collaborators
                                     const { error } = await supabase
                                       .from('trips')
@@ -4253,7 +4169,7 @@ export default function TripPage() {
                                           collaboratorId: collaboratorId
                                         })
                                       });
-
+                                      
                                       if (!response.ok) {
                                         console.warn('Failed to clean up invitation records');
                                       }
@@ -4301,16 +4217,17 @@ export default function TripPage() {
               {['Itinerary', 'Idea Board', 'Recommendations', 'Expenses', 'Gallery', 'Recent Activities'].map((tab) => {
                 const tabKey = tab.toLowerCase().replace(/\s+/g, '');
                 const usersInTab = onlineUsers.filter(u => u.currentTab === tabKey && u.id !== user?.id);
-
+                
                 return (
-                  <button
-                    key={tab}
+                <button
+                  key={tab}
                     onClick={() => setActiveTab(tabKey)}
-                    className={`cursor-pointer relative px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === tabKey
+                    className={`cursor-pointer relative px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${
+                      activeTab === tabKey
                       ? 'bg-[#ff5a58] text-white'
                       : 'text-gray-600 hover:text-dark'
-                      }`}
-                  >
+                  }`}
+                >
                     <span>{tab}</span>
                     {usersInTab.length > 0 && (
                       <div className="flex -space-x-1">
@@ -4332,14 +4249,15 @@ export default function TripPage() {
                           );
                         })}
                         {usersInTab.length > 3 && (
-                          <div className={`w-5 h-5 rounded-full border-2 ${activeTab === tabKey ? 'border-white' : 'border-gray-100'
-                            } bg-gray-400 flex items-center justify-center text-xs font-medium text-white`}>
+                          <div className={`w-5 h-5 rounded-full border-2 ${
+                            activeTab === tabKey ? 'border-white' : 'border-gray-100'
+                          } bg-gray-400 flex items-center justify-center text-xs font-medium text-white`}>
                             +{usersInTab.length - 3}
                           </div>
                         )}
                       </div>
                     )}
-                  </button>
+                </button>
                 );
               })}
             </div>
@@ -4350,8 +4268,8 @@ export default function TripPage() {
         <div className="max-w-[1400px] mx-auto px-4 pb-8 relative" data-main-content>
           {/* Live Cursors - show based on tab and day context */}
           {user && (
-            <RealtimeCursors
-              roomName={activeTab === 'itinerary'
+            <RealtimeCursors 
+              roomName={activeTab === 'itinerary' 
                 ? `cursors:trip:${trip?.id}:tab:${activeTab}:day:${activeDay}`
                 : `cursors:trip:${trip?.id}:tab:${activeTab}`
               }
@@ -4359,9 +4277,9 @@ export default function TripPage() {
               userId={user.id}
             />
           )}
-
+          
           {activeTab === 'itinerary' ? (
-            <TextSelectionAI
+            <TextSelectionAI 
               context="itinerary"
               tripData={trip ? {
                 destination: trip.destination,
@@ -4378,225 +4296,226 @@ export default function TripPage() {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
               >
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-                  {/* Left Sidebar - Days */}
-                  <div className="lg:col-span-1">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-lg font-bold text-dark">Days</h3>
-                        {loadingWeather && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>Loading weather...</span>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 mb-4">Select a day to view itinerary</p>
-                      <div className="space-y-2">
-                        {days.map((day, index) => (
-                          <DroppableDay
-                            key={index}
-                            day={day}
-                            isActive={activeDay === day.day}
-                            onDayClick={setActiveDay}
-                            formatDate={formatDate}
-                            onUserClick={(userId) => setSelectedUserId(userId)}
-                            weather={getWeatherForDay(day.day)}
-                            getWeatherIconComponent={getWeatherIconComponent}
-                            onlineUsers={onlineUsers}
-                            currentUserId={user?.id}
-                            participants={participants}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Main Content Area */}
-                  <div className="lg:col-span-3">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center gap-2 items-center justify-center">
-                          <Calendar className="w-5 h-5 text-[#ff5a58]" />
-                          <h2 className="text-xl font-bold text-[#ff5a58]">
-                            Day {activeDay}
-                            {currentDay && (
-                              <span className="text-sm text-gray-500 ml-2">
-                                {getDayName(currentDay.date.toISOString())}, {formatDate(currentDay.date.toISOString())}
-                              </span>
-                            )}
-                          </h2>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+                {/* Left Sidebar - Days */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-bold text-dark">Days</h3>
+                      {loadingWeather && (
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Loading weather...</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {/* Multi-select controls */}
-                          {getActivitiesForDay(activeDay).length > 0 && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setIsMultiSelectMode(!isMultiSelectMode);
-                                  if (isMultiSelectMode) {
-                                    setSelectedActivities(new Set());
-                                  }
-                                }}
-                                className={`cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${isMultiSelectMode
-                                  ? 'bg-[#0B486B] text-white hover:bg-[#093751]'
+                      )}
+                    </div>
+                  <p className="text-sm text-gray-500 mb-4">Select a day to view itinerary</p>
+                  <div className="space-y-2">
+                    {days.map((day, index) => (
+                      <DroppableDay
+                        key={index}
+                        day={day}
+                        isActive={activeDay === day.day}
+                        onDayClick={setActiveDay}
+                        formatDate={formatDate}
+                        onUserClick={(userId) => setSelectedUserId(userId)}
+                        weather={getWeatherForDay(day.day)}
+                        getWeatherIconComponent={getWeatherIconComponent}
+                        onlineUsers={onlineUsers}
+                        currentUserId={user?.id}
+                        participants={participants}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+            {/* Main Content Area */}
+            <div className="lg:col-span-3">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex justify-between items-center mb-6">
+                      <div className="flex items-center gap-2 items-center justify-center">
+                        <Calendar className="w-5 h-5 text-[#ff5a58]" />
+                        <h2 className="text-xl font-bold text-[#ff5a58]">
+                          Day {activeDay}
+                          {currentDay && (
+                            <span className="text-sm text-gray-500 ml-2">
+                              {getDayName(currentDay.date.toISOString())}, {formatDate(currentDay.date.toISOString())}
+                            </span>
+                          )}
+                        </h2>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {/* Multi-select controls */}
+                        {getActivitiesForDay(activeDay).length > 0 && (
+                          <>
+                      <button 
+                              onClick={() => {
+                                setIsMultiSelectMode(!isMultiSelectMode);
+                                if (isMultiSelectMode) {
+                                  setSelectedActivities(new Set());
+                                }
+                              }}
+                              className={`cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                                isMultiSelectMode 
+                                  ? 'bg-[#0B486B] text-white hover:bg-[#093751]' 
                                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                  }`}
-                              >
-                                {isMultiSelectMode ? (
-                                  <>
-                                    <Square className="w-4 h-4" />
-                                    Cancel
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="w-4 h-4" />
-                                    Select
-                                  </>
-                                )}
-                              </button>
-
-                              {isMultiSelectMode && (
+                              }`}
+                            >
+                              {isMultiSelectMode ? (
                                 <>
-                                  <button
-                                    onClick={selectAllActivitiesForDay}
-                                    className="cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
-                                  >
-                                    {getActivitiesForDay(activeDay).every(activity => selectedActivities.has(activity.id)) ? 'Deselect All' : 'Select All'}
-                                  </button>
-
-                                  {selectedActivities.size > 0 && (
-                                    <button
-                                      onClick={() => {
-                                        handleBulkDelete();
-                                      }}
-                                      type="button"
-                                      className="cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                      Delete ({selectedActivities.size})
-                                    </button>
-                                  )}
+                                  <Square className="w-4 h-4" />
+                                  Cancel
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-4 h-4" />
+                                  Select
                                 </>
                               )}
-                            </>
-                          )}
-
-                          <button
-                            onClick={async () => {
-                              if (!trip?.id) return;
-                              const shareableUrl = `${window.location.origin}/trip/view/${trip.id}`;
-                              try {
-                                await navigator.clipboard.writeText(shareableUrl);
-                                toast.success('Shareable link copied to clipboard!');
-                              } catch (error) {
-                                // Fallback for older browsers
-                                const textArea = document.createElement('textarea');
-                                textArea.value = shareableUrl;
-                                document.body.appendChild(textArea);
-                                textArea.select();
-                                try {
-                                  document.execCommand('copy');
-                                  toast.success('Shareable link copied to clipboard!');
-                                } catch (err) {
-                                  toast.error('Failed to copy link');
-                                }
-                                document.body.removeChild(textArea);
-                              }
-                            }}
-                            className="cursor-pointer border border-[#ff5a58] text-[#ff5a58] hover:bg-[#ff5a58] hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            Share Itinerary
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowAddActivityModal(true);
-                            }}
-                            type="button"
-                            className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Add Activities
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        {isReordering && (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader2 className="w-5 h-5 animate-spin text-blue-600 mr-2" />
-                            <span className="text-sm text-gray-600">Updating activity order...</span>
-                          </div>
-                        )}
-                        {getActivitiesForDay(activeDay).length > 0 ? (
-                          <>
-                            <SortableContext
-                              items={getActivitiesForDay(activeDay).map(activity => activity.id)}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {(() => {
-                                const groupedActivities = getActivitiesForDayGroupedByTime(activeDay);
-                                const timePeriods = [
-                                  { key: 'morning', label: 'Morning', icon: '' },
-                                  { key: 'afternoon', label: 'Afternoon', icon: '' },
-                                  { key: 'evening', label: 'Evening', icon: '' }
-                                ];
-
-                                return timePeriods.map((period) => {
-                                  const periodActivities = groupedActivities[period.key as keyof typeof groupedActivities];
-
-                                  return (
-                                    <TimePeriodSection
-                                      key={period.key}
-                                      period={period}
-                                      periodActivities={periodActivities}
-                                      activeDay={activeDay}
-                                      dragOverId={dragOverId}
-                                      activeId={activeId}
-                                      selectedActivities={selectedActivities}
-                                      toggleActivitySelection={toggleActivitySelection}
-                                      handleEditActivity={handleEditActivity}
-                                      handleDeleteActivity={handleDeleteActivity}
-                                      getTypeColor={getTypeColor}
-                                      isMultiSelectMode={isMultiSelectMode}
-                                      onAskAI={handleDestinationAskAI}
-                                    />
-                                  );
-                                });
-                              })()}
-                            </SortableContext>
+                      </button>
+                            
+                            {isMultiSelectMode && (
+                              <>
+                                <button 
+                                  onClick={selectAllActivitiesForDay}
+                                  className="cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
+                                >
+                                  {getActivitiesForDay(activeDay).every(activity => selectedActivities.has(activity.id)) ? 'Deselect All' : 'Select All'}
+                                </button>
+                                
+                                {selectedActivities.size > 0 && (
+                                <button 
+                                    onClick={() => {
+                                      handleBulkDelete();
+                                    }}
+                                    type="button"
+                                    className="cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                    Delete ({selectedActivities.size})
+                                </button>
+                                )}
+                              </>
+                            )}
                           </>
-                        ) : (
-                          <div className="text-center py-12">
-                            <h3 className="text-lg font-medium text-dark mb-2">No activities yet</h3>
-                            <p className="text-form mb-6">Add your first activity to start planning your day!</p>
-                          </div>
                         )}
+                        
+                        <button 
+                          onClick={async () => {
+                            if (!trip?.id) return;
+                            const shareableUrl = `${window.location.origin}/trip/view/${trip.id}`;
+                            try {
+                              await navigator.clipboard.writeText(shareableUrl);
+                              toast.success('Shareable link copied to clipboard!');
+                            } catch (error) {
+                              // Fallback for older browsers
+                              const textArea = document.createElement('textarea');
+                              textArea.value = shareableUrl;
+                              document.body.appendChild(textArea);
+                              textArea.select();
+                              try {
+                                document.execCommand('copy');
+                                toast.success('Shareable link copied to clipboard!');
+                              } catch (err) {
+                                toast.error('Failed to copy link');
+                              }
+                              document.body.removeChild(textArea);
+                            }
+                          }}
+                          className="cursor-pointer border border-[#ff5a58] text-[#ff5a58] hover:bg-[#ff5a58] hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Share Itinerary
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setShowAddActivityModal(true);
+                          }}
+                          type="button"
+                          className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Activities
+                        </button>
                       </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {isReordering && (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="w-5 h-5 animate-spin text-blue-600 mr-2" />
+                          <span className="text-sm text-gray-600">Updating activity order...</span>
+                              </div>
+                            )}
+                      {getActivitiesForDay(activeDay).length > 0 ? (
+                        <>
+                          <SortableContext
+                            items={getActivitiesForDay(activeDay).map(activity => activity.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {(() => {
+                              const groupedActivities = getActivitiesForDayGroupedByTime(activeDay);
+                              const timePeriods = [
+                                { key: 'morning', label: 'Morning', icon: '' },
+                                { key: 'afternoon', label: 'Afternoon', icon: '' },
+                                { key: 'evening', label: 'Evening', icon: '' }
+                              ];
+                              
+                              return timePeriods.map((period) => {
+                                const periodActivities = groupedActivities[period.key as keyof typeof groupedActivities];
+                                  
+                                  return (
+                                  <TimePeriodSection
+                                    key={period.key}
+                                    period={period}
+                                    periodActivities={periodActivities}
+                                    activeDay={activeDay}
+                                    dragOverId={dragOverId}
+                                    activeId={activeId}
+                                    selectedActivities={selectedActivities}
+                                    toggleActivitySelection={toggleActivitySelection}
+                                    handleEditActivity={handleEditActivity}
+                                    handleDeleteActivity={handleDeleteActivity}
+                                    getTypeColor={getTypeColor}
+                                    isMultiSelectMode={isMultiSelectMode}
+                                    onAskAI={handleDestinationAskAI}
+                                  />
+                                );
+                              });
+                            })()}
+                          </SortableContext>
+                        </>
+                      ) : (
+                        <div className="text-center py-12">
+                          <h3 className="text-lg font-medium text-dark mb-2">No activities yet</h3>
+                          <p className="text-form mb-6">Add your first activity to start planning your day!</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-                <DragOverlay>
-                  {activeId ? (
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-lg opacity-90 transform rotate-3">
-                      <div className="flex items-center gap-3">
-                        <GripVertical className="w-4 h-4 text-gray-400 cursor-pointer" />
-                        <span className="font-semibold text-dark">
-                          {activities.find(a => a.id === activeId)?.title}
-                        </span>
-                      </div>
+              </div>
+              <DragOverlay>
+                {activeId ? (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-lg opacity-90 transform rotate-3">
+                    <div className="flex items-center gap-3">
+                      <GripVertical className="w-4 h-4 text-gray-400 cursor-pointer" />
+                      <span className="font-semibold text-dark">
+                        {activities.find(a => a.id === activeId)?.title}
+                      </span>
                     </div>
-                  ) : null}
-                </DragOverlay>
+                  </div>
+                ) : null}
+              </DragOverlay>
               </DndContext>
             </TextSelectionAI>
           ) : (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-1">
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  {activeTab === 'ideaboard' && (
-                    <TextSelectionAI
+                {activeTab === 'ideaboard' && (
+                    <TextSelectionAI 
                       context="ideas"
                       tripData={trip ? {
                         destination: trip.destination,
@@ -4607,441 +4526,80 @@ export default function TripPage() {
                       } : undefined}
                     >
                       <div className="flex justify-between items-center mb-6">
-                        <div>
-                          <h2 className="text-2xl font-bold text-dark">Collaborate on Trip Ideas and Vote on Activities</h2>
-                          <p className="text-gray-600 mt-1">Share inspiration and decide what to do together</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setShowAddIdeaModal(true);
-                            }}
-                            type="button"
-                            className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Add Idea
-                          </button>
-                        </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-dark">Collaborate on Trip Ideas and Vote on Activities</h2>
+                        <p className="text-gray-600 mt-1">Share inspiration and decide what to do together</p>
                       </div>
+                        <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setShowAddIdeaModal(true);
+                        }}
+                        type="button"
+                        className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                            Add Idea
+                      </button>
+                        </div>
+                    </div>
 
-                      {/* Category Filter */}
+                    {/* Category Filter */}
                       <div className="flex gap-2 flex-wrap mb-6">
-                        <button
-                          onClick={() => setSelectedCategory('all')}
-                          className={`cursor-pointer px-4 py-2 rounded-full text-sm font-medium transition-colors ${selectedCategory === 'all'
+                      <button
+                        onClick={() => setSelectedCategory('all')}
+                        className={`cursor-pointer px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          selectedCategory === 'all'
                             ? 'bg-red-500 text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          style={{
-                            backgroundColor: selectedCategory === 'all' ? '#ef4444' : '#f3f4f6',
+                        }`}
+                        style={{ 
+                          backgroundColor: selectedCategory === 'all' ? '#ef4444' : '#f3f4f6',
+                          border: 'none',
+                          outline: 'none'
+                        }}
+                      >
+                        All
+                      </button>
+                      {['food', 'transportation', 'accommodation', 'activity', 'shopping', 'nature', 'history', 'culture', 'other'].map((category) => (
+                        <button
+                          key={category}
+                          onClick={() => setSelectedCategory(category)}
+                          className={`cursor-pointer px-4 py-2 rounded-full text-sm font-medium transition-colors capitalize ${
+                            selectedCategory === category
+                              ? 'bg-red-500 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                          style={{ 
+                            backgroundColor: selectedCategory === category ? '#ef4444' : '#f3f4f6',
                             border: 'none',
                             outline: 'none'
                           }}
                         >
-                          All
+                          {category}
                         </button>
-                        {['food', 'transportation', 'accommodation', 'activity', 'shopping', 'nature', 'history', 'culture', 'other'].map((category) => (
-                          <button
-                            key={category}
-                            onClick={() => setSelectedCategory(category)}
-                            className={`cursor-pointer px-4 py-2 rounded-full text-sm font-medium transition-colors capitalize ${selectedCategory === category
-                              ? 'bg-red-500 text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                              }`}
-                            style={{
-                              backgroundColor: selectedCategory === category ? '#ef4444' : '#f3f4f6',
-                              border: 'none',
-                              outline: 'none'
-                            }}
-                          >
-                            {category}
-                          </button>
-                        ))}
-                      </div>
+                      ))}
+                    </div>
 
-                      {/* Ideas Grid */}
-                      <div className="grid gap-6">
-                        {ideas
-                          .filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory))
-                          .map((idea) => {
-                            const addedByParticipant = participants.find(p => p.id === idea.added_by);
-                            const userVote = ideaVotes.find(vote => vote.idea_id === idea.id && vote.user_id === user?.id);
-                            const ideaCommentsList = ideaComments.filter(comment => comment.idea_id === idea.id);
+                    {/* Ideas Grid */}
+                    <div className="grid gap-6">
+                      {ideas
+                        .filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory))
+                        .map((idea) => {
+                          const addedByParticipant = participants.find(p => p.id === idea.added_by);
+                          const userVote = ideaVotes.find(vote => vote.idea_id === idea.id && vote.user_id === user?.id);
+                          const ideaCommentsList = ideaComments.filter(comment => comment.idea_id === idea.id);
 
-                            return (
-                              <div key={idea.id} className="border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
-                                <div className="flex px-4 py-2 items-center">
-                                  {/* Image - Only show if there's an image */}
-                                  {idea.link_image && (
-                                    <div className="w-32 h-32 bg-gray-100 flex-shrink-0">
-                                      <img
-                                        src={idea.link_image}
-                                        alt={idea.title}
-                                        className="w-full h-full object-cover rounded-xl"
-                                      />
-                                    </div>
-                                  )}
-
-                                  {/* Content */}
-                                  <div className="flex-1 p-4">
-                                    <div className="flex items-start justify-between mb-2">
-                                      <div className="flex-1">
-                                        <LocationTooltip
-                                          locationText={idea.title}
-                                          onAskAI={() => handleDestinationAskAI(idea.title)}
-                                        >
-                                          <h3 className="text-lg font-semibold text-dark mb-1 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{idea.title}</h3>
-                                        </LocationTooltip>
-
-                                        {/* Tags */}
-                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                          {idea.tags.map((tag) => (
-                                            <span key={tag} className={`px-2 py-1 rounded-full text-xs font-medium ${tag === 'food' ? 'bg-green-100 text-green-800' :
-                                              tag === 'transportation' ? 'bg-blue-100 text-blue-800' :
-                                                tag === 'accommodation' ? 'bg-purple-100 text-purple-800' :
-                                                  tag === 'activity' ? 'bg-green-100 text-green-800' :
-                                                    tag === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                                      tag === 'nature' ? 'bg-emerald-100 text-emerald-800' :
-                                                        tag === 'history' ? 'bg-amber-100 text-amber-800' :
-                                                          tag === 'culture' ? 'bg-indigo-100 text-indigo-800' :
-                                                            tag === 'other' ? 'bg-gray-100 text-gray-800' :
-                                                              'bg-gray-100 text-dark-medium'
-                                              }`}>
-                                              {tag.charAt(0).toUpperCase() + tag.slice(1)}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      {/* Action Button */}
-                                      <div className="ml-4">
-                                        <Popover>
-                                          <PopoverTrigger asChild>
-                                            <button
-                                              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                              title="More options"
-                                            >
-                                              <MoreVertical className="w-4 h-4 cursor-pointer" />
-                                            </button>
-                                          </PopoverTrigger>
-                                          <PopoverContent className="w-48 p-2" align="end">
-                                            <div className="space-y-1">
-                                              <button
-                                                onClick={() => handleEditIdea(idea)}
-                                                className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                                              >
-                                                <Edit className="w-4 h-4" />
-                                                Edit Idea
-                                              </button>
-                                              <button
-                                                onClick={() => handleDeleteIdea(idea.id)}
-                                                className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                              >
-                                                <Trash2 className="w-4 h-4" />
-                                                Delete Idea
-                                              </button>
-                                            </div>
-                                          </PopoverContent>
-                                        </Popover>
-                                      </div>
-                                    </div>
-
-                                    {/* Description - Full width underneath */}
-                                    <div className="w-full mb-3">
-                                      {idea.description && (
-                                        <p className="text-gray-600 text-sm">{idea.description}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Enhanced Details */}
-                                <div className="px-4 pb-4">
-                                  <div className="space-y-2">
-                                    {/* Location */}
-                                    {idea.location && (
-                                      <div className="flex items-center gap-1 text-sm text-gray-500" data-location={idea.location}>
-                                        <MapPin className="w-4 h-4" />
-                                        <span>{idea.location}</span>
-                                      </div>
-                                    )}
-
-                                    {/* Link Preview */}
-                                    {idea.link_url && (
-                                      <>
-                                        <div className="flex items-center gap-1 text-sm">
-                                          <ExternalLink className="w-4 h-4 text-gray-400" />
-                                          <a
-                                            href={idea.link_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:text-blue-800 hover:underline"
-                                          >
-                                            {idea.link_title || idea.link_url}
-                                          </a>
-                                        </div>
-                                        {idea.link_description && (
-                                          <div className="text-sm text-gray-500">
-                                            {idea.link_description}
-                                          </div>
-                                        )}
-                                      </>
-                                    )}
-
-                                    {/* Voting and Actions */}
-                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between pt-2 gap-3 md:gap-0">
-                                      {/* Voting, comment */}
-                                      <div className="flex items-center gap-4">
-                                        <button
-                                          onClick={() => handleVoteIdea(idea.id, 'upvote')}
-                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${userVote?.vote_type === 'upvote'
-                                            ? 'bg-[#ff5a58] text-white cursor-pointer'
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
-                                            }`}
-                                        >
-                                          <img
-                                            src={userVote?.vote_type === 'upvote' ? '/assets/bone.svg' : '/assets/bone-plain.svg'}
-                                            alt="Like"
-                                            className="w-4 h-4"
-                                            style={userVote?.vote_type === 'upvote' ? {
-                                              filter: 'brightness(0) invert(1)'
-                                            } : {
-                                              filter: 'brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%)'
-                                            }}
-                                          />
-                                          <span className={`text-sm font-medium ${userVote?.vote_type === 'upvote' ? 'text-white' : ''}`}>
-                                            {idea.upvotes}
-                                          </span>
-                                        </button>
-                                        <button
-                                          onClick={() => handleVoteIdea(idea.id, 'downvote')}
-                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${userVote?.vote_type === 'downvote'
-                                            ? 'bg-[#ff5a58] text-white cursor-pointer'
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
-                                            }`}
-                                        >
-                                          <img
-                                            src={userVote?.vote_type === 'downvote' ? '/assets/bone-crack.svg' : '/assets/bone-broken-plain.svg'}
-                                            alt="Dislike"
-                                            className="w-4 h-4"
-                                            style={userVote?.vote_type === 'downvote' ? {
-                                              filter: 'brightness(0) invert(1)'
-                                            } : {
-                                              filter: 'brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%)'
-                                            }}
-                                          />
-                                          <span className={`text-sm font-medium ${userVote?.vote_type === 'downvote' ? 'text-white' : ''}`}>
-                                            {idea.downvotes}
-                                          </span>
-                                        </button>
-                                        <div className="flex items-center gap-1 text-sm text-gray-500">
-                                          <MessageCircle className="w-4 h-4" />
-                                          <button
-                                            onClick={() => handleToggleComments(idea.id)}
-                                            className="hover:text-gray-700 transition-colors"
-                                          >
-                                            {ideaCommentsList.length}
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      {/* 
-                                      Row for "Move to Itinerary" and Added By (placement swaps responsively)
-                                      
-                                      On small screens:
-                                        - Move to Itinerary becomes its own row (w-full, mb-2)
-                                        - Added By avatar aligns right, at end of card
-                                    */}
-                                      {/* Second row: Move to Itinerary + Added By.
-                                        - On small screens: this whole block is a new row under the votes,
-                                          with button and avatar side-by-side.
-                                        - On md+ screens: layout matches previous inline behavior. */}
-                                      <div className="flex flex-row items-center justify-between md:justify-start gap-3 w-full md:w-auto">
-                                        {/* Move to Itinerary is its own row on mobile, inline on desktop */}
-                                        <button
-                                          onClick={(e) => {
-                                            e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
-                                            try {
-                                              handleMoveToItinerary(idea);
-                                            } catch (err) {
-                                              console.error('Unhandled error in handleMoveToItinerary:', err);
-                                              toast.error('Failed to open move dialog. Please try again.');
-                                            }
-                                          }}
-                                          className="order-2 md:order-1 cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 
-                                          w-auto mb-0"
-                                        >
-                                          <Plus className="w-3 h-3" />
-                                          Move to Itinerary
-                                        </button>
-
-                                        {/* Added By - right aligned on mobile, inline on desktop */}
-                                        <div className="order-1 md:order-2 flex items-center gap-2 text-sm text-gray-500 md:ml-2 justify-end md:justify-start w-auto">
-                                          <span className="text-xs">Added By:</span>
-                                          <Avatar
-                                            name={addedByParticipant?.name || 'Unknown'}
-                                            imageUrl={addedByParticipant?.avatar_url}
-                                            size="sm"
-                                            onClick={() => addedByParticipant && setSelectedUserId(addedByParticipant.id)}
-                                          />
-                                          <span>{addedByParticipant?.name || 'Unknown'}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Comments Section Below Card */}
-                                {expandedComments.has(idea.id) && (
-                                  <div className="border-t bg-gray-50 p-4">
-                                    {/* Comments List */}
-                                    <div className="space-y-3 mb-4">
-                                      {ideaCommentsList.length === 0 ? (
-                                        <p className="text-sm text-form text-center py-2">No comments yet. Be the first to comment!</p>
-                                      ) : (
-                                        ideaCommentsList.map((comment) => {
-                                          const commenter = participants.find(p => p.id === comment.user_id);
-                                          const isOwnComment = user?.id === comment.user_id;
-
-                                          return (
-                                            <div key={comment.id} className="flex gap-3">
-                                              <Avatar
-                                                name={commenter?.name || 'Unknown'}
-                                                imageUrl={commenter?.avatar_url}
-                                                size="sm"
-                                                className="flex-shrink-0"
-                                                onClick={() => commenter && setSelectedUserId(commenter.id)}
-                                              />
-                                              <div className="flex-1">
-                                                <div className="bg-white rounded-lg p-3 shadow-sm">
-                                                  <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-medium text-sm text-dark">
-                                                      {commenter?.name || 'Unknown'}
-                                                    </span>
-                                                    <span className="text-xs text-gray-500">
-                                                      {new Date(comment.created_at).toLocaleDateString()}
-                                                    </span>
-                                                  </div>
-                                                  <p className="text-sm text-gray-700">{comment.content}</p>
-                                                </div>
-                                                {isOwnComment && (
-                                                  <button
-                                                    onClick={() => handleDeleteComment(comment.id)}
-                                                    className="text-xs text-red-600 hover:text-red-800 mt-1"
-                                                  >
-                                                    Delete
-                                                  </button>
-                                                )}
-                                              </div>
-                                            </div>
-                                          );
-                                        })
-                                      )}
-                                    </div>
-
-                                    {/* Add Comment */}
-                                    <div className="flex gap-3">
-                                      <Avatar
-                                        name={user?.email || 'Unknown'}
-                                        imageUrl={participants.find(p => p.id === user?.id)?.avatar_url}
-                                        size="sm"
-                                        className="flex-shrink-0"
-                                        onClick={() => user?.id && setSelectedUserId(user.id)}
-                                      />
-                                      <div className="flex-1">
-                                        <textarea
-                                          value={newCommentText[idea.id] || ''}
-                                          onChange={(e) => setNewCommentText(prev => ({ ...prev, [idea.id]: e.target.value }))}
-                                          placeholder="Write a comment..."
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent resize-none text-sm"
-                                          rows={2}
-                                        />
-                                      </div>
-                                      <button
-                                        onClick={() => handleAddComment(idea.id)}
-                                        disabled={!newCommentText[idea.id]?.trim()}
-                                        className="px-3 max-h-[40px] bg-[#ff5a58] text-white rounded-lg hover:bg-[#ff4a47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
-                                      >
-                                        Send
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                      </div>
-
-                      {/* Empty State */}
-                      {ideas.filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory)).length === 0 && (
-                        <div className="text-center py-12">
-                          <h3 className="text-lg font-medium text-dark mb-2">No ideas yet</h3>
-                          <p className="text-form mb-6">
-                            {selectedCategory === 'all'
-                              ? 'Start adding ideas to collaborate on your trip!'
-                              : `No ${selectedCategory} ideas yet. Add some inspiration!`
-                            }
-                          </p>
-                        </div>
-                      )}
-                    </TextSelectionAI>
-                  )}
-
-                  {activeTab === 'recommendations' && (
-                    <div className="space-y-6">
-                      {/* Header */}
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div>
-                          <h2 className="text-2xl font-bold text-dark">AI Trip Recommendations</h2>
-                          <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
-                            generateRecommendations().catch(err => {
-                              console.error('Unhandled error in generateRecommendations:', err);
-                            });
-                          }}
-                          disabled={generatingRecommendations}
-                          className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white text-sm px-6 py-3 rounded-lg font-medium transition-all duration-200 transform disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2 self-end md:self-auto"
-                        >
-                          {generatingRecommendations ? (
-                            <>
-                              <Loader2 className="w-5 h-5 animate-spin" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              Generate Recommendations
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Loading State */}
-                      {generatingRecommendations && (
-                        <div className="text-center py-12">
-                          <Loader2 className="w-8 h-8 animate-spin text-[#ff5a58] mx-auto mb-4" />
-                          <p className="text-gray-600">Generating personalized recommendations...</p>
-                          <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
-                        </div>
-                      )}
-
-                      {/* Recommendations Grid */}
-                      {!generatingRecommendations && recommendations.length > 0 && (
-                        <div className="grid gap-6">
-                          {recommendations.map((recommendation) => (
-                            <div key={recommendation.id} className="border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
+                          return (
+                            <div key={idea.id} className="border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
                               <div className="flex px-4 py-2 items-center">
                                 {/* Image - Only show if there's an image */}
-                                {recommendation.image_url && (
+                                {idea.link_image && (
                                   <div className="w-32 h-32 bg-gray-100 flex-shrink-0">
-                                    <img
-                                      src={recommendation.image_url}
-                                      alt={recommendation.title}
+                                    <img 
+                                      src={idea.link_image} 
+                                      alt={idea.title}
                                       className="w-full h-full object-cover rounded-xl"
-                                      loading="lazy"
                                     />
                                   </div>
                                 )}
@@ -5050,76 +4608,72 @@ export default function TripPage() {
                                 <div className="flex-1 p-4">
                                   <div className="flex items-start justify-between mb-2">
                                     <div className="flex-1">
-                                      <LocationTooltip
-                                        locationText={recommendation.title}
-                                        onAskAI={() => handleDestinationAskAI(recommendation.title)}
-                                      >
-                                        <h3 className="text-lg font-semibold text-dark mb-1 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{recommendation.title}</h3>
-                                      </LocationTooltip>
-
-                                      {/* Activity Type Badge and Rating */}
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          {recommendation.activity_type.split(',').map((type, index) => (
-                                            <span key={index} className={`px-2 py-1 rounded-full text-xs font-medium ${type.trim() === 'transportation' ? 'bg-blue-100 text-blue-800' :
-                                              type.trim() === 'accommodation' ? 'bg-purple-100 text-purple-800' :
-                                                type.trim() === 'activity' ? 'bg-green-100 text-green-800' :
-                                                  type.trim() === 'food' ? 'bg-orange-100 text-orange-800' :
-                                                    type.trim() === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                                      type.trim() === 'nature' ? 'bg-emerald-100 text-emerald-800' :
-                                                        type.trim() === 'history' ? 'bg-amber-100 text-amber-800' :
-                                                          type.trim() === 'culture' ? 'bg-indigo-100 text-indigo-800' :
-                                                            'bg-gray-100 text-gray-800'
-                                              }`}>
-                                              {type.trim().charAt(0).toUpperCase() + type.trim().slice(1)}
-                                            </span>
-                                          ))}
-                                        </div>
-
-                                        {/* Google Places Rating - Clickable */}
-                                        {recommendation.rating && (
-                                          <a
-                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(recommendation.title + ' ' + recommendation.location)}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
-                                            title="View all reviews on Google Maps"
-                                          >
-                                            <Star className="w-3 h-3 text-yellow-500" />
-                                            <span className="text-sm font-medium text-gray-700">
-                                              {recommendation.rating.toFixed(1)}
-                                            </span>
-                                            {recommendation.user_ratings_total && (
-                                              <span className="text-xs text-gray-500">
-                                                ({recommendation.user_ratings_total.toLocaleString()} reviews)
-                                              </span>
-                                            )}
-                                            <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
-                                          </a>
-                                        )}
+                                        <LocationTooltip 
+                                          locationText={idea.title} 
+                                          onAskAI={() => handleDestinationAskAI(idea.title)}
+                                        >
+                                          <h3 className="text-lg font-semibold text-dark mb-1 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{idea.title}</h3>
+                                        </LocationTooltip>
+                                      
+                                      {/* Tags */}
+                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                        {idea.tags.map((tag) => (
+                                          <span key={tag} className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            tag === 'food' ? 'bg-green-100 text-green-800' :
+                                            tag === 'transportation' ? 'bg-blue-100 text-blue-800' :
+                                            tag === 'accommodation' ? 'bg-purple-100 text-purple-800' :
+                                            tag === 'activity' ? 'bg-green-100 text-green-800' :
+                                            tag === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                            tag === 'nature' ? 'bg-emerald-100 text-emerald-800' :
+                                            tag === 'history' ? 'bg-amber-100 text-amber-800' :
+                                            tag === 'culture' ? 'bg-indigo-100 text-indigo-800' :
+                                            tag === 'other' ? 'bg-gray-100 text-gray-800' :
+                                            'bg-gray-100 text-dark-medium'
+                                          }`}>
+                                            {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                                          </span>
+                                        ))}
                                       </div>
                                     </div>
 
                                     {/* Action Button */}
                                     <div className="ml-4">
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
-                                          moveRecommendationToIdeas(recommendation).catch(err => {
-                                            console.error('Unhandled error in moveRecommendationToIdeas:', err);
-                                          });
-                                        }}
-                                        className="cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                      >
-                                        <Plus className="w-4 h-4 cursor-pointer" />
-                                        Add to Ideas
-                                      </button>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button
+                                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                            title="More options"
+                                          >
+                                            <MoreVertical className="w-4 h-4 cursor-pointer" />
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-48 p-2" align="end">
+                                          <div className="space-y-1">
+                                            <button
+                                              onClick={() => handleEditIdea(idea)}
+                                              className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                                            >
+                                              <Edit className="w-4 h-4" />
+                                              Edit Idea
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteIdea(idea.id)}
+                                              className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                              Delete Idea
+                                            </button>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
                                     </div>
                                   </div>
 
                                   {/* Description - Full width underneath */}
-                                  <div className="w-full">
-                                    <p className="text-gray-600 text-sm">{recommendation.description}</p>
+                                  <div className="w-full mb-3">
+                                    {idea.description && (
+                                      <p className="text-gray-600 text-sm">{idea.description}</p>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -5128,134 +4682,504 @@ export default function TripPage() {
                               <div className="px-4 pb-4">
                                 <div className="space-y-2">
                                   {/* Location */}
-                                  <div className="flex items-center gap-1 text-sm text-gray-500" data-location={recommendation.location}>
-                                    <MapPin className="w-4 h-4" />
-                                    <span>{recommendation.location}</span>
-                                  </div>
-
-                                  {/* Time and Opening Hours */}
-                                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs">Estimated Time:</span>
-                                      <span>{recommendation.estimated_time}</span>
+                                  {idea.location && (
+                                    <div className="flex items-center gap-1 text-sm text-gray-500" data-location={idea.location}>
+                                      <MapPin className="w-4 h-4" />
+                                      <span>{idea.location}</span>
                                     </div>
+                                  )}
 
-                                    {/* Opening Hours */}
-                                    {recommendation.opening_hours && recommendation.opening_hours.length > 0 && (
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-xs">Opening Hours:</span>
-                                        <span className="text-xs">
-                                          {recommendation.opening_hours[0]}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Contact Info */}
-                                  <div className="flex items-center gap-4 text-sm">
-                                    {/* Learn More Link */}
-                                    <div className="flex items-center gap-1">
-                                      <ExternalLink className="w-4 h-4 text-gray-400" />
-                                      <a
-                                        href={recommendation.relevant_link}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-blue-600 hover:text-blue-800 hover:underline"
-                                      >
-                                        Learn More
-                                      </a>
-                                    </div>
-
-                                    {/* Phone Number */}
-                                    {recommendation.phone_number && (
-                                      <div className="flex items-center gap-1">
-                                        <Phone className="w-4 h-4 text-gray-400" />
-                                        <a
-                                          href={`tel:${recommendation.phone_number}`}
-                                          className="text-green-600 hover:text-green-800 hover:underline"
+                                  {/* Link Preview */}
+                                  {idea.link_url && (
+                                    <>
+                                      <div className="flex items-center gap-1 text-sm">
+                                        <ExternalLink className="w-4 h-4 text-gray-400" />
+                                        <a 
+                                          href={idea.link_url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:text-blue-800 hover:underline"
                                         >
-                                          {recommendation.phone_number}
+                                          {idea.link_title || idea.link_url}
                                         </a>
                                       </div>
+                                      {idea.link_description && (
+                                        <div className="text-sm text-gray-500">
+                                          {idea.link_description}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+
+                                  {/* Voting and Actions */}
+                                  <div className="flex flex-col md:flex-row md:items-center md:justify-between pt-2 gap-3 md:gap-0">
+                                    {/* Voting, comment */}
+                                    <div className="flex items-center gap-4">
+                                      <button
+                                        onClick={() => handleVoteIdea(idea.id, 'upvote')}
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                                          userVote?.vote_type === 'upvote'
+                                            ? 'bg-[#ff5a58] text-white cursor-pointer'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
+                                        }`}
+                                      >
+                                        <img 
+                                          src={userVote?.vote_type === 'upvote' ? '/assets/bone.svg' : '/assets/bone-plain.svg'} 
+                                          alt="Like" 
+                                          className="w-4 h-4"
+                                          style={userVote?.vote_type === 'upvote' ? {
+                                            filter: 'brightness(0) invert(1)'
+                                          } : {
+                                            filter: 'brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%)'
+                                          }}
+                                        />
+                                        <span className={`text-sm font-medium ${userVote?.vote_type === 'upvote' ? 'text-white' : ''}`}>
+                                          {idea.upvotes}
+                                        </span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleVoteIdea(idea.id, 'downvote')}
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                                          userVote?.vote_type === 'downvote'
+                                            ? 'bg-[#ff5a58] text-white cursor-pointer'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer'
+                                        }`}
+                                      >
+                                        <img 
+                                          src={userVote?.vote_type === 'downvote' ? '/assets/bone-crack.svg' : '/assets/bone-broken-plain.svg'} 
+                                          alt="Dislike" 
+                                          className="w-4 h-4"
+                                          style={userVote?.vote_type === 'downvote' ? {
+                                            filter: 'brightness(0) invert(1)'
+                                          } : {
+                                            filter: 'brightness(0) saturate(100%) invert(40%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%)'
+                                          }}
+                                        />
+                                        <span className={`text-sm font-medium ${userVote?.vote_type === 'downvote' ? 'text-white' : ''}`}>
+                                          {idea.downvotes}
+                                        </span>
+                                      </button>
+                                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                                        <MessageCircle className="w-4 h-4" />
+                                        <button
+                                          onClick={() => handleToggleComments(idea.id)}
+                                          className="hover:text-gray-700 transition-colors"
+                                        >
+                                          {ideaCommentsList.length}
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* 
+                                      Row for "Move to Itinerary" and Added By (placement swaps responsively)
+                                      
+                                      On small screens:
+                                        - Move to Itinerary becomes its own row (w-full, mb-2)
+                                        - Added By avatar aligns right, at end of card
+                                    */}
+                                    {/* Second row: Move to Itinerary + Added By.
+                                        - On small screens: this whole block is a new row under the votes,
+                                          with button and avatar side-by-side.
+                                        - On md+ screens: layout matches previous inline behavior. */}
+                                    <div className="flex flex-row items-center justify-between md:justify-start gap-3 w-full md:w-auto">
+                                      {/* Move to Itinerary is its own row on mobile, inline on desktop */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
+                                          try {
+                                            handleMoveToItinerary(idea);
+                                          } catch (err) {
+                                            console.error('Unhandled error in handleMoveToItinerary:', err);
+                                            toast.error('Failed to open move dialog. Please try again.');
+                                          }
+                                        }}
+                                        className="order-2 md:order-1 cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 
+                                          w-auto mb-0"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        Move to Itinerary
+                                      </button>
+                                      
+                                      {/* Added By - right aligned on mobile, inline on desktop */}
+                                      <div className="order-1 md:order-2 flex items-center gap-2 text-sm text-gray-500 md:ml-2 justify-end md:justify-start w-auto">
+                                        <span className="text-xs">Added By:</span>
+                                        <Avatar 
+                                          name={addedByParticipant?.name || 'Unknown'} 
+                                          imageUrl={addedByParticipant?.avatar_url}
+                                          size="sm"
+                                          onClick={() => addedByParticipant && setSelectedUserId(addedByParticipant.id)}
+                                        />
+                                        <span>{addedByParticipant?.name || 'Unknown'}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Comments Section Below Card */}
+                              {expandedComments.has(idea.id) && (
+                                <div className="border-t bg-gray-50 p-4">
+                                  {/* Comments List */}
+                                  <div className="space-y-3 mb-4">
+                                    {ideaCommentsList.length === 0 ? (
+                                      <p className="text-sm text-form text-center py-2">No comments yet. Be the first to comment!</p>
+                                    ) : (
+                                      ideaCommentsList.map((comment) => {
+                                        const commenter = participants.find(p => p.id === comment.user_id);
+                                        const isOwnComment = user?.id === comment.user_id;
+
+                                        return (
+                                          <div key={comment.id} className="flex gap-3">
+                                            <Avatar 
+                                              name={commenter?.name || 'Unknown'} 
+                                              imageUrl={commenter?.avatar_url}
+                                              size="sm"
+                                              className="flex-shrink-0"
+                                              onClick={() => commenter && setSelectedUserId(commenter.id)}
+                                            />
+                                            <div className="flex-1">
+                                              <div className="bg-white rounded-lg p-3 shadow-sm">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                  <span className="font-medium text-sm text-dark">
+                                                    {commenter?.name || 'Unknown'}
+                                                  </span>
+                                                  <span className="text-xs text-gray-500">
+                                                    {new Date(comment.created_at).toLocaleDateString()}
+                                                  </span>
+                                                </div>
+                                                <p className="text-sm text-gray-700">{comment.content}</p>
+                                              </div>
+                                              {isOwnComment && (
+                                                <button
+                                                  onClick={() => handleDeleteComment(comment.id)}
+                                                  className="text-xs text-red-600 hover:text-red-800 mt-1"
+                                                >
+                                                  Delete
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })
                                     )}
+                                  </div>
+
+                                  {/* Add Comment */}
+                                  <div className="flex gap-3">
+                                    <Avatar 
+                                      name={user?.email || 'Unknown'} 
+                                      imageUrl={participants.find(p => p.id === user?.id)?.avatar_url}
+                                      size="sm"
+                                      className="flex-shrink-0"
+                                      onClick={() => user?.id && setSelectedUserId(user.id)}
+                                    />
+                                    <div className="flex-1">
+                                      <textarea
+                                        value={newCommentText[idea.id] || ''}
+                                        onChange={(e) => setNewCommentText(prev => ({ ...prev, [idea.id]: e.target.value }))}
+                                        placeholder="Write a comment..."
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff5a58] focus:border-transparent resize-none text-sm"
+                                        rows={2}
+                                      />
+                                    </div>
+                                    <button
+                                      onClick={() => handleAddComment(idea.id)}
+                                      disabled={!newCommentText[idea.id]?.trim()}
+                                      className="px-3 max-h-[40px] bg-[#ff5a58] text-white rounded-lg hover:bg-[#ff4a47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
+                                    >
+                                      Send
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+
+                    {/* Empty State */}
+                    {ideas.filter(idea => selectedCategory === 'all' || idea.tags.includes(selectedCategory)).length === 0 && (
+                      <div className="text-center py-12">
+                        <h3 className="text-lg font-medium text-dark mb-2">No ideas yet</h3>
+                        <p className="text-form mb-6">
+                          {selectedCategory === 'all' 
+                            ? 'Start adding ideas to collaborate on your trip!'
+                            : `No ${selectedCategory} ideas yet. Add some inspiration!`
+                          }
+                        </p>
+                      </div>
+                    )}
+                    </TextSelectionAI>
+                )}
+
+                {activeTab === 'recommendations' && (
+                  <div className="space-y-6">
+                    {/* Header */}
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <h2 className="text-2xl font-bold text-dark">AI Trip Recommendations</h2>
+                        <p className="text-gray-600 mt-1">Get personalized suggestions based on your trip details</p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
+                          generateRecommendations().catch(err => {
+                            console.error('Unhandled error in generateRecommendations:', err);
+                          });
+                        }}
+                        disabled={generatingRecommendations}
+                        className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white text-sm px-6 py-3 rounded-lg font-medium transition-all duration-200 transform disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2 self-end md:self-auto"
+                      >
+                        {generatingRecommendations ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            Generate Recommendations
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Loading State */}
+                    {generatingRecommendations && (
+                  <div className="text-center py-12">
+                        <Loader2 className="w-8 h-8 animate-spin text-[#ff5a58] mx-auto mb-4" />
+                        <p className="text-gray-600">Generating personalized recommendations...</p>
+                        <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
+                    </div>
+                    )}
+
+                    {/* Recommendations Grid */}
+                    {!generatingRecommendations && recommendations.length > 0 && (
+                      <div className="grid gap-6">
+                        {recommendations.map((recommendation) => (
+                            <div key={recommendation.id} className="border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
+                            <div className="flex px-4 py-2 items-center">
+                              {/* Image - Only show if there's an image */}
+                              {recommendation.image_url && (
+                                <div className="w-32 h-32 bg-gray-100 flex-shrink-0">
+                                  <img 
+                                    src={recommendation.image_url} 
+                                    alt={recommendation.title}
+                                    className="w-full h-full object-cover rounded-xl"
+                                  />
+                                </div>
+                              )}
+
+                              {/* Content */}
+                              <div className="flex-1 p-4">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
+                                      <LocationTooltip 
+                                        locationText={recommendation.title} 
+                                        onAskAI={() => handleDestinationAskAI(recommendation.title)}
+                                      >
+                                        <h3 className="text-lg font-semibold text-dark mb-1 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted decoration-transparent hover:decoration-blue-600">{recommendation.title}</h3>
+                                      </LocationTooltip>
+                                    
+                                    {/* Activity Type Badge and Rating */}
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        {recommendation.activity_type.split(',').map((type, index) => (
+                                          <span key={index} className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            type.trim() === 'transportation' ? 'bg-blue-100 text-blue-800' :
+                                            type.trim() === 'accommodation' ? 'bg-purple-100 text-purple-800' :
+                                            type.trim() === 'activity' ? 'bg-green-100 text-green-800' :
+                                            type.trim() === 'food' ? 'bg-orange-100 text-orange-800' :
+                                            type.trim() === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                            type.trim() === 'nature' ? 'bg-emerald-100 text-emerald-800' :
+                                            type.trim() === 'history' ? 'bg-amber-100 text-amber-800' :
+                                            type.trim() === 'culture' ? 'bg-indigo-100 text-indigo-800' :
+                                            'bg-gray-100 text-gray-800'
+                                          }`}>
+                                            {type.trim().charAt(0).toUpperCase() + type.trim().slice(1)}
+                                          </span>
+                                        ))}
+                                      </div>
+                                      
+                                        {/* Google Places Rating - Clickable */}
+                                      {recommendation.rating && (
+                                          <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(recommendation.title + ' ' + recommendation.location)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                                            title="View all reviews on Google Maps"
+                                          >
+                                          <Star className="w-3 h-3 text-yellow-500" />
+                                          <span className="text-sm font-medium text-gray-700">
+                                            {recommendation.rating.toFixed(1)}
+                                          </span>
+                                          {recommendation.user_ratings_total && (
+                                            <span className="text-xs text-gray-500">
+                                              ({recommendation.user_ratings_total.toLocaleString()} reviews)
+                                            </span>
+                                          )}
+                                            <ExternalLink className="w-3 h-3 text-gray-400 ml-1" />
+                                          </a>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Action Button */}
+                                  <div className="ml-4">
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault(); // Keep preventDefault to stop form submission if wrapped
+                                        moveRecommendationToIdeas(recommendation).catch(err => {
+                                          console.error('Unhandled error in moveRecommendationToIdeas:', err);
+                                        });
+                                      }}
+                                      className="cursor-pointer bg-[#0B486B] hover:bg-[#093751] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                    >
+                                      <Plus className="w-4 h-4 cursor-pointer" />
+                                      Add to Ideas
+                                    </button>
                                   </div>
                                 </div>
 
-                                {/* Accordion for Additional Details */}
-                                {(recommendation.best_for || recommendation.timing_advice || recommendation.group_suitability || recommendation.practical_tips) && (
-                                  <div className="mt-4 border-t pt-3">
-                                    <button
-                                      onClick={() => {
-                                        const newExpanded = new Set(expandedRecommendations);
-                                        if (newExpanded.has(recommendation.id)) {
-                                          newExpanded.delete(recommendation.id);
-                                        } else {
-                                          newExpanded.add(recommendation.id);
-                                        }
-                                        setExpandedRecommendations(newExpanded);
-                                      }}
-                                      className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors cursor-pointer w-full text-left"
-                                    >
-                                      <span className="font-medium">Additional Details</span>
-                                      <span className={`ml-auto transition-transform ${expandedRecommendations.has(recommendation.id) ? 'rotate-180' : 'rotate-0'}`}>
-                                        ▼
-                                      </span>
-                                    </button>
-
-                                    {expandedRecommendations.has(recommendation.id) && (
-                                      <div className="mt-3 space-y-3">
-                                        {/* Best For */}
-                                        {recommendation.best_for && (
-                                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                            <div className="flex items-start gap-2">
-                                              <span className="text-green-500 text-sm">🎯</span>
-                                              <p className="text-green-800 text-sm font-medium">Best for:</p>
-                                            </div>
-                                            <p className="text-green-700 text-sm mt-1">{recommendation.best_for}</p>
-                                          </div>
-                                        )}
-
-                                        {/* Timing Advice */}
-                                        {recommendation.timing_advice && (
-                                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                            <div className="flex items-start gap-2">
-                                              <span className="text-amber-500 text-sm">⏰</span>
-                                              <p className="text-amber-800 text-sm font-medium">Timing advice:</p>
-                                            </div>
-                                            <p className="text-amber-700 text-sm mt-1">{recommendation.timing_advice}</p>
-                                          </div>
-                                        )}
-
-                                        {/* Group Suitability */}
-                                        {recommendation.group_suitability && (
-                                          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                                            <div className="flex items-start gap-2">
-                                              <span className="text-purple-500 text-sm">👥</span>
-                                              <p className="text-purple-800 text-sm font-medium">Group suitability:</p>
-                                            </div>
-                                            <p className="text-purple-700 text-sm mt-1">{recommendation.group_suitability}</p>
-                                          </div>
-                                        )}
-
-                                        {/* Practical Tips */}
-                                        {recommendation.practical_tips && (
-                                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                                            <div className="flex items-start gap-2">
-                                              <span className="text-gray-500 text-sm">💡</span>
-                                              <p className="text-gray-800 text-sm font-medium">Practical tips:</p>
-                                            </div>
-                                            <p className="text-gray-700 text-sm mt-1">{recommendation.practical_tips}</p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
+                                {/* Description - Full width underneath */}
+                                <div className="w-full">
+                                  <p className="text-gray-600 text-sm">{recommendation.description}</p>
+                                </div>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
+
+                            {/* Enhanced Details */}
+                            <div className="px-4 pb-4">
+                              <div className="space-y-2">
+                                {/* Location */}
+                                <div className="flex items-center gap-1 text-sm text-gray-500" data-location={recommendation.location}>
+                                  <MapPin className="w-4 h-4" />
+                                  <span>{recommendation.location}</span>
+                                </div>
+                                
+                                {/* Time and Opening Hours */}
+                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                  <div className="flex items-center gap-1">
+                                  <span className="text-xs">Estimated Time:</span>
+                                    <span>{recommendation.estimated_time}</span>
+                                  </div>
+                                  
+                                  {/* Opening Hours */}
+                                  {recommendation.opening_hours && recommendation.opening_hours.length > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs">Opening Hours:</span>
+                                      <span className="text-xs">
+                                        {recommendation.opening_hours[0]}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Contact Info */}
+                                <div className="flex items-center gap-4 text-sm">
+                                  {/* Learn More Link */}
+                                  <div className="flex items-center gap-1">
+                                    <ExternalLink className="w-4 h-4 text-gray-400" />
+                                    <a 
+                                      href={recommendation.relevant_link} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      Learn More
+                                    </a>
+                                  </div>
+                                  
+                                  {/* Phone Number */}
+                                  {recommendation.phone_number && (
+                                    <div className="flex items-center gap-1">
+                                      <Phone className="w-4 h-4 text-gray-400" />
+                                      <a 
+                                        href={`tel:${recommendation.phone_number}`}
+                                        className="text-green-600 hover:text-green-800 hover:underline"
+                                      >
+                                        {recommendation.phone_number}
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Accordion for Additional Details */}
+                              {(recommendation.best_for || recommendation.timing_advice || recommendation.group_suitability || recommendation.practical_tips) && (
+                                <div className="mt-4 border-t pt-3">
+                                  <button
+                                    onClick={() => {
+                                      const newExpanded = new Set(expandedRecommendations);
+                                      if (newExpanded.has(recommendation.id)) {
+                                        newExpanded.delete(recommendation.id);
+                                      } else {
+                                        newExpanded.add(recommendation.id);
+                                      }
+                                      setExpandedRecommendations(newExpanded);
+                                    }}
+                                    className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors cursor-pointer w-full text-left"
+                                  >
+                                    <span className="font-medium">Additional Details</span>
+                                    <span className={`ml-auto transition-transform ${expandedRecommendations.has(recommendation.id) ? 'rotate-180' : 'rotate-0'}`}>
+                                      ▼
+                                    </span>
+                                  </button>
+                                  
+                                  {expandedRecommendations.has(recommendation.id) && (
+                                    <div className="mt-3 space-y-3">
+                                      {/* Best For */}
+                                      {recommendation.best_for && (
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                          <div className="flex items-start gap-2">
+                                            <span className="text-green-500 text-sm">🎯</span>
+                                            <p className="text-green-800 text-sm font-medium">Best for:</p>
+                                          </div>
+                                          <p className="text-green-700 text-sm mt-1">{recommendation.best_for}</p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Timing Advice */}
+                                      {recommendation.timing_advice && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                          <div className="flex items-start gap-2">
+                                            <span className="text-amber-500 text-sm">⏰</span>
+                                            <p className="text-amber-800 text-sm font-medium">Timing advice:</p>
+                                          </div>
+                                          <p className="text-amber-700 text-sm mt-1">{recommendation.timing_advice}</p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Group Suitability */}
+                                      {recommendation.group_suitability && (
+                                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                                          <div className="flex items-start gap-2">
+                                            <span className="text-purple-500 text-sm">👥</span>
+                                            <p className="text-purple-800 text-sm font-medium">Group suitability:</p>
+                                          </div>
+                                          <p className="text-purple-700 text-sm mt-1">{recommendation.group_suitability}</p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Practical Tips */}
+                                      {recommendation.practical_tips && (
+                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                          <div className="flex items-start gap-2">
+                                            <span className="text-gray-500 text-sm">💡</span>
+                                            <p className="text-gray-800 text-sm font-medium">Practical tips:</p>
+                                          </div>
+                                          <p className="text-gray-700 text-sm mt-1">{recommendation.practical_tips}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                       {/* Generate More Button */}
                       {!generatingRecommendations && recommendations.length > 0 && (
@@ -5276,172 +5200,275 @@ export default function TripPage() {
                               </>
                             )}
                           </button>
-                        </div>
-                      )}
+                      </div>
+                    )}
 
-                      {/* Empty State */}
-                      {!generatingRecommendations && recommendations.length === 0 && (
-                        <div className="text-center py-12">
-                          <h3 className="text-lg font-semibold text-dark mb-2">No Recommendations Yet</h3>
-                          <p className="text-gray-500 mb-6">Generate AI-powered recommendations to get started!</p>
-                        </div>
-                      )}
+                    {/* Empty State */}
+                    {!generatingRecommendations && recommendations.length === 0 && (
+                      <div className="text-center py-12">
+                        <h3 className="text-lg font-semibold text-dark mb-2">No Recommendations Yet</h3>
+                        <p className="text-gray-500 mb-6">Generate AI-powered recommendations to get started!</p>
+                      </div>
+                    )}
 
-                    </div>
-                  )}
+                  </div>
+                )}
 
-                  {activeTab === 'expenses' && (
-                    <div className="space-y-6">
-                      {/* Expense Summary Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-[800px]">
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-                              <p className="text-2xl font-bold text-dark">${expenseSummary.totalExpenses.toFixed(2)}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-600">You've Paid</p>
-                              <p className="text-2xl font-bold text-dark">${expenseSummary.userPaid.toFixed(2)}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-600">Your Share</p>
-                              <p className="text-2xl font-bold text-dark">${expenseSummary.userShare.toFixed(2)}</p>
-                            </div>
+                {activeTab === 'expenses' && (
+                  <div className="space-y-6">
+                    {/* Expense Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-[800px]">
+                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600">Total Expenses</p>
+                            <p className="text-2xl font-bold text-dark">${expenseSummary.totalExpenses.toFixed(2)}</p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Main Content: Expense History (70%) and Payment Settlement (30%) */}
-                      <div className="flex flex-col lg:flex-row gap-6">
-                        {/* Expense History - 70% width on large screens, full width on smaller */}
-                        <div className="w-full lg:w-[70%]">
-                          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                            <div className="p-6 border-b border-gray-100">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h3 className="text-lg font-semibold text-dark">Expense History</h3>
-                                  <p className="text-sm text-gray-500">{expenses.length} expenses recorded</p>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    setShowAddExpenseModal(true);
-                                  }}
-                                  type="button"
-                                  className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                                >
-                                  Add Expense
-                                  <Plus className="w-4 h-4" />
+                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600">You've Paid</p>
+                            <p className="text-2xl font-bold text-dark">${expenseSummary.userPaid.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </div>
 
-                                </button>
-                              </div>
-                            </div>
+                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600">Your Share</p>
+                            <p className="text-2xl font-bold text-dark">${expenseSummary.userShare.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                            <div className="p-6">
-                              {expenses.length > 0 ? (
-                                <div className="space-y-4">
-                                  {expenses.map((expense) => {
-                                    const paidByParticipant = participants.find(p => p.id === expense.paid_by);
-                                    const addedByParticipant = participants.find(p => p.id === expense.added_by);
-                                    const splitCount = expense.split_with === 'everyone'
-                                      ? participants.length
-                                      : (expense.split_with as string[]).length;
-                                    const shareAmount = expense.amount / splitCount;
-                                    const canEdit = user && (expense.added_by === user.id || trip?.owner_id === user.id);
+                    {/* Main Content: Expense History (70%) and Payment Settlement (30%) */}
+                    <div className="flex flex-col lg:flex-row gap-6">
+                      {/* Expense History - 70% width on large screens, full width on smaller */}
+                      <div className="w-full lg:w-[70%]">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                      <div className="p-6 border-b border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-dark">Expense History</h3>
+                            <p className="text-sm text-gray-500">{expenses.length} expenses recorded</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setShowAddExpenseModal(true);
+                            }}
+                            type="button"
+                            className="cursor-pointer bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                          >
+                            Add Expense
+                            <Plus className="w-4 h-4" />
 
-                                    return (
-                                      <div key={expense.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow relative">
-                                        {/* Dropdown menu - Top right corner */}
-                                        {canEdit && (
-                                          <div className="absolute top-4 right-4">
-                                            <Popover>
-                                              <PopoverTrigger asChild>
-                                                <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-                                                  <MoreVertical className="w-4 h-4" />
-                                                </button>
-                                              </PopoverTrigger>
-                                              <PopoverContent className="w-48 p-1" align="end">
-                                                <div className="space-y-1">
-                                                  <button
-                                                    onClick={() => handleEditExpense(expense)}
-                                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                                                  >
-                                                    <Edit className="w-4 h-4" />
-                                                    Edit Expense
-                                                  </button>
-                                                  <button
-                                                    onClick={() => handleDeleteExpense(expense.id)}
-                                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                                  >
-                                                    <Trash2 className="w-4 h-4" />
-                                                    Delete Expense
-                                                  </button>
-                                                </div>
-                                              </PopoverContent>
-                                            </Popover>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-6">
+                        {expenses.length > 0 ? (
+                          <div className="space-y-4">
+                            {expenses.map((expense) => {
+                              const paidByParticipant = participants.find(p => p.id === expense.paid_by);
+                                const addedByParticipant = participants.find(p => p.id === expense.added_by);
+                              const splitCount = expense.split_with === 'everyone' 
+                                ? participants.length 
+                                : (expense.split_with as string[]).length;
+                              const shareAmount = expense.amount / splitCount;
+                                const canEdit = user && (expense.added_by === user.id || trip?.owner_id === user.id);
+
+                              return (
+                                <div key={expense.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow relative">
+                                  {/* Dropdown menu - Top right corner */}
+                                  {canEdit && (
+                                    <div className="absolute top-4 right-4">
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                                            <MoreVertical className="w-4 h-4" />
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-48 p-1" align="end">
+                                          <div className="space-y-1">
+                                            <button
+                                              onClick={() => handleEditExpense(expense)}
+                                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                                            >
+                                              <Edit className="w-4 h-4" />
+                                              Edit Expense
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteExpense(expense.id)}
+                                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                              Delete Expense
+                                            </button>
                                           </div>
-                                        )}
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                  )}
 
-                                        <div className="flex items-center justify-between pr-12">
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-3 mb-2">
-                                              <h4 className="font-medium text-dark">{expense.title}</h4>
-                                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${expense.category === 'food' ? 'bg-green-100 text-green-800' :
-                                                expense.category === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
-                                                  expense.category === 'accommodation' ? 'bg-blue-100 text-blue-800' :
-                                                    expense.category === 'activity' ? 'bg-purple-100 text-purple-800' :
-                                                      expense.category === 'shopping' ? 'bg-pink-100 text-pink-800' :
-                                                        'bg-gray-100 text-dark-medium'
-                                                }`}>
-                                                {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
-                                              </span>
+                                  <div className="flex items-center justify-between pr-12">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3 mb-2">
+                                        <h4 className="font-medium text-dark">{expense.title}</h4>
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                          expense.category === 'food' ? 'bg-green-100 text-green-800' :
+                                          expense.category === 'transportation' ? 'bg-yellow-100 text-yellow-800' :
+                                          expense.category === 'accommodation' ? 'bg-blue-100 text-blue-800' :
+                                          expense.category === 'activity' ? 'bg-purple-100 text-purple-800' :
+                                          expense.category === 'shopping' ? 'bg-pink-100 text-pink-800' :
+                                          'bg-gray-100 text-dark-medium'
+                                        }`}>
+                                          {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
+                                        </span>
+                                      </div>
+                                      
+                                      {expense.description && (
+                                        <p className="text-sm text-gray-600 mb-2">{expense.description}</p>
+                                      )}
+                                      
+                                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                                        <div className="flex items-center gap-1">
+                                          <Calendar className="w-4 h-4" />
+                                          <span>{new Date(expense.expense_date).toLocaleDateString('en-US', { 
+                                            month: 'long', 
+                                            day: 'numeric', 
+                                            year: 'numeric' 
+                                          })}</span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2">
+                                          <Avatar 
+                                            name={paidByParticipant?.name || 'Unknown'} 
+                                            imageUrl={paidByParticipant?.avatar_url}
+                                            size="sm"
+                                            onClick={() => paidByParticipant && setSelectedUserId(paidByParticipant.id)}
+                                          />
+                                          <span>Paid by {paidByParticipant?.name || 'Unknown'}</span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-1">
+                                          <Users className="w-4 h-4" />
+                                          <span>Split with: {expense.split_with === 'everyone' ? 'Everyone' : 'Selected'}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Total Price - Far right, vertically centered */}
+                                    <div className="text-right">
+                                      <div className="text-2xl font-bold text-dark">
+                                        ${expense.amount.toFixed(2)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-12">
+                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <DollarSign className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <h3 className="text-lg font-medium text-dark mb-2">No expenses yet</h3>
+                            <p className="text-form mb-6">Start tracking your trip expenses to keep everyone in the loop.</p>
+                            <button
+                              onClick={() => {
+                              setShowAddExpenseModal(true);
+                            }}
+                            type="button"
+                              className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                            >
+                              Add First Expense
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                      </div>
+
+                      {/* Payment Settlement - 30% width on large screens, full width on smaller */}
+                      <div className="w-full lg:w-[30%]">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                          <div className="p-6 border-b border-gray-100">
+                            <div>
+                              <h3 className="text-lg font-semibold text-dark">Payment Settlement</h3>
+                              <p className="text-sm text-gray-500">Who should pay how much to whom</p>
+                            </div>
+                          </div>
+                          <div className="p-6">
+                            {(() => {
+                              const calculatedSettlements = calculateSettlements();
+                              const unpaidSettlements = calculatedSettlements.filter(calculatedSettlement => {
+                                return !settlements.some(settlement => 
+                                  settlement.from_user_id === calculatedSettlement.fromId &&
+                                  settlement.to_user_id === calculatedSettlement.toId &&
+                                  Math.abs(settlement.amount - calculatedSettlement.amount) < 0.01
+                                );
+                              });
+
+                              if (unpaidSettlements.length === 0) {
+                                return (
+                                  <div className="text-center py-8">
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                      <CheckCircle className="w-8 h-8 text-green-600" />
+                                    </div>
+                                    <h4 className="text-lg font-medium text-gray-900 mb-2">All Settled!</h4>
+                                    <p className="text-gray-500">Everyone's expenses are balanced. No payments needed.</p>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="space-y-3">
+                                  {unpaidSettlements.map((settlement, index) => {
+                                    const fromParticipant = participants.find(p => p.id === settlement.fromId);
+                                    const toParticipant = participants.find(p => p.id === settlement.toId);
+                                    
+                                    return (
+                                      <div
+                                        key={index}
+                                        className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                                              <DollarSign className="w-5 h-5 text-gray-600" />
                                             </div>
-
-                                            {expense.description && (
-                                              <p className="text-sm text-gray-600 mb-2">{expense.description}</p>
-                                            )}
-
-                                            <div className="flex items-center gap-4 text-sm text-gray-500">
-                                              <div className="flex items-center gap-1">
-                                                <Calendar className="w-4 h-4" />
-                                                <span>{new Date(expense.expense_date).toLocaleDateString('en-US', {
-                                                  month: 'long',
-                                                  day: 'numeric',
-                                                  year: 'numeric'
-                                                })}</span>
-                                              </div>
-
+                                            <div className="flex items-center gap-3">
                                               <div className="flex items-center gap-2">
                                                 <Avatar
-                                                  name={paidByParticipant?.name || 'Unknown'}
-                                                  imageUrl={paidByParticipant?.avatar_url}
+                                                  name={fromParticipant?.name || 'Unknown'}
+                                                  onClick={() => fromParticipant && setSelectedUserId(fromParticipant.id)}
+                                                  imageUrl={fromParticipant?.avatar_url}
                                                   size="sm"
-                                                  onClick={() => paidByParticipant && setSelectedUserId(paidByParticipant.id)}
+                                                  showTooltip={true}
                                                 />
-                                                <span>Paid by {paidByParticipant?.name || 'Unknown'}</span>
                                               </div>
-
-                                              <div className="flex items-center gap-1">
-                                                <Users className="w-4 h-4" />
-                                                <span>Split with: {expense.split_with === 'everyone' ? 'Everyone' : 'Selected'}</span>
+                                              <span className="text-gray-400">→</span>
+                                              <div className="flex items-center gap-2">
+                                                <Avatar
+                                                  name={toParticipant?.name || 'Unknown'}
+                                                  onClick={() => toParticipant && setSelectedUserId(toParticipant.id)}
+                                                  imageUrl={toParticipant?.avatar_url}
+                                                  size="sm"
+                                                  showTooltip={true}
+                                                />
                                               </div>
                                             </div>
                                           </div>
-
-                                          {/* Total Price - Far right, vertically centered */}
                                           <div className="text-right">
-                                            <div className="text-2xl font-bold text-dark">
-                                              ${expense.amount.toFixed(2)}
+                                            <div className="text-lg font-semibold text-gray-900">
+                                              ${settlement.amount.toFixed(2)}
                                             </div>
                                           </div>
                                         </div>
@@ -5449,116 +5476,14 @@ export default function TripPage() {
                                     );
                                   })}
                                 </div>
-                              ) : (
-                                <div className="text-center py-12">
-                                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <DollarSign className="w-8 h-8 text-gray-400" />
-                                  </div>
-                                  <h3 className="text-lg font-medium text-dark mb-2">No expenses yet</h3>
-                                  <p className="text-form mb-6">Start tracking your trip expenses to keep everyone in the loop.</p>
-                                  <button
-                                    onClick={() => {
-                                      setShowAddExpenseModal(true);
-                                    }}
-                                    type="button"
-                                    className="bg-[#ff5a58] hover:bg-[#ff4a47] text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                                  >
-                                    Add First Expense
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Payment Settlement - 30% width on large screens, full width on smaller */}
-                        <div className="w-full lg:w-[30%]">
-                          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                            <div className="p-6 border-b border-gray-100">
-                              <div>
-                                <h3 className="text-lg font-semibold text-dark">Payment Settlement</h3>
-                                <p className="text-sm text-gray-500">Who should pay how much to whom</p>
-                              </div>
-                            </div>
-                            <div className="p-6">
-                              {(() => {
-                                const calculatedSettlements = calculateSettlements();
-                                const unpaidSettlements = calculatedSettlements.filter(calculatedSettlement => {
-                                  return !settlements.some(settlement =>
-                                    settlement.from_user_id === calculatedSettlement.fromId &&
-                                    settlement.to_user_id === calculatedSettlement.toId &&
-                                    Math.abs(settlement.amount - calculatedSettlement.amount) < 0.01
-                                  );
-                                });
-
-                                if (unpaidSettlements.length === 0) {
-                                  return (
-                                    <div className="text-center py-8">
-                                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <CheckCircle className="w-8 h-8 text-green-600" />
-                                      </div>
-                                      <h4 className="text-lg font-medium text-gray-900 mb-2">All Settled!</h4>
-                                      <p className="text-gray-500">Everyone's expenses are balanced. No payments needed.</p>
-                                    </div>
-                                  );
-                                }
-
-                                return (
-                                  <div className="space-y-3">
-                                    {unpaidSettlements.map((settlement, index) => {
-                                      const fromParticipant = participants.find(p => p.id === settlement.fromId);
-                                      const toParticipant = participants.find(p => p.id === settlement.toId);
-
-                                      return (
-                                        <div
-                                          key={index}
-                                          className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
-                                        >
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                              <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                                                <DollarSign className="w-5 h-5 text-gray-600" />
-                                              </div>
-                                              <div className="flex items-center gap-3">
-                                                <div className="flex items-center gap-2">
-                                                  <Avatar
-                                                    name={fromParticipant?.name || 'Unknown'}
-                                                    onClick={() => fromParticipant && setSelectedUserId(fromParticipant.id)}
-                                                    imageUrl={fromParticipant?.avatar_url}
-                                                    size="sm"
-                                                    showTooltip={true}
-                                                  />
-                                                </div>
-                                                <span className="text-gray-400">→</span>
-                                                <div className="flex items-center gap-2">
-                                                  <Avatar
-                                                    name={toParticipant?.name || 'Unknown'}
-                                                    onClick={() => toParticipant && setSelectedUserId(toParticipant.id)}
-                                                    imageUrl={toParticipant?.avatar_url}
-                                                    size="sm"
-                                                    showTooltip={true}
-                                                  />
-                                                </div>
-                                              </div>
-                                            </div>
-                                            <div className="text-right">
-                                              <div className="text-lg font-semibold text-gray-900">
-                                                ${settlement.amount.toFixed(2)}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                              })()}
-                            </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
                   {activeTab === 'gallery' && trip && user && (
                     <Gallery
@@ -5573,19 +5498,19 @@ export default function TripPage() {
                     <div className="space-y-6">
                       {/* Header */}
                       <div className="flex items-center justify-between">
-                        <div>
+                                      <div>
                           <h2 className="text-2xl font-bold text-dark">Recent Activities</h2>
                           <p className="text-gray-600 mt-1">Track all important changes and updates in this trip</p>
-                        </div>
+                                      </div>
                         {trip && user && trip.owner_id === user.id && (
                           <button
                             onClick={async () => {
                               if (!trip || !user) return;
-
+                              
                               const confirmed = window.confirm(
                                 'Are you sure you want to clear all activity history? This action cannot be undone.'
                               );
-
+                              
                               if (confirmed) {
                                 const success = await clearActivityHistory(trip.id, user.id);
                                 if (success) {
@@ -5602,8 +5527,8 @@ export default function TripPage() {
                             Clear History
                           </button>
                         )}
-                      </div>
-
+                        </div>
+                        
 
                       {/* Activity Logs */}
                       {loadingActivityLogs ? (
@@ -5612,13 +5537,13 @@ export default function TripPage() {
                           <p className="text-gray-600">Loading activity history...</p>
                         </div>
                       ) : activityLogs.length > 0 ? (
-                        <div className="space-y-4">
+                              <div className="space-y-4">
                           {activityLogs.map((log) => (
                             <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
                               <div className="flex items-start gap-3">
-                                <Avatar
+                                <Avatar 
                                   name={log.user.name}
-                                  onClick={() => setSelectedUserId(log.user_id)}
+                                  onClick={() => setSelectedUserId(log.user_id)} 
                                   imageUrl={participants.find(p => p.id === log.user_id)?.avatar_url}
                                   size="md"
                                   className="flex-shrink-0"
@@ -5628,31 +5553,31 @@ export default function TripPage() {
                                     <span className="font-medium text-dark">{log.user.name}</span>
                                     <span className="text-sm text-gray-500">
                                       {new Date(log.created_at).toLocaleString()}
-                                    </span>
-                                  </div>
+                                            </span>
+                                          </div>
                                   <p className="text-gray-700 mb-1">{log.title}</p>
                                   {log.description && (
                                     <p className="text-sm text-gray-600">{log.description}</p>
                                   )}
-                                </div>
+                              </div>
                               </div>
                             </div>
                           ))}
-                        </div>
+                          </div>
                       ) : (
                         <div className="text-center py-12">
                           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Activity className="w-8 h-8 text-gray-400" />
-                          </div>
+                        </div>
                           <h3 className="text-lg font-medium text-dark mb-2">No activities yet</h3>
                           <p className="text-gray-600">Activity history will appear here as you and your collaborators make changes to the trip.</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
+          </div>
           )}
         </div>
 
@@ -5666,13 +5591,13 @@ export default function TripPage() {
         />
 
         {showUpdateInterestsModal && trip && (
-          <UpdateInterestsModal
-            open={showUpdateInterestsModal}
-            onClose={() => setShowUpdateInterestsModal(false)}
-            tripId={trip.id}
+        <UpdateInterestsModal
+          open={showUpdateInterestsModal}
+          onClose={() => setShowUpdateInterestsModal(false)}
+          tripId={trip.id}
             currentInterests={trip.interests}
-            onInterestsUpdated={handleInterestsUpdated}
-          />
+          onInterestsUpdated={handleInterestsUpdated}
+        />
         )}
 
         {showEditActivityModal && selectedActivity && (
@@ -5798,222 +5723,223 @@ export default function TripPage() {
           />
         )}
 
-        {/* AI Chat Sidebar */}
-        {showAIChatSidebar && selectedDestination && (
-          <div className="fixed top-0 right-0 h-full w-96 bg-white border-l border-gray-200 shadow-lg z-[9998] flex flex-col">
-            {/* Sidebar Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-gray-900">
-                  Ask AI about "{selectedDestination}"
-                </h3>
-              </div>
-              <button
-                onClick={closeAIChatSidebar}
-                className="cursor-pointer p-1 hover:bg-gray-200 rounded-full transition-colors"
+    {/* AI Chat Sidebar */}
+    {showAIChatSidebar && selectedDestination && (
+      <div className="fixed top-0 right-0 h-full w-96 bg-white border-l border-gray-200 shadow-lg z-[9998] flex flex-col">
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-gray-900">
+              Ask AI about "{selectedDestination}"
+            </h3>
+      </div>
+          <button
+            onClick={closeAIChatSidebar}
+            className="cursor-pointer p-1 hover:bg-gray-200 rounded-full transition-colors"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+          {aiMessages.map((message, index) => {
+            // Strip simple markdown bold markers for cleaner display in the chat bubble
+            const displayContent = message.content.replace(/\*\*(.*?)\*\*/g, '$1');
+            return (
+              <div
+                key={index}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
+                <div
+                  className={`max-w-[80%] p-3 rounded-lg ${
+                    message.role === 'user'
+                      ? 'bg-[#0B486B] text-white'
+                      : 'bg-gray-100 text-gray-900'
+                  }`}
+                >
+                  {displayContent}
+                </div>
+              </div>
+            );
+          })}
+              
+          {aiLoading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 p-3 rounded-lg flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-gray-600">Thinking...</span>
+              </div>
             </div>
+          )}
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-              {aiMessages.map((message, index) => {
-                // Strip simple markdown bold markers for cleaner display in the chat bubble
-                const displayContent = message.content.replace(/\*\*(.*?)\*\*/g, '$1');
-                return (
-                  <div
-                    key={index}
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[80%] p-3 rounded-lg ${message.role === 'user'
-                        ? 'bg-[#0B486B] text-white'
-                        : 'bg-gray-100 text-gray-900'
-                        }`}
-                    >
-                      {displayContent}
+          {attractionsLoading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 p-3 rounded-lg flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-gray-600">Finding nearby attractions...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Nearby Attractions */}
+          {nearbyAttractions.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-sm font-medium text-gray-700 mb-2">
+                Nearby Attractions ({nearbyAttractions.length})
+              </div>
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => fetchNearbyAttractions()}
+                  disabled={attractionsLoading}
+                  className="text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {attractionsLoading ? 'Refreshing...' : 'Generate more options'}
+                </button>
+              </div>
+              {nearbyAttractions.map((attraction, index) => (
+                <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-gray-900 text-sm">{attraction.name}</h4>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                          {mapAttractionCategoryToActivityType(attraction.category).charAt(0).toUpperCase() + mapAttractionCategoryToActivityType(attraction.category).slice(1)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mb-2">{attraction.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        {attraction.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {attraction.location}
+                          </span>
+                        )}
+                        {attraction.distance && (
+                          <span className="flex items-center gap-1">
+                            <Navigation className="w-3 h-3" />
+                            {attraction.distance}
+                          </span>
+                        )}
+                        {attraction.rating && (
+                          attraction.linkUrl ? (
+                            <a
+                              href={attraction.linkUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(attraction.name + ' ' + (attraction.location || trip?.destination || ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                              title="View reviews on Google Maps"
+                            >
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              <span className="text-xs font-medium text-gray-700">
+                                {attraction.rating.toFixed ? attraction.rating.toFixed(1) : attraction.rating}
+                              </span>
+                              <ExternalLink className="w-3 h-3 text-gray-400 ml-0.5" />
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              {attraction.rating}
+                            </span>
+                          )
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-
-              {aiLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 p-3 rounded-lg flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-gray-600">Thinking...</span>
-                  </div>
-                </div>
-              )}
-
-              {attractionsLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 p-3 rounded-lg flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-gray-600">Finding nearby attractions...</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Nearby Attractions */}
-              {nearbyAttractions.length > 0 && (
-                <div className="space-y-3">
-                  <div className="text-sm font-medium text-gray-700 mb-2">
-                    Nearby Attractions ({nearbyAttractions.length})
-                  </div>
-                  <div className="flex justify-end mb-2">
+                  <div className="mt-3 flex justify-end">
                     <button
-                      onClick={() => fetchNearbyAttractions()}
-                      disabled={attractionsLoading}
-                      className="text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                      onClick={() => addAttractionToIdeas(attraction)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-[#0B486B] text-white text-xs rounded-md hover:bg-[#093751] transition-colors"
                     >
-                      {attractionsLoading ? 'Refreshing...' : 'Generate more options'}
+                      <Plus className="w-3 h-3" />
+                      Add to Ideas
                     </button>
                   </div>
-                  {nearbyAttractions.map((attraction, index) => (
-                    <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-gray-900 text-sm">{attraction.name}</h4>
-                          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                            {mapAttractionCategoryToActivityType(attraction.category).charAt(0).toUpperCase() + mapAttractionCategoryToActivityType(attraction.category).slice(1)}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600 mb-2">{attraction.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          {attraction.location && (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {attraction.location}
-                            </span>
-                          )}
-                          {attraction.distance && (
-                            <span className="flex items-center gap-1">
-                              <Navigation className="w-3 h-3" />
-                              {attraction.distance}
-                            </span>
-                          )}
-                          {attraction.rating && (
-                            attraction.linkUrl ? (
-                              <a
-                                href={attraction.linkUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(attraction.name + ' ' + (attraction.location || trip?.destination || ''))}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
-                                title="View reviews on Google Maps"
-                              >
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                <span className="text-xs font-medium text-gray-700">
-                                  {attraction.rating.toFixed ? attraction.rating.toFixed(1) : attraction.rating}
-                                </span>
-                                <ExternalLink className="w-3 h-3 text-gray-400 ml-0.5" />
-                              </a>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                {attraction.rating}
-                              </span>
-                            )
-                          )}
-                        </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Nearby Accommodations */}
+          {nearbyAccommodations.length > 0 && (
+            <div className="space-y-3 mt-4">
+              <div className="text-sm font-medium text-gray-700 mb-2">
+                Nearby Accommodations ({nearbyAccommodations.length})
+              </div>
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => fetchNearbyAccommodations()}
+                  disabled={accommodationsLoading}
+                  className="text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {accommodationsLoading ? 'Refreshing...' : 'Generate more options'}
+                </button>
+              </div>
+              {nearbyAccommodations.map((item, index) => (
+                <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                          Accommodation
+                        </span>
                       </div>
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          onClick={() => addAttractionToIdeas(attraction)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-[#0B486B] text-white text-xs rounded-md hover:bg-[#093751] transition-colors"
-                        >
-                          <Plus className="w-3 h-3" />
-                          Add to Ideas
-                        </button>
+                      <p className="text-xs text-gray-600 mb-2">{item.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        {item.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {item.location}
+                          </span>
+                        )}
+                        {item.rating && (
+                          item.linkUrl ? (
+                            <a
+                              href={item.linkUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name + ' ' + (item.location || trip?.destination || ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                              title="View reviews on Google Maps"
+                            >
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              <span className="text-xs font-medium text-gray-700">
+                                {item.rating.toFixed ? item.rating.toFixed(1) : item.rating}
+                              </span>
+                              <ExternalLink className="w-3 h-3 text-gray-400 ml-0.5" />
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              {item.rating}
+                            </span>
+                          )
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Nearby Accommodations */}
-              {nearbyAccommodations.length > 0 && (
-                <div className="space-y-3 mt-4">
-                  <div className="text-sm font-medium text-gray-700 mb-2">
-                    Nearby Accommodations ({nearbyAccommodations.length})
-                  </div>
-                  <div className="flex justify-end mb-2">
+                  <div className="mt-3 flex justify-end">
                     <button
-                      onClick={() => fetchNearbyAccommodations()}
-                      disabled={accommodationsLoading}
-                      className="text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                      onClick={() => addAttractionToIdeas(item)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-[#0B486B] text-white text-xs rounded-md hover:bg-[#093751] transition-colors"
                     >
-                      {accommodationsLoading ? 'Refreshing...' : 'Generate more options'}
+                      <Plus className="w-3 h-3" />
+                      Add to Ideas
                     </button>
                   </div>
-                  {nearbyAccommodations.map((item, index) => (
-                    <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
-                          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                            Accommodation
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600 mb-2">{item.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          {item.location && (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {item.location}
-                            </span>
-                          )}
-                          {item.rating && (
-                            item.linkUrl ? (
-                              <a
-                                href={item.linkUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name + ' ' + (item.location || trip?.destination || ''))}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded transition-colors cursor-pointer"
-                                title="View reviews on Google Maps"
-                              >
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                <span className="text-xs font-medium text-gray-700">
-                                  {item.rating.toFixed ? item.rating.toFixed(1) : item.rating}
-                                </span>
-                                <ExternalLink className="w-3 h-3 text-gray-400 ml-0.5" />
-                              </a>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                {item.rating}
-                              </span>
-                            )
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          onClick={() => addAttractionToIdeas(item)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-[#0B486B] text-white text-xs rounded-md hover:bg-[#093751] transition-colors"
-                        >
-                          <Plus className="w-3 h-3" />
-                          Add to Ideas
-                        </button>
-                      </div>
-                    </div>
-                  ))}
                 </div>
-              )}
+              ))}
+            </div>
+          )}
             </div>
 
             {/* Input Area */}
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
               <div className="space-y-2">
-                {[
+            {[
                   "What are the best things to do here?",
                   "What's the best time to visit?",
                   "How much time should I spend here?",
                   "What should I know before visiting?",
                   "What are the nearby attractions?",
-                  "What are the nearby accommodations?",
+              "What are the nearby accommodations?",
                   "What are the reviews saying about this place?"
                 ].map((question, index) => (
                   <button

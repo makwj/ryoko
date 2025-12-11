@@ -411,34 +411,26 @@ export default function AuthModal({ open, mode, onClose, onModeChange }: AuthMod
             await supabase.auth.signOut();
             const banMessage = "Your account has been banned. Please contact support if you believe this is an error.";
             setError(banMessage);
-            setLoading(false);
             // Form error is shown, no need for toast
             return;
           }
 
-          // Verify session exists before proceeding
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
-            throw new Error("Session not established. Please try again.");
-          }
-
-          // Clear loading state immediately
-          setLoading(false);
-          
           toast.success("Login successful!");
-          
-          // Close the modal
           onClose();
-          
-          // Redirect immediately with full page reload
-          // Use window.location.href for reliable redirect
-          try {
-            window.location.href = '/dashboard';
-          } catch (redirectError) {
-            console.error('Redirect error:', redirectError);
-            // Fallback to router if window.location fails
-            router.push('/dashboard');
-          }
+          // Wait for auth state to update, then redirect
+          // Use a small delay to ensure the auth context has processed the state change
+          setTimeout(async () => {
+            // Verify session exists before redirecting
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              router.push('/dashboard');
+            } else {
+              // If session not found, try again after a bit more time
+              setTimeout(() => {
+                router.push('/dashboard');
+              }, 200);
+            }
+          }, 150);
         }
       }
     } catch (error: unknown) {
