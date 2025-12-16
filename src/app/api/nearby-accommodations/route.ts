@@ -1,11 +1,21 @@
+/**
+ * Nearby Accommodations API Route
+ * * Finds lodging options in close proximity to a specific landmark or destination.
+ * Resolves the precise coordinates of the target location using the Google Places Text Search API.
+ * Performs a radial search for nearby hotels and accommodations using the Places Nearby API.
+ * Enriches results with detailed metadata (ratings, photos, websites) via the Place Details API.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 
+// Nearby accommodations request interface
 interface NearbyAccommodationsRequest {
   destination: string;
   placeName: string;
   refreshToken?: string;
 }
 
+// POST - Find nearby accommodations
 export async function POST(request: NextRequest) {
   try {
     if (!process.env.GOOGLE_PLACES_API_KEY) {
@@ -53,6 +63,7 @@ export async function POST(request: NextRequest) {
       })
     );
 
+    // Map results to expected Accommodation shape
     const results = detailed.slice(0, 8).map((p: any) => {
       const d = p.__details || {};
       const address = d.formatted_address || p.vicinity || destination;

@@ -10,43 +10,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// POST - Handle invitation response
 export async function POST(request: NextRequest) {
   try {
     const { invitationId, action } = await request.json();
 
+    // Get the authorization token
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.replace('Bearer ', '');
 
+    // Check if the token is missing
     if (!token) {
       return NextResponse.json({ error: 'Missing auth token' }, { status: 401 });
     }
 
+    // Check if the server is misconfigured
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
     }
 
+    // Create the Supabase client
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
+    // Get the user
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch invitation
+    // Fetch the invitation
     const { data: invitation, error: invError } = await supabase
       .from('invitations')
       .select('*')
       .eq('id', invitationId)
       .single();
 
+    // Check if the invitation is not found
     if (invError || !invitation) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 });
     }
 
+    // Handle the invitation acceptance
     if (action === 'accept') {
       // Add user as collaborator on trip (by user id)
       const { data: trip, error: tripError } = await supabase

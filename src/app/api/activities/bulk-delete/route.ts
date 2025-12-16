@@ -19,6 +19,7 @@ function getAdminClient() {
   return createClient(supabaseUrl, serviceKey);
 }
 
+// DELETE - Bulk delete activities
 export async function DELETE(request: NextRequest) {
   try {
     const admin = getAdminClient();
@@ -29,6 +30,7 @@ export async function DELETE(request: NextRequest) {
       userId?: string; 
     };
 
+    // Check if the activityIds array is valid
     if (!Array.isArray(activityIds) || activityIds.length === 0) {
       return NextResponse.json({ error: 'activityIds array is required' }, { status: 400 });
     }

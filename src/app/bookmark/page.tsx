@@ -1,3 +1,11 @@
+/**
+ * User Bookmarks Page
+ * * Displays a personalized collection of content saved by the current user.
+ * Aggregates bookmarked social posts and shared trip guides from Supabase into categorized sections.
+ * Filters trip bookmarks to ensure only currently shared/public trips are visible.
+ * Reuses standard card components to render consistent previews of saved content.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -30,6 +38,7 @@ interface BookmarkedTrip {
   activity_count?: number;
 }
 
+// User Bookmarks Page
 export default function BookmarkPage() {
   const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<PostRecord[]>([]);

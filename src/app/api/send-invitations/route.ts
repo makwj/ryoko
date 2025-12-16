@@ -1,7 +1,15 @@
+/**
+ * Send Invitations API Route
+ * * Manages the distribution of trip collaboration invites to email addresses.
+ * Validates requester ownership of the trip using Row Level Security (RLS) policies via Supabase.
+ * Pre-cleans existing pending invitations for target emails to prevent unique constraint conflicts.
+ * Batch inserts new invitation records with 'pending' status and returns the count of sent invites.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// POST /api/send-invitations
+// POST - Send invitations
 export async function POST(request: NextRequest) {
   try {
     const { tripId, tripTitle, invites } = await request.json();
@@ -10,25 +18,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
+    // Get the authorization token
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.replace('Bearer ', '');
     if (!token) return NextResponse.json({ error: 'Missing auth token' }, { status: 401 });
 
+    // Check if the server is misconfigured
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
     }
 
-    // Use anon key with end-user bearer so RLS applies
+    // Create the Supabase client using the anonymous key
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
+    // Get the user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Verify ownership aligns with insert RLS
+    // Verify ownership aligns with insert RLS policy
     const { data: trip, error: tripErr } = await supabase
       .from('trips')
       .select('id, owner_id')
@@ -37,6 +48,7 @@ export async function POST(request: NextRequest) {
     if (tripErr || !trip) return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
     if (trip.owner_id !== user.id) return NextResponse.json({ error: 'Only owner can invite' }, { status: 403 });
 
+    // Prepare the rows for insertion
     const rows = invites
       .map((i: string | { email: string; name?: string }) => (typeof i === 'string' ? { email: i } : i))
       .filter((i: { email: string; name?: string }) => i && i.email)

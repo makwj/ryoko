@@ -1,11 +1,21 @@
+/**
+ * Nearby Attractions API Route
+ * * Discovers popular tourist spots and points of interest near a specific location.
+ * Resolves the target location's coordinates using the Google Places Text Search API.
+ * Performs multiple radial searches for various categories (e.g., museums, parks) to ensure diverse results.
+ * Filters out accommodations and enriches the remaining attractions with detailed editorial summaries and photos.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 
+// Nearby attractions request interface
 interface NearbyAttractionsRequest {
   destination: string;
   placeName: string;
   refreshToken?: string; // used to vary results (page token / seed)
 }
 
+// Attraction interface
 interface Attraction {
   name: string;
   category: string;
@@ -15,6 +25,7 @@ interface Attraction {
   distance?: string;
 }
 
+// POST - Find nearby attractions
 export async function POST(request: NextRequest) {
   try {
     const { destination, placeName, refreshToken }: NearbyAttractionsRequest = await request.json();

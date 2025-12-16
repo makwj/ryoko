@@ -78,6 +78,7 @@ interface Invitation {
   };
 }
 
+// User Dashboard Page
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -93,11 +94,12 @@ export default function Dashboard() {
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
+  // Fetch invitations for the user
   const fetchInvitations = async (user: User) => {
     try {
       setInvitationsLoading(true);
       
-      // Get user's email from auth.users (not profiles table)
+      // Get user's email from auth.users table
       const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
 
 
@@ -107,10 +109,10 @@ export default function Dashboard() {
         return;
       }
 
-      // Save profile email for realtime filter
+      // Save profile email for realtime filtering
       setProfileEmail(String(authUser.email).toLowerCase());
 
-      // First, fetch basic invitations with trip details
+      // Fetch basic invitations with trip details
       const { data: invitationsData, error } = await supabase
         .from('invitations')
         .select(`
@@ -139,7 +141,7 @@ export default function Dashboard() {
 
       
       if (invitationsData && invitationsData.length > 0) {
-        // Fetch inviter profiles for each invitation
+        // Fetch inviter profiles for each invitation and map to Invitation type
         const invitationsWithInviters: Invitation[] = await Promise.all(
           invitationsData.map(async (invitation) => {
             try {
@@ -174,7 +176,7 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch data when user is available
+  // Fetch data when user is available and set up realtime subscriptions
   useEffect(() => {
     if (authLoading) return; // Wait for auth to finish loading
     
@@ -187,7 +189,7 @@ export default function Dashboard() {
       try {
         setLoading(true);
         
-        // Fetch user's trips (both owned and collaborated)
+        // Fetch user's trips (both owned and collaborator)
         const { data: tripsData, error } = await supabase
           .from('trips')
           .select('*')
@@ -199,7 +201,7 @@ export default function Dashboard() {
           toast.error('Failed to load trips');
         } else {
           setTrips(tripsData || []);
-          // After trips load, fetch participant profiles for avatar rendering
+          // After trips load, fetch participant profiles for avatar rendering (de-duplicated)
           try {
             const allIds = new Set<string>();
             (tripsData || []).forEach((t) => {
@@ -224,7 +226,7 @@ export default function Dashboard() {
               const next: Record<string, { id: string; name: string; avatar_url?: string }[]> = {};
               (tripsData || []).forEach((t) => {
                 const ids: string[] = [t.owner_id, ...(Array.isArray(t.collaborators) ? t.collaborators : [])].filter(Boolean);
-                // De-duplicate while preserving order (owner first)
+                // De-duplicate while preserving order (owner first) and ensure valid participant objects
                 const seen = new Set<string>();
                 const participants = ids.filter((id) => {
                   if (seen.has(id)) return false;
@@ -243,7 +245,7 @@ export default function Dashboard() {
           }
         }
 
-        // Fetch user's invitations
+        // Fetch user's invitations (pending only)
         await fetchInvitations(user);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -258,7 +260,7 @@ export default function Dashboard() {
     // Refetch on window focus/visibility return
     const handleFocus = async () => {
       if (user) {
-        // Refetch trips (owner + collaborator) and invitations on focus
+        // Refetch trips (owner + collaborator) and invitations (pending only) on focus
         const { data: tripsData, error } = await supabase
           .from('trips')
           .select('*')
@@ -282,7 +284,7 @@ export default function Dashboard() {
     };
   }, [user, authLoading, router]);
 
-  // Realtime: listen for invitation changes (insert/update/delete) for this user's email
+  // Realtime: listen for invitation changes (insert/update/delete) for this user's email (pending only)
   useEffect(() => {
     if (!user || !profileEmail) return;
 
@@ -297,20 +299,21 @@ export default function Dashboard() {
         if (!newRow?.invitee_email) return;
         if (String(newRow.invitee_email).toLowerCase() !== profileEmail) return;
         try {
-          // Fetch the trip details for this single invite
+          // Fetch the trip details for this single invite and map to Invitation type
           const { data: trip } = await supabase
             .from('trips')
             .select('id, title, destination, start_date, end_date, description, owner_id')
             .eq('id', newRow.trip_id)
             .single();
           
-          // Fetch inviter profile
+          // Fetch inviter profile and map to Invitation type
           const { data: inviter } = await supabase
             .from('profiles')
             .select('id, name, avatar_url')
             .eq('id', newRow.inviter_id)
             .single();
           
+          // Map to Invitation type
           const inviteWithTrip: Invitation = {
             id: newRow.id,
             trip_id: newRow.trip_id,

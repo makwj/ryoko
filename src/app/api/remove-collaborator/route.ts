@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// POST - Remove collaborator
 export async function POST(request: NextRequest) {
   try {
     const { tripId, collaboratorId } = await request.json();
@@ -16,13 +17,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing tripId or collaboratorId' }, { status: 400 });
     }
 
+    // Get the authorization token
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.replace('Bearer ', '');
 
+    // Check if the token is missing
     if (!token) {
       return NextResponse.json({ error: 'Missing auth token' }, { status: 401 });
     }
 
+    // Check if the server is misconfigured
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
     }
