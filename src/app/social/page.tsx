@@ -1,3 +1,12 @@
+/**
+ * Social Feed Page
+ * * The core interface for the application's community features, blending social networking with travel discovery.
+ * Implements a tabbed feed system (Following, Explore, Your Posts) to organize content consumption.
+ * Aggregates diverse content types, seamlessly mixing user status updates with shared trip itineraries.
+ * Features real-time data synchronization using Supabase channels for live content updates.
+ * Provides comprehensive content management tools including post creation, editing, deletion, and user search.
+ */
+
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +23,7 @@ import SharedTripCard from "@/components/SharedTripCard";
 import UserProfileDialog from "@/components/UserProfileDialog";
 import EditPostModal from "@/components/EditPostModal";
 
+// Social Feed Page
 function SocialPageInner() {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
@@ -42,7 +52,7 @@ function SocialPageInner() {
     getUser();
   }, [router]);
 
-  // Open composer if attachTripId is passed in URL
+  // Open composer if attachTripId is passed in URL (from trip page)
   useEffect(() => {
     const tid = searchParams?.get('attachTripId');
     if (tid) {
@@ -51,6 +61,7 @@ function SocialPageInner() {
     }
   }, [searchParams]);
 
+  // Load featured content (posts and trips)
   const loadFeatured = useCallback(async () => {
     const postsPromise = supabase
       .from('posts')

@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Chat request interface
 interface ChatRequest {
   tripData: {
     destination: string;
@@ -26,6 +27,7 @@ interface ChatRequest {
   };
 }
 
+// POST - Chat recommendations
 export async function POST(request: NextRequest) {
   try {
     // Check environment variables

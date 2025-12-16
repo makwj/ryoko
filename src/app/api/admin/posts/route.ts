@@ -1,6 +1,15 @@
+/**
+ * Admin Posts API Route
+ * * Unified endpoint for retrieving and managing social content (posts and guides).
+ * Aggregates both user posts and shared trip guides into a single, chronologically sorted feed.
+ * Enriches content with author details and reaction counts (likes) for analytics display.
+ * Provides administrative controls to toggle "featured" status and permanently delete posts along with their associated storage assets.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Get the Supabase admin client
 async function getAdminClient() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Server misconfigured');
@@ -8,6 +17,7 @@ async function getAdminClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+// Ensure the user is an admin
 async function ensureAdmin(req: NextRequest) {
   const supabase = await getAdminClient();
   const auth = req.headers.get('authorization') || '';
@@ -18,6 +28,7 @@ async function ensureAdmin(req: NextRequest) {
   return profile?.role === 'admin';
 }
 
+// GET - Fetch posts
 export async function GET(req: NextRequest) {
   try {
     const ok = await ensureAdmin(req);
@@ -56,6 +67,7 @@ export async function GET(req: NextRequest) {
         })()
       : Promise.resolve([]);
 
+    // Fetch guides
     const guidesPromise = (type === 'guide' || type === 'all')
       ? (async () => {
           let query = supabase.from('trips').select('id, owner_id, title, destination, share_caption, created_at, updated_at, is_featured_social').eq('shared_to_social', true).eq('archived', false);
@@ -85,7 +97,9 @@ export async function GET(req: NextRequest) {
         })()
       : Promise.resolve([]);
 
+    // Combine posts and guides
     const [posts, guides] = await Promise.all([postsPromise, guidesPromise]);
+    // Sort by created_at
     const combined = [...posts, ...guides].sort((a, b) => new Date(b.created_at as any).getTime() - new Date(a.created_at as any).getTime());
     return NextResponse.json({ items: combined });
   } catch (e: unknown) {
@@ -93,6 +107,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// PATCH - Update post featured status
 export async function PATCH(req: NextRequest) {
   try {
     const ok = await ensureAdmin(req);
@@ -108,6 +123,7 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+// DELETE - Delete post
 export async function DELETE(req: NextRequest) {
   try {
     const ok = await ensureAdmin(req);

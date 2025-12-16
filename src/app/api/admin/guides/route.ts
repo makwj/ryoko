@@ -1,6 +1,15 @@
+/**
+ * Admin Guides API Route
+ * * Manages the retrieval and feature status of shared trip guides for the administration interface.
+ * Implements strict Role-Based Access Control (RBAC) to ensure only authorized admins can access these endpoints.
+ * Provides search functionality and detailed data retrieval for guides, including resolving author profiles.
+ * Handles patch requests to toggle "featured" visibility for guides on the home page and social feeds.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Get the Supabase admin client
 async function getAdminClient() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Server misconfigured');
@@ -8,6 +17,7 @@ async function getAdminClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+// Ensure the user is an admin
 async function ensureAdmin(req: NextRequest) {
   const supabase = await getAdminClient();
   const auth = req.headers.get('authorization') || '';
@@ -18,6 +28,7 @@ async function ensureAdmin(req: NextRequest) {
   return profile?.role === 'admin';
 }
 
+// GET - Fetch guides
 export async function GET(req: NextRequest) {
   try {
     const ok = await ensureAdmin(req);
@@ -56,6 +67,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// PATCH - Update guide featured status
 export async function PATCH(req: NextRequest) {
   try {
     const ok = await ensureAdmin(req);

@@ -1,3 +1,11 @@
+/**
+ * Bulk Delete Activities API Route
+ * * Server-side endpoint for removing multiple activities from a trip simultaneously.
+ * Utilizes the Supabase Service Role key to perform privileged database deletions.
+ * Fetches activity metadata prior to deletion to ensure accurate audit logging.
+ * Integrates with ActivityLogger to record the "activities_bulk_deleted" event with details like activity titles and count.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { ActivityLogger } from '@/lib/activityLogger';

@@ -1,3 +1,11 @@
+/**
+ * User Profile Page
+ * * Displays the public profile of a specific user identified by the URL parameter.
+ * Fetches and presents the user's basic profile information (name, avatar, etc.).
+ * Lists the user's social posts with support for images and formatting.
+ * Showcases trips where the user is either the owner or a collaborator, filtering out archived ones.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,6 +15,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
 import PostCard, { PostRecord } from "@/components/PostCard";
 
+// User Profile Page
 export default function UserProfilePage() {
   const params = useParams<{ userId: string }>();
   const [profile, setProfile] = useState<any>(null);
@@ -15,13 +24,16 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     const load = async () => {
+      // Fetch user profile
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', params.userId).single();
       setProfile(prof);
+      // Fetch user's social posts
       const { data: userPosts } = await supabase
         .from('posts')
         .select('*, author:profiles(name, avatar_url), images:post_images(*)')
         .eq('author_id', params.userId)
         .order('created_at', { ascending: false });
+      // Map to PostRecord type
       setPosts((userPosts || []).map((row: any) => ({
         id: row.id,
         author_id: row.author_id,
@@ -35,12 +47,14 @@ export default function UserProfilePage() {
         images: (row.images || []).sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0)),
       })));
 
+      // Fetch trips where the user is either the owner or a collaborator (not archived)
       const { data: participated } = await supabase
         .from('trips')
         .select('*')
         .eq('archived', false)
         .or(`owner_id.eq.${params.userId},collaborators.cs.{${params.userId}}`)
         .order('start_date', { ascending: false });
+      // Map to Trip type
       setTrips(participated || []);
     };
     load();

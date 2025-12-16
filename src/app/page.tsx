@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Landing Page Component
  * 
@@ -8,6 +6,9 @@
  * Handles user authentication flow with login/register modals.
  * Features smooth animations, responsive design, and email verification handling.
  */
+
+
+"use client";
 
 import { motion } from "framer-motion";
 import Image from "next/image";

@@ -1,5 +1,14 @@
+/**
+ * Link Preview API Route
+ * * Server-side endpoint to fetch and parse Open Graph metadata for external URLs.
+ * Validates URLs and restricts requests to HTTP/HTTPS protocols to prevent SSRF.
+ * Extracts title, description, and preview images using lightweight regex parsing to ensure performance.
+ * Includes timeout handling and data sanitization (truncating long text) for reliable front-end display.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 
+// GET - Fetch link preview
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -9,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // Validate URL
+    // Validate the URL
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(url);
@@ -17,12 +26,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
     }
 
-    // Only allow HTTP/HTTPS URLs
+    // Only allow HTTP/HTTPS protocols
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
       return NextResponse.json({ error: 'Only HTTP/HTTPS URLs are allowed' }, { status: 400 });
     }
 
-    // Fetch the page content
+    // Fetch the page content using a user agent
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; LinkPreviewBot/1.0)',

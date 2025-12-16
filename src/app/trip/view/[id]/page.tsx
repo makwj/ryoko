@@ -1,3 +1,11 @@
+/**
+ * View Shared Trip Page
+ * * Displays a read-only view of a trip itinerary shared by another user via a public link.
+ * Fetches and organizes trip details, author profiles, and activities into a chronological timeline.
+ * Dynamically resolves destination background images using Unsplash or Pixabay APIs when custom images are missing.
+ * Allows authenticated users to clone the entire itinerary to their own dashboard or bookmark it for future reference.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,6 +20,7 @@ import Image from "next/image";
 import LinkPreview from "@/components/LinkPreview";
 import UserProfileDialog from "@/components/UserProfileDialog";
 
+// Shared trip interface
 interface SharedTrip {
   id: string;
   title: string;
@@ -29,6 +38,7 @@ interface SharedTrip {
   };
 }
 
+// Activity interface
 interface Activity {
   id: string;
   day_number: number;
@@ -40,6 +50,7 @@ interface Activity {
   link_url?: string | null;
 }
 
+// View shared trip page
 export default function ViewSharedTripPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -59,7 +70,7 @@ export default function ViewSharedTripPage() {
     const loadTrip = async () => {
       if (!params.id) return;
 
-      // Load trip - allow viewing via shareable link (no shared_to_social requirement)
+      // Load trip - allow viewing via shareable link (no shared_to_social requirement) - Public access
       const { data: tripData, error: tripError } = await supabase
         .from('trips')
         .select('*')
@@ -73,7 +84,7 @@ export default function ViewSharedTripPage() {
         return;
       }
 
-      // Fetch author separately
+      // Fetch author separately - Public access
       const { data: authorData } = await supabase
         .from('profiles')
         .select('name, avatar_url')
@@ -85,7 +96,7 @@ export default function ViewSharedTripPage() {
         author: authorData || null,
       } as any);
 
-      // Load activities
+      // Load activities - Public access
       const { data: activitiesData, error: activitiesError } = await supabase
         .from('activities')
         .select('*')
@@ -104,7 +115,7 @@ export default function ViewSharedTripPage() {
     loadTrip();
   }, [params.id, router]);
 
-  // Check auth status once for conditional UI (copy/bookmark/back link)
+  // Check auth status once for conditional UI (copy/bookmark/back link) - Public access
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -122,7 +133,7 @@ export default function ViewSharedTripPage() {
     };
   }, []);
 
-  // Fetch destination image from Unsplash/Pixabay if no trip_image_url
+  // Fetch destination image from Unsplash/Pixabay if no trip_image_url - Public access
   useEffect(() => {
     const handleFetchDestinationImage = async () => {
       if (!trip) return;
@@ -169,12 +180,12 @@ export default function ViewSharedTripPage() {
     handleFetchDestinationImage();
   }, [trip?.id, trip?.trip_image_url, trip?.destination]);
 
-  // Reset image error when trip changes
+  // Reset image error when trip changes - Public access
   useEffect(() => {
     setImageError(false);
   }, [trip?.id, trip?.trip_image_url]);
 
-  // Check if trip is bookmarked
+  // Check if trip is bookmarked - Public access
   useEffect(() => {
     const checkBookmark = async () => {
       if (!trip) return;
@@ -204,7 +215,7 @@ export default function ViewSharedTripPage() {
         return;
       }
 
-      // Fetch all activities
+      // Fetch all activities - Public access
       const { data: originalActivities, error: activitiesError } = await supabase
         .from('activities')
         .select('*')
@@ -215,7 +226,7 @@ export default function ViewSharedTripPage() {
 
       if (activitiesError) throw activitiesError;
 
-      // Create new trip
+      // Create new trip - Public access
       const { data: newTrip, error: createError } = await supabase
         .from('trips')
         .insert({
@@ -236,7 +247,7 @@ export default function ViewSharedTripPage() {
 
       if (createError || !newTrip) throw createError;
 
-      // Copy all activities
+      // Copy all activities - Public access
       if (originalActivities && originalActivities.length > 0) {
         const activitiesToInsert = originalActivities.map(activity => ({
           trip_id: newTrip.id,
@@ -299,6 +310,7 @@ export default function ViewSharedTripPage() {
     }
   };
 
+  // Group activities by day - Public access
   const groupActivitiesByDay = () => {
     const grouped: Record<number, Activity[]> = {};
     activities.forEach(activity => {
@@ -310,12 +322,14 @@ export default function ViewSharedTripPage() {
     return grouped;
   };
 
+  // Time period labels - Public access
   const timePeriodLabels: Record<string, string> = {
     morning: 'Morning',
     afternoon: 'Afternoon',
     evening: 'Evening',
   };
 
+  // Get type color - Public access
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'transportation': return 'bg-yellow-100 text-yellow-800';
@@ -326,12 +340,13 @@ export default function ViewSharedTripPage() {
     }
   };
 
+  // Render navbar - Public access
   const renderNavbar = () => {
     if (isLoggedIn) {
       return <Navbar />;
     }
     
-    // Landing page style navbar for visitors (without navigation links on view page)
+    // Landing page style navbar for visitors (without navigation links on view page) - Public access
     return (
       <motion.header
         className="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100"
@@ -382,6 +397,7 @@ export default function ViewSharedTripPage() {
     );
   };
 
+  // Loading state - Public access
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -393,6 +409,7 @@ export default function ViewSharedTripPage() {
     );
   }
 
+  // Trip not found - Public access
   if (!trip) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -404,9 +421,11 @@ export default function ViewSharedTripPage() {
     );
   }
 
+  // Grouped activities - Public access
   const groupedActivities = groupActivitiesByDay();
   const days = Object.keys(groupedActivities).map(Number).sort((a, b) => a - b);
 
+  // Render trip page - Public access
   return (
       <div className="min-h-screen bg-gray-50">
         {renderNavbar()}
@@ -600,6 +619,7 @@ export default function ViewSharedTripPage() {
           </div>
         </div>
 
+        {/* User profile dialog */}
         {selectedUserId && (
           <UserProfileDialog 
             userId={selectedUserId} 

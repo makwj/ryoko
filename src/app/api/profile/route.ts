@@ -1,6 +1,15 @@
+/**
+ * User Profile API Route
+ * * Manages the retrieval and modification of user profile information.
+ * Provides a GET endpoint to fetch specific public user details via unique ID.
+ * Enables users to update their display name and avatar URL through PUT requests.
+ * Utilizes Supabase `upsert` functionality to seamlessly handle both profile creation and updates.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+// GET - Fetch user profile
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -28,6 +37,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// PUT - Update user profile
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -37,6 +47,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
+    // Prepare the update data
     const updateData: any = {
       updated_at: new Date().toISOString()
     };

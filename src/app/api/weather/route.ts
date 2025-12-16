@@ -23,8 +23,7 @@ interface WeatherData {
   precipitation: number;
 }
 
-// Removed OpenWeatherMap types and helpers to avoid fallback to fabricated data
-
+// GET - Get weather forecast
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -47,8 +46,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// OpenWeatherMap integration removed per request
-
+// Get weather forecast from WeatherAPI
 async function getWeatherAPIForecast(destination: string, startDate: string, endDate: string) {
   // Get WeatherAPI key from environment variables
   const apiKey = process.env.WEATHERAPI_API_KEY;
@@ -61,7 +59,7 @@ async function getWeatherAPIForecast(destination: string, startDate: string, end
   }
   
   try {
-    // WeatherAPI provides up to 14 days of forecast
+    // WeatherAPI provides up to 14 days of forecast (max allowed by API)
     const forecastUrl = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(destination)}&days=14&aqi=no&alerts=no`;
     
     const response = await fetch(forecastUrl);
@@ -70,6 +68,7 @@ async function getWeatherAPIForecast(destination: string, startDate: string, end
     }
 
     const forecastData = await response.json();
+    // Process the forecast data
     const weatherData = processWeatherAPIData(forecastData, startDate, endDate);
 
     if (!weatherData || weatherData.length === 0) {

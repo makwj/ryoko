@@ -1,6 +1,15 @@
+/**
+ * Image Likes API Route
+ * * Manages user engagement (likes) for individual images within the platform.
+ * Provides a GET endpoint to retrieve the total like count and check if the current user has liked the image.
+ * Implements a toggle mechanism via POST to seamlessly add or remove likes based on current status.
+ * Uses the Supabase Service Role client to ensure secure and reliable database updates.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Get the Supabase admin client
 function getAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
@@ -10,6 +19,7 @@ function getAdminClient() {
   return createClient(supabaseUrl, serviceKey);
 }
 
+// GET - Fetch likes
 export async function GET(request: NextRequest) {
   try {
     const admin = getAdminClient();
@@ -39,6 +49,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST - Add a new like
 export async function POST(request: NextRequest) {
   try {
     const admin = getAdminClient();
@@ -100,6 +111,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// OPTIONS - Return the allowed methods
 export async function OPTIONS() {
   return NextResponse.json({}, { status: 200 });
 }

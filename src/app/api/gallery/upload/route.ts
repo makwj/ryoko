@@ -10,8 +10,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// POST - Upload image to gallery
 export async function POST(request: NextRequest) {
   try {
+    // Get the Supabase admin client
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
     if (!supabaseUrl || !serviceKey) {

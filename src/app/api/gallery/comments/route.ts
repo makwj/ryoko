@@ -1,6 +1,15 @@
+/**
+ * Image Comments API Route
+ * * Manages the retrieval, creation, and deletion of user comments attached to specific images.
+ * Utilizes the Supabase Service Role client to securely perform database operations.
+ * Provides a GET endpoint to fetch chronological discussion threads for a given image ID.
+ * Includes POST and DELETE methods to handle user interactions and content moderation.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Get the Supabase admin client
 function getAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
@@ -10,6 +19,7 @@ function getAdminClient() {
   return createClient(supabaseUrl, serviceKey);
 }
 
+// GET - Fetch comments
 export async function GET(request: NextRequest) {
   try {
     const admin = getAdminClient();
@@ -45,6 +55,7 @@ export async function OPTIONS() {
   return NextResponse.json({}, { status: 200 });
 }
 
+// POST - Add a new comment
 export async function POST(request: NextRequest) {
   try {
     const admin = getAdminClient();
@@ -86,6 +97,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// DELETE - Delete a comment
 export async function DELETE(request: NextRequest) {
   try {
     const admin = getAdminClient();

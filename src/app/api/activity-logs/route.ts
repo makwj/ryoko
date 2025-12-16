@@ -1,3 +1,11 @@
+/**
+ * Activity Logs API Route
+ * * Manages the retrieval, creation, and deletion of trip activity audit logs.
+ * Provides a paginated GET endpoint to fetch history with resolved user profiles.
+ * Allows recording new system events via POST with detailed metadata support.
+ * Includes a secure DELETE endpoint restricted to trip owners for clearing activity history.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 

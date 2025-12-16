@@ -1,3 +1,12 @@
+/**
+ * Individual Trip Page Component
+ * * Central hub for managing all aspects of a specific trip, serving as the primary workspace for users and collaborators.
+ * Implements a comprehensive tabbed interface covering Itinerary, Idea Board, AI Recommendations, Expenses, Gallery, and Activity Logs.
+ * Features a drag-and-drop itinerary builder using `dnd-kit` supporting cross-day and time-period reordering.
+ * Integrates Supabase Realtime for live user presence, cursor tracking, and instant data synchronization across clients.
+ * Includes advanced financial tools for expense tracking, split calculations, and debt settlement optimization.
+ */
+
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -103,6 +112,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Trip interface
 interface Trip {
   id: string;
   title: string;
@@ -121,6 +131,7 @@ interface Trip {
   created_at: string;
 }
 
+// Activity interface
 interface Activity {
   id: string;
   trip_id: string;
@@ -138,6 +149,7 @@ interface Activity {
   updated_at: string;
 }
 
+// Expense interface
 interface Expense {
   id: string;
   trip_id: string;
@@ -154,6 +166,7 @@ interface Expense {
   updated_at: string;
 }
 
+// Participant interface
 interface Participant {
   id: string;
   name: string;
@@ -161,12 +174,14 @@ interface Participant {
   avatar_url?: string;
 }
 
+// Expense summary interface
 interface ExpenseSummary {
   totalExpenses: number;
   userPaid: number;
   userShare: number;
 }
 
+// Idea interface
 interface Idea {
   id: string;
   trip_id: string;
@@ -185,6 +200,7 @@ interface Idea {
   updated_at: string;
 }
 
+// Idea vote interface
 interface IdeaVote {
   id: string;
   idea_id: string;
@@ -193,6 +209,7 @@ interface IdeaVote {
   created_at: string;
 }
 
+// Idea comment interface
 interface IdeaComment {
   id: string;
   idea_id: string;
@@ -202,6 +219,7 @@ interface IdeaComment {
   updated_at: string;
 }
 
+// Settlement interface
 interface Settlement {
   id: string;
   trip_id: string;
@@ -214,6 +232,7 @@ interface Settlement {
   updated_at: string;
 }
 
+// Trip recommendation interface
 interface TripRecommendation {
   id: string;
   title: string;
@@ -240,7 +259,7 @@ interface TripRecommendation {
   practical_tips?: string;
 }
 
-// Helper function to get weather icon component
+// Get weather icon component
 const getWeatherIconComponent = (iconName: string) => {
   const iconMap: Record<string, React.ReactElement> = {
     'sun': <Sun className="w-4 h-4" />,
@@ -258,7 +277,7 @@ const getWeatherIconComponent = (iconName: string) => {
   return iconMap[iconName] || <Cloud className="w-4 h-4" />;
 };
 
-// Droppable Day Component
+// Droppable day component
 function DroppableDay({ 
   day, 
   isActive,
@@ -380,7 +399,7 @@ function DroppableDay({
   );
 }
 
-// Drop Indicator Component
+// Drop indicator component
 function DropIndicator({ isVisible }: { isVisible: boolean }) {
   if (!isVisible) return null;
   
@@ -390,7 +409,7 @@ function DropIndicator({ isVisible }: { isVisible: boolean }) {
 }
 
 
-// Insert Drop Zone Component
+// Insert drop zone component
 function InsertDropZone({ 
   id, 
   isVisible, 
@@ -418,7 +437,7 @@ function InsertDropZone({
   );
 }
 
-// Time Period Section Component
+// Time period section component
 function TimePeriodSection({ 
   period, 
   periodActivities, 
@@ -511,7 +530,7 @@ function TimePeriodSection({
   );
 }
 
-// Sortable Activity Component
+// Sortable activity item component
 function SortableActivityItem({ 
   activity, 
   isSelected, 

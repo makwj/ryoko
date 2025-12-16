@@ -1,3 +1,11 @@
+/**
+ * User Dashboard Page
+ * * Central hub for managing personal and collaborative travel plans.
+ * Segregates trips into Active, Completed, and Archived categories with bulk management capabilities (select/delete).
+ * Implements Supabase Realtime subscriptions to instantly reflect incoming trip invitations.
+ * Provides interactive invitation cards allowing users to accept or decline collaboration requests.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";

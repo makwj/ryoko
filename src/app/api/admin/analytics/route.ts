@@ -1,3 +1,11 @@
+/**
+ * Admin Analytics API Route
+ * * Retrieves high-level system statistics for the administrative dashboard.
+ * Executes concurrent database queries to fetch total and daily counts for users and posts.
+ * Aggregates data on shared trip guides to track platform content growth.
+ * Utilizes the Supabase Service Role client for privileged access to global metrics.
+ */
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
